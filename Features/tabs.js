@@ -7,8 +7,89 @@ const NavigationHistory = require("./navigation-history");
 const FindDialogManager = require("./find-dialog");
 const focusMode = require("./focus-mode");
 
+const YOUTUBE_SPACE_FIX_JS = `
+(() => {
+    if (window.__inkYouTubeSpaceFix) return;
+    window.__inkYouTubeSpaceFix = true;
+
+    let lastSpace = null;
+
+    function isEditable(el) {
+        if (!el) return false;
+        if (el.isContentEditable) return true;
+        const tag = el.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+        const role = el.getAttribute && el.getAttribute('role');
+        return role && role.toLowerCase() === 'textbox';
+    }
+
+    function isYouTubeFullscreen() {
+        const player = document.querySelector('.html5-video-player');
+        return !!(
+            document.fullscreenElement ||
+            document.documentElement.classList.contains('ytp-fullscreen') ||
+            document.body.classList.contains('ytp-fullscreen') ||
+            (player && player.classList.contains('ytp-fullscreen'))
+        );
+    }
+
+    function toggleYouTubeFullscreen() {
+        const player = document.querySelector('#movie_player') ||
+                       document.querySelector('.html5-video-player');
+        if (isYouTubeFullscreen()) {
+            // Exit: try HTML5 API first, then player API, then button
+            if (document.fullscreenElement) {
+                document.exitFullscreen().catch(() => {});
+            } else if (player && typeof player.exitFullscreen === 'function') {
+                try { player.exitFullscreen(); } catch {}
+            } else {
+                const btn = document.querySelector('.ytp-fullscreen-button');
+                if (btn) btn.click();
+            }
+        } else {
+            // Enter: try player requestFullscreen, then button
+            if (player && typeof player.requestFullscreen === 'function') {
+                player.requestFullscreen().catch(() => {});
+            } else {
+                const btn = document.querySelector('.ytp-fullscreen-button');
+                if (btn) btn.click();
+            }
+        }
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.repeat) return;
+        if (e.code !== 'Space' && e.key !== ' ') return;
+        if (isEditable(e.target) || isEditable(document.activeElement)) return;
+        const video = document.querySelector('video');
+        if (!video) return;
+        lastSpace = {
+            wasPaused: video.paused,
+            time: Date.now(),
+        };
+    }, true);
+
+    document.addEventListener('keyup', (e) => {
+        if (e.code !== 'Space' && e.key !== ' ') return;
+        if (isEditable(e.target) || isEditable(document.activeElement)) return;
+        const video = document.querySelector('video');
+        if (!video || !lastSpace) return;
+        // If YouTube already handled the spacebar, don't toggle again.
+        if (video.paused === lastSpace.wasPaused) {
+            if (video.paused) video.play();
+            else video.pause();
+        }
+        lastSpace = null;
+    }, true);
+
+    window.__inkYouTubeExitFullscreen = () => {
+        if (isYouTubeFullscreen()) toggleYouTubeFullscreen();
+    };
+})();
+`;
+
 class Tabs {
-    constructor(mainWindow, History, Persistence) {
+    constructor(mainWindow, History, Persistence, options = {}) {
         this.mainWindow = mainWindow
         this.history = History
         this.persistence = Persistence || null
@@ -22,7 +103,11 @@ class Tabs {
         this.allowClose = false
         this.closePreventionActive = false
         this.isHtmlFullScreen = false
+        this.htmlFullScreenRequested = false
+        this.userFullScreenActive = false
         this.pinnedTabs = new Set()
+        this.privateTabs = new Set()
+        this.isPrivateWindow = options?.private ?? false
         this.tabOrder = []
         this.closedTabHistory = [] // stack of {url, title} for "Reopen Closed Tab"
         
@@ -30,13 +115,20 @@ class Tabs {
             this.resizeAllTabs()
         })
         
+        this.mainWindow.on('enter-full-screen', () => {
+            if (!this.isHtmlFullScreen) this.userFullScreenActive = true;
+        });
+
         this.mainWindow.on('leave-full-screen', () => {
+            this.userFullScreenActive = false;
             this.isHtmlFullScreen = false;
+            this.htmlFullScreenRequested = false;
             this.resizeAllTabs();
             // Force any HTML fullscreen elements to exit if the OS window left fullscreen
             this.tabMap.forEach(tab => {
                 if (tab && tab.webContents) {
                     tab.webContents.executeJavaScript('if (document.fullscreenElement) document.exitFullscreen();').catch(() => {});
+                    this.applyYouTubeExitFullscreen(tab);
                 }
             });
         });
@@ -83,17 +175,43 @@ class Tabs {
         };
     }
 
-    createLazyTab(url, title, isPinned) {
+    _getPrivateSession() {
+        const { session } = require('electron');
+        return session.fromPartition('private', { cache: false });
+    }
+
+    // Called after removing a private tab — wipes the session when no private tabs remain.
+    _maybeWipePrivateSession() {
+        if (this.privateTabs.size > 0) return; // other private tabs still open
+        try {
+            const { session } = require('electron');
+            const priv = session.fromPartition('private', { cache: false });
+            priv.clearStorageData();          // cookies, localStorage, IndexedDB, etc.
+            priv.clearCache();                // in-memory HTTP cache
+            priv.clearHostResolverCache();    // DNS cache
+            priv.clearAuthCache();            // HTTP auth credentials
+        } catch {}
+    }
+
+    createLazyTab(url, title, isPinned, isPrivate = false) {
         const tabIndex = this.nextTabIndex;
         this.nextTabIndex++;
-        
-        const tab = new WebContentsView({
-            webPreferences: {
-                preload: path.join(__dirname, '../preload/preload.js'),
-                contextIsolation: true,
-                nodeIntegration: false
-            }
-        });
+        const makePrivate = isPrivate || this.isPrivateWindow;
+
+        const webPrefs = {
+            preload: path.join(__dirname, '../preload/preload.js'),
+            contextIsolation: true,
+            nodeIntegration: false,
+        };
+        if (makePrivate) {
+            webPrefs.session        = this._getPrivateSession();
+            webPrefs.v8CacheOptions = 'none'; // disable V8 bytecode cache for private tabs
+        }
+
+        const tab = new WebContentsView({ webPreferences: webPrefs });
+        if (makePrivate) {
+            tab.webContents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
+        }
         
         this.mainWindow.contentView.addChildView(tab);
         this.raiseFloatingViews();
@@ -127,13 +245,17 @@ class Tabs {
         this.tabMap.set(tabIndex, tab);
         this.tabUrls.set(tabIndex, url || 'newtab');
         this.tabOrder.push(tabIndex);
-        
+
         if (isPinned) {
             this.pinnedTabs.add(tabIndex);
         }
+        if (makePrivate) {
+            this.privateTabs.add(tabIndex);
+        }
+        tab.isPrivate = makePrivate;
 
         tab.lazyLoaded = false;
-        
+
         let tempTitle = title || url || 'New Tab';
         if ((!title || title === 'New Tab' || title === '') && url && url.startsWith('http')) {
             try { tempTitle = new URL(url).hostname; } catch {}
@@ -148,6 +270,7 @@ class Tabs {
             if (windowData) {
                 focusMode.applyToTab(windowData, tab.webContents, tab.webContents.getURL?.() ?? '');
             }
+            this.applyYouTubeSpaceFix(tab, tab.webContents.getURL?.() ?? '');
             const title = tab.webContents.getTitle();
             if (title) {
                 tab.lazyTitle = title;
@@ -160,6 +283,7 @@ class Tabs {
             title: tab.lazyTitle,
             totalTabs: this.tabMap.size,
             active: false,
+            private: makePrivate,
         });
         this.sendTabUpdate(tabIndex, tab, url || 'newtab', tab.lazyTitle);
 
@@ -229,19 +353,27 @@ class Tabs {
         this.shortcuts = shortcuts;
     }
 
-    createTab(insertAfterIndex = null, shouldActivate = true){
+    createTab(insertAfterIndex = null, shouldActivate = true, isPrivate = false) {
         const tabIndex = this.nextTabIndex
         this.nextTabIndex++
+        const makePrivate = isPrivate || this.isPrivateWindow;
 
-        const tab = new WebContentsView({
-            webPreferences: {
-                preload: path.join(__dirname, '../preload/preload.js'),
-                contextIsolation: true,
-                nodeIntegration: false
-            }
-        })
+        const webPrefs = {
+            preload: path.join(__dirname, '../preload/preload.js'),
+            contextIsolation: true,
+            nodeIntegration: false,
+        };
+        if (makePrivate) {
+            webPrefs.session        = this._getPrivateSession();
+            webPrefs.v8CacheOptions = 'none';
+        }
+
+        const tab = new WebContentsView({ webPreferences: webPrefs })
+        if (makePrivate) {
+            tab.webContents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
+        }
         this.mainWindow.contentView.addChildView(tab)
-        tab.webContents.loadFile('renderer/NewTab/index.html')
+        tab.webContents.loadFile(makePrivate ? 'renderer/NewTab/private.html' : 'renderer/NewTab/index.html')
         this.raiseFloatingViews()
 
         UserAgent.setupTab(tab)
@@ -269,6 +401,10 @@ class Tabs {
 
         this.tabMap.set(tabIndex, tab)
         this.tabUrls.set(tabIndex, 'newtab')
+        if (makePrivate) {
+            this.privateTabs.add(tabIndex);
+        }
+        tab.isPrivate = makePrivate;
         const afterPos = (insertAfterIndex !== null && insertAfterIndex !== undefined)
             ? this.tabOrder.indexOf(insertAfterIndex)
             : -1;
@@ -290,6 +426,7 @@ class Tabs {
             totalTabs: this.tabMap.size,
             afterIndex: afterPos !== -1 ? insertAfterIndex : null,
             active: shouldActivate,
+            private: makePrivate,
         })
 
         if (shouldActivate) {
@@ -308,6 +445,7 @@ class Tabs {
             if (windowData) {
                 focusMode.applyToTab(windowData, tab.webContents, tab.webContents.getURL?.() ?? '');
             }
+            this.applyYouTubeSpaceFix(tab, tab.webContents.getURL?.() ?? '');
             const title = tab.webContents.getTitle();
             if (title) {
                 tab.lazyTitle = title;
@@ -362,6 +500,7 @@ class Tabs {
             if (windowData) {
                 focusMode.applyToTab(windowData, tab.webContents, tab.webContents.getURL?.() ?? '');
             }
+            this.applyYouTubeSpaceFix(tab, tab.webContents.getURL?.() ?? '');
             const title = tab.webContents.getTitle();
             if (title) {
                 tab.lazyTitle = title;
@@ -387,6 +526,29 @@ class Tabs {
         if (height < 0) height = 0;
         return { x: 0, y: yOffset, width: Math.floor(width), height: Math.floor(height) }
     }
+
+    isYouTubeUrl(url) {
+        try {
+            const host = new URL(url).hostname || '';
+            return host.includes('youtube.com') || host === 'youtu.be';
+        } catch {
+            return false;
+        }
+    }
+
+    applyYouTubeSpaceFix(tab, url) {
+        if (!tab || !tab.webContents || tab.webContents.isDestroyed()) return;
+        const currentUrl = url || (tab.webContents.getURL ? tab.webContents.getURL() : '');
+        if (!this.isYouTubeUrl(currentUrl)) return;
+        try { tab.webContents.executeJavaScript(YOUTUBE_SPACE_FIX_JS, true); } catch {}
+    }
+
+    applyYouTubeExitFullscreen(tab) {
+        if (!tab || !tab.webContents || tab.webContents.isDestroyed()) return;
+        const currentUrl = tab.webContents.getURL ? tab.webContents.getURL() : '';
+        if (!this.isYouTubeUrl(currentUrl)) return;
+        try { tab.webContents.executeJavaScript('window.__inkYouTubeExitFullscreen && window.__inkYouTubeExitFullscreen();', true); } catch {}
+    }
     
     setupTabListeners(tabIndex, tab) {
         let isNavigatingProgrammatically = false;
@@ -402,10 +564,12 @@ class Tabs {
                     this.tabUrls.set(tabIndex, url)
                     this.navigationHistory.addEntry(tabIndex, url)
                     lastAddedUrl = url;
-                    
+
                     this.sendTabUpdate(tabIndex, tab, url)
                     this.sendNavigationUpdate(tabIndex)
-                    this.addToHistory(url, tab.webContents.getTitle())
+                    if (!this.privateTabs.has(tabIndex)) {
+                        this.addToHistory(url, tab.webContents.getTitle())
+                    }
                 }
             } else if (url.startsWith('file://')) {
                 let resolvedType = 'newtab';
@@ -429,6 +593,7 @@ class Tabs {
 
             const windowData = this.getWindowData();
             if (windowData) focusMode.applyToTab(windowData, tab.webContents, url);
+            this.applyYouTubeSpaceFix(tab, url);
             
             isNavigatingProgrammatically = false;
         })
@@ -436,7 +601,8 @@ class Tabs {
         // All window.open / target="_blank" links open in a new tab, never a new BrowserWindow
         tab.webContents.setWindowOpenHandler(({ url }) => {
             setImmediate(() => {
-                const newIndex = this.createTab(tabIndex, false);
+                const isPriv = this.privateTabs.has(tabIndex);
+                const newIndex = this.createTab(tabIndex, false, isPriv);
                 this.loadUrl(newIndex, url);
             });
             return { action: 'deny' };
@@ -449,15 +615,18 @@ class Tabs {
                     this.tabUrls.set(tabIndex, url)
                     this.navigationHistory.addEntry(tabIndex, url)
                     lastAddedUrl = url;
-                    
+
                     this.sendTabUpdate(tabIndex, tab, url)
                     this.sendNavigationUpdate(tabIndex)
-                    this.addToHistory(url, tab.webContents.getTitle())
+                    if (!this.privateTabs.has(tabIndex)) {
+                        this.addToHistory(url, tab.webContents.getTitle())
+                    }
                 }
             }
 
             const windowData = this.getWindowData();
             if (windowData) focusMode.applyToTab(windowData, tab.webContents, url);
+            this.applyYouTubeSpaceFix(tab, url);
         })
         
         tab.isNavigatingProgrammatically = () => isNavigatingProgrammatically;
@@ -466,13 +635,29 @@ class Tabs {
         // HTML5 Fullscreen (e.g. YouTube videos)
         tab.webContents.on('enter-html-full-screen', () => {
             this.isHtmlFullScreen = true;
-            this.mainWindow.setFullScreen(true);
+            this.htmlFullScreenRequested = !this.userFullScreenActive;
+            if (this.htmlFullScreenRequested && !this.mainWindow.isFullScreen()) {
+                this.mainWindow.setFullScreen(true);
+            }
             this.resizeAllTabs();
         });
 
         tab.webContents.on('leave-html-full-screen', () => {
             this.isHtmlFullScreen = false;
-            this.mainWindow.setFullScreen(false);
+            if (this.htmlFullScreenRequested && this.mainWindow.isFullScreen()) {
+                setTimeout(() => {
+                    try {
+                        if (this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.isFullScreen()) {
+                            this.mainWindow.setFullScreen(false);
+                        }
+                    } catch {}
+                }, 0);
+            }
+            this.htmlFullScreenRequested = false;
+            // Do NOT call applyYouTubeExitFullscreen here — YouTube cleans up its own
+            // CSS state (.ytp-fullscreen) when HTML5 fullscreen exits. Clicking the button
+            // here causes a double-toggle (F key exits → we click → re-enters) and also
+            // fires spuriously when DevTools opens (Chrome forces exitFullscreen on devtools open).
             this.resizeAllTabs();
         });
 
@@ -550,7 +735,8 @@ class Tabs {
             index: tabIndex,
             url: displayUrl,
             title: displayTitle,
-            favicon: resolvedFavicon
+            favicon: resolvedFavicon,
+            private: this.privateTabs.has(tabIndex),
         })
 
         // Keep the window title in sync with the active tab
@@ -603,7 +789,8 @@ class Tabs {
                 } else if (lazyUrl && lazyUrl !== 'newtab' && !lazyUrl.startsWith('file://')) {
                     tab.webContents.loadURL(lazyUrl);
                 } else {
-                    tab.webContents.loadFile('renderer/NewTab/index.html');
+                    const isPrivTab = this.privateTabs.has(index);
+                    tab.webContents.loadFile(isPrivTab ? 'renderer/NewTab/private.html' : 'renderer/NewTab/index.html');
                 }
             } else if (tab.needsReloadForFocusMode) {
                 tab.needsReloadForFocusMode = false;
@@ -677,10 +864,11 @@ class Tabs {
             this.destroyTab(tab)
             this.tabMap.delete(index)
             this.tabUrls.delete(index)
-            // Clean up pinned state if needed
             this.pinnedTabs.delete(index)
+            const wasPrivate = this.privateTabs.delete(index);
+            if (wasPrivate) this._maybeWipePrivateSession();
             this.tabOrder = this.tabOrder.filter(i => i !== index)
-            
+
             this.navigationHistory.removeTab(index)
             
             this.mainWindow.webContents.send('tab-removed', {
@@ -708,9 +896,11 @@ class Tabs {
             this.destroyTab(tab);
             this.tabMap.delete(index);
             this.tabUrls.delete(index);
-            this.pinnedTabs.delete(index)
-            this.tabOrder = this.tabOrder.filter(i => i !== index)
-            
+            this.pinnedTabs.delete(index);
+            const wasPrivate2 = this.privateTabs.delete(index);
+            if (wasPrivate2) this._maybeWipePrivateSession();
+            this.tabOrder = this.tabOrder.filter(i => i !== index);
+
             this.navigationHistory.removeTab(index);
             
             this.mainWindow.webContents.send('tab-removed', {
@@ -747,6 +937,8 @@ class Tabs {
         if (this.tabMap.has(index)) {
             const tab = this.tabMap.get(index)
             const previousUrl = this.navigationHistory.goBack(index)
+            const isPriv = this.privateTabs.has(index);
+            const newTabFile = isPriv ? 'renderer/NewTab/private.html' : 'renderer/NewTab/index.html';
 
             if (previousUrl && previousUrl !== 'newtab') {
                 tab.setNavigatingProgrammatically(true);
@@ -754,10 +946,10 @@ class Tabs {
                 this.tabUrls.set(index, previousUrl)
             } else if (previousUrl === 'newtab') {
                 tab.setNavigatingProgrammatically(true);
-                tab.webContents.loadFile('renderer/NewTab/index.html')
+                tab.webContents.loadFile(newTabFile)
                 this.tabUrls.set(index, 'newtab')
             } else {
-                tab.webContents.loadFile('renderer/NewTab/index.html')
+                tab.webContents.loadFile(newTabFile)
                 this.tabUrls.set(index, 'newtab')
             }
             this.sendNavigationUpdate(index)
@@ -768,6 +960,7 @@ class Tabs {
         if (this.tabMap.has(index)) {
             const tab = this.tabMap.get(index)
             const nextUrl = this.navigationHistory.goForward(index);
+            const isPriv = this.privateTabs.has(index);
 
             if (nextUrl && nextUrl !== 'newtab') {
                 tab.setNavigatingProgrammatically(true);
@@ -775,7 +968,7 @@ class Tabs {
                 this.tabUrls.set(index, nextUrl)
             } else if (nextUrl === 'newtab') {
                 tab.setNavigatingProgrammatically(true);
-                tab.webContents.loadFile('renderer/NewTab/index.html')
+                tab.webContents.loadFile(isPriv ? 'renderer/NewTab/private.html' : 'renderer/NewTab/index.html')
                 this.tabUrls.set(index, 'newtab')
             }
             this.sendNavigationUpdate(index)
@@ -865,7 +1058,9 @@ class Tabs {
     buildSerializableState() {
         const includeAll = !!(this.persistence && this.persistence.getPersistMode());
         const order = this.tabOrder.length ? this.tabOrder : Array.from(this.tabMap.keys());
-        const selected = includeAll ? order : order.filter(idx => this.pinnedTabs.has(idx));
+        const selected = includeAll
+            ? order.filter(idx => !this.privateTabs.has(idx))
+            : order.filter(idx => this.pinnedTabs.has(idx) && !this.privateTabs.has(idx));
         const tabs = selected.map((idx) => {
             const url = this.tabUrls.get(idx) || 'newtab';
             let title = this.computeDisplayTitleFor(idx) || 'New Tab';

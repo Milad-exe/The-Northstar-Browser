@@ -9,6 +9,7 @@ const DEFAULTS = {
     searchEngine:      'google',   // 'google' | 'duckduckgo' | 'bing'
     bookmarkBarVisible: false,
     blockShortform:    false,
+    adBlockEnabled:    true,
     settingsPage:      'general',
     windowBounds:      null,
     windowState:       null,

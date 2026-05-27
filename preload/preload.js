@@ -132,6 +132,7 @@ contextBridge.exposeInMainWorld(
     "tab", {
         add: () => ipcRenderer.invoke("addTab"),
         addLazy: (url) => ipcRenderer.invoke("addTabLazy", url),
+        addPrivate: () => ipcRenderer.invoke("addPrivateTab"),
         remove: (index) => ipcRenderer.invoke("removeTab", index),
         switch: (index) => ipcRenderer.invoke("switchTab", index),
         loadUrl: (index, url) => ipcRenderer.invoke("loadUrl", index, url),
@@ -149,6 +150,12 @@ contextBridge.exposeInMainWorld(
         onNavigationUpdated: (callback) => ipcRenderer.on('navigation-updated', callback)
     }
 );
+
+contextBridge.exposeInMainWorld('inkPrivate', {
+    newPrivateWindow: () => ipcRenderer.invoke('newPrivateWindow'),
+    isPrivateWindow:  () => ipcRenderer.invoke('isPrivateWindow'),
+    onSetPrivateWindow: (cb) => ipcRenderer.on('set-private-window', (_e, v) => cb(v)),
+});
 
 // Bridge for UI events emitted from main (via Tabs.pinTab -> 'pin-tab')
 contextBridge.exposeInMainWorld('tabsUI', {

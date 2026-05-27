@@ -115,9 +115,14 @@ class Shortcuts {
             if (this.windowManager) this.windowManager.createWindow();
         });
 
-        // New window (Shift+N variant — same as N since no incognito mode)
+        // New private window
         this.registerShortcut('CmdOrCtrl+Shift+N', () => {
-            if (this.windowManager) this.windowManager.createWindow();
+            if (this.windowManager) this.windowManager.createWindow(800, 600, { private: true });
+        });
+
+        // New private tab
+        this.registerShortcut('CmdOrCtrl+Shift+P', () => {
+            this.tabManager.createTab(null, true, true);
         });
 
         // Close tab
@@ -190,8 +195,8 @@ class Shortcuts {
             if (tabIndexes.length > 0) this.tabManager.showTab(tabIndexes[tabIndexes.length - 1]);
         });
 
-        // Pin / unpin active tab
-        this.registerShortcut('CmdOrCtrl+Shift+P', () => {
+        // Pin / unpin active tab — Ctrl+Shift+L (moved to free up Shift+P for private tab)
+        this.registerShortcut('CmdOrCtrl+Shift+L', () => {
             this.tabManager.pinTab(this.tabManager.activeTabIndex);
         });
     }
@@ -245,6 +250,7 @@ class Shortcuts {
         // Stop loading — only intercepts when the page is actually loading;
         // returns false otherwise so Escape reaches the web page normally.
         this.registerShortcut('Escape', () => {
+            if (this.tabManager?.isHtmlFullScreen) return false;
             const tab = this.activeTab();
             if (tab && tab.webContents.isLoading()) {
                 tab.webContents.stop();
@@ -263,6 +269,7 @@ class Shortcuts {
             ).catch(() => {});
         };
 
+        this.registerShortcut('CmdOrCtrl+K', focusBar);
         this.registerShortcut('CmdOrCtrl+L', focusBar);
         this.registerShortcut('F6',           focusBar);
         this.registerShortcut('Alt+D',        focusBar); // Windows / Edge convention
@@ -472,10 +479,18 @@ class Shortcuts {
         const wantsMeta  = (hasCmdOrCtrl && platform === 'darwin') || hasCmd;
         const wantsCtrl  = (hasCmdOrCtrl && platform !== 'darwin') || hasCtrl;
 
+        const shiftOk = hasShift
+            ? input.shift === true
+            : (
+                input.shift === false ||
+                (key === 'plus' && (input.key === '+' || input.key === '=')) ||
+                (key === 'minus' && input.key === '_')
+            );
+
         return (
             (wantsMeta ? input.meta    === true : input.meta    === false) &&
             (wantsCtrl ? input.control === true : input.control === false) &&
-            (hasShift  ? input.shift   === true : input.shift   === false) &&
+            shiftOk &&
             (hasAlt    ? input.alt     === true : input.alt     === false)
         );
     }

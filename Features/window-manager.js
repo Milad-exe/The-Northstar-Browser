@@ -98,7 +98,7 @@ class WindowManager {
         } catch {}
     }
 
-    createWindow(width = 800, height = 600) {
+    createWindow(width = 800, height = 600, options = {}) {
         const windowId = this.nextWindowId++;
 
         // Restore saved size/position when there are no open windows
@@ -179,7 +179,7 @@ class WindowManager {
             this.lastFocusedWindowId = windowId;
         });
         
-        const tabs = new Tabs(window, this.history, this.persistence);
+        const tabs = new Tabs(window, this.history, this.persistence, { private: !!options?.private });
         const shortcuts = new Shortcuts(window, tabs, this);
 
         tabs.setShortcuts(shortcuts);
@@ -228,6 +228,11 @@ class WindowManager {
         this.windows.set(windowId, windowData);
 
         window.webContents.once('did-finish-load', () => {
+            // Notify renderer if this is a private window
+            if (options?.private) {
+                window.webContents.send('set-private-window', true);
+            }
+
             // Restore only once into the first opened window (if any state exists)
             const state = (!this.restored && this.persistence.hasState()) ? this.persistence.loadState() : null;
             if (state && state.tabs && state.tabs.length > 0) {

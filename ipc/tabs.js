@@ -58,6 +58,20 @@ function register(ipcMain, { wm, BrowserWindow }) {
         wm.createWindow();
     });
 
+    ipcMain.handle('addPrivateTab', (_e) => {
+        const wd = wm.getWindowByWebContents(_e.sender);
+        if (wd?.tabs) wd.tabs.createTab(null, true, true);
+    });
+
+    ipcMain.handle('newPrivateWindow', (_e) => {
+        wm.createWindow(800, 600, { private: true });
+    });
+
+    ipcMain.handle('isPrivateWindow', (_e) => {
+        const wd = wm.getWindowByWebContents(_e.sender);
+        return wd?.tabs?.isPrivateWindow ?? false;
+    });
+
     ipcMain.handle('getTabUrl', (_e, index) => {
         const wd = wm.getWindowByWebContents(_e.sender);
         return wd ? (wd.tabs.tabUrls.get(index) || '') : '';

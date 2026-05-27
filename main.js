@@ -72,9 +72,11 @@ if (process.platform !== 'darwin') {
 }
 
 // ── Imports ──────────────────────────────────────────────────────────────────
-const WindowManager = require('./Features/window-manager');
-const Bruno         = require('./Features/Bruno');
-const focusMode     = require('./Features/focus-mode');
+const WindowManager      = require('./Features/window-manager');
+const Bruno              = require('./Features/Bruno');
+const focusMode          = require('./Features/focus-mode');
+const adBlocker          = require('./Features/ad-blocker');
+const privateSessionSetup = require('./Features/private-session');
 
 // IPC feature modules
 const tabsIpc          = require('./ipc/tabs');
@@ -114,7 +116,7 @@ class Ink {
     }
 
     initApp() {
-        app.whenReady().then(() => {
+        app.whenReady().then(async () => {
             const savedTheme = this.windowManager.persistence.get('theme');
             nativeTheme.themeSource = (savedTheme === 'chalk' || savedTheme === 'mist') ? 'light' : 'dark';
 
@@ -124,12 +126,56 @@ class Ink {
             UserAgent.setupSession(session.defaultSession);
             Menu.setApplicationMenu(null);
 
+            // Ad blocking — network-level (cancel requests) + cosmetic (hide elements).
+            // init() loads the cached filter list synchronously then refreshes in background.
+            await adBlocker.init();
+            adBlocker.enableBlockingInSession(session.defaultSession);
+
+            // DNS-over-HTTPS — routes all resolver queries through Cloudflare's DoH.
+            // Must be called after app.whenReady().
+            try {
+                app.configureHostResolver({
+                    secureDnsMode:    'secure',
+                    secureDnsServers: ['https://1.1.1.1/dns-query', 'https://1.0.0.1/dns-query'],
+                });
+            } catch {}
+
+            // Private session — in-memory only, nothing persisted to disk.
+            // partition without 'persist:' prefix = no disk writes.
+            const privateSession = session.fromPartition('private', { cache: false });
+            // privateSessionSetup replaces UserAgent.setupSession — Electron only allows ONE
+            // onBeforeSendHeaders listener per session; the combined handler covers UA spoof,
+            // Sec-GPC, Accept-Language normalization, cross-origin Referer stripping, and
+            // response-side Referrer-Policy / X-DNS-Prefetch-Control injection.
+            privateSessionSetup.setup(privateSession);
+            adBlocker.enableBlockingInSession(privateSession);
+            privateSession.registerPreloadScript({
+                type: 'frame', id: 'chrome-spoof-private',
+                filePath: path.join(__dirname, 'preload/chrome-spoof.js'),
+            });
+            privateSession.registerPreloadScript({
+                type: 'frame', id: 'adblock-cosmetic-private',
+                filePath: path.join(__dirname, 'preload/ad-block-cosmetic.js'),
+            });
+            privateSession.registerPreloadScript({
+                type: 'frame', id: 'private-hardening',
+                filePath: path.join(__dirname, 'preload/private-hardening.js'),
+            });
+
             // Inject window.chrome spoof into every web page so Google doesn't
             // redirect to the "unsupported browser" page.
             session.defaultSession.registerPreloadScript({
                 type:     'frame',
                 id:       'chrome-spoof',
                 filePath: path.join(__dirname, 'preload/chrome-spoof.js'),
+            });
+
+            // Cosmetic ad hiding — inject CSS to suppress ad containers not caught
+            // at the network level.
+            session.defaultSession.registerPreloadScript({
+                type:     'frame',
+                id:       'ad-block-cosmetic',
+                filePath: path.join(__dirname, 'preload/ad-block-cosmetic.js'),
             });
 
             // Allow all permission requests (camera, mic, notifications, etc.)
@@ -154,6 +200,15 @@ class Ink {
                 this.windowManager.getAllWindows().forEach(w => {
                     if (w?.tabs) w.tabs.allowClose = true;
                 });
+            } catch {}
+            // Wipe the private session unconditionally on quit — covers the case
+            // where private tabs/windows are still open when the user quits.
+            try {
+                const priv = session.fromPartition('private', { cache: false });
+                priv.clearStorageData();
+                priv.clearCache();
+                priv.clearHostResolverCache();
+                priv.clearAuthCache();
             } catch {}
         });
 

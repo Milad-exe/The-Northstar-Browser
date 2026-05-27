@@ -480,6 +480,55 @@ body { display: flex; flex-direction: column; }
 }
 .pom-close:hover { color: var(--text); }
 
+/* ── Private tab button ──────────────────── */
+.tab-button[data-private="true"] .tab-private-icon {
+  color: #9b59f0;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+.tab-button[data-private="true"].active {
+  background: rgba(110,70,200,0.18);
+  border-bottom-color: rgba(110,70,200,0.18);
+  color: #9b59f0;
+}
+.tab-button[data-private="true"] .tab-title {
+  color: inherit;
+}
+
+/* ── Private new tab button ──────────────── */
+.tab-add-private {
+  color: var(--text-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.65;
+}
+.tab-add-private:hover { opacity: 1; color: #9b59f0; }
+/* Hide in private windows — every tab is already private */
+html[data-private-window="true"] #new-private-tab-btn { display: none; }
+
+/* ── Private window badge ────────────────── */
+.private-badge {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7c3aed;
+  padding: 0 8px;
+  border: 1px solid rgba(124,58,237,0.3);
+  border-radius: 3px;
+  height: 20px;
+  margin-right: 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+html[data-private-window="true"] .private-badge { display: flex; }
+
 /* ── Scrollbar ───────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }

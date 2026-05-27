@@ -112,3 +112,20 @@ html[data-theme="sage"] {
   --accent:    #4ab882;
   --danger:    #e05c5c;
 }
+
+/* ── Private mode — polar-opposite lavender/violet palette ── */
+html[data-private-window="true"],
+html[data-private-tab="true"] {
+  --bg:        #f0ebff;
+  --surface:   #e6deff;
+  --surface-2: #dcd4ff;
+  --text:      #180a40;
+  --text-2:    #6b4da8;
+  --text-3:    #c4b0e8;
+  --border:    rgba(110,70,200,0.14);
+  --border-2:  rgba(110,70,200,0.24);
+  --hover:     rgba(110,70,200,0.07);
+  --active-bg: rgba(110,70,200,0.13);
+  --accent:    #7c3aed;
+  --danger:    #c03060;
+}

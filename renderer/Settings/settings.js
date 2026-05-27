@@ -114,6 +114,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    // ── Privacy: Ad blocking ──────────────────────────────────────────────
+    const adblockToggle = document.getElementById('adblock-toggle');
+    adblockToggle.checked = settings.adBlockEnabled !== false; // default on
+
+    adblockToggle.addEventListener('change', async () => {
+        await save('adBlockEnabled', adblockToggle.checked);
+        showToast(adblockToggle.checked ? 'Ad blocking enabled' : 'Ad blocking disabled');
+    });
+
     // ── Privacy: Clear history ─────────────────────────────────────────────
     document.getElementById('btn-clear-history').addEventListener('click', async () => {
         const confirmed = confirm('Clear all browsing history? This cannot be undone.');

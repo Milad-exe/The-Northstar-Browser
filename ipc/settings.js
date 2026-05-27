@@ -7,10 +7,14 @@
  */
 
 const { loginWithGoogle } = require('../Features/google-auth');
+const adBlocker = require('../Features/ad-blocker');
 
 function register(ipcMain, { wm, webContents, nativeTheme, app, focusMode }) {
 
     focusMode.setShortformEnabled(wm, !!wm.persistence.get('blockShortform'));
+
+    // Apply persisted ad-block state (may have been toggled off last session).
+    adBlocker.setEnabled(!!wm.persistence.get('adBlockEnabled'));
 
     // ── Settings ──────────────────────────────────────────────────────────────
 
@@ -42,6 +46,14 @@ function register(ipcMain, { wm, webContents, nativeTheme, app, focusMode }) {
 
         if (key === 'blockShortform') {
             focusMode.setShortformEnabled(wm, !!value);
+        }
+
+        if (key === 'adBlockEnabled') {
+            adBlocker.setEnabled(!!value);
+            // Broadcast to all frames so the cosmetic preload can inject/remove CSS live.
+            webContents.getAllWebContents().forEach(wc => {
+                try { wc.send('adblock-set-enabled', !!value); } catch {}
+            });
         }
 
         return true;

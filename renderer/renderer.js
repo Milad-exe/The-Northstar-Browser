@@ -49,10 +49,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     const getSearchEngine  = () => settings.searchEngine || 'google';
     const getPomSetting    = (key, def) => (typeof settings[key] === 'number' ? settings[key] : def);
 
+    // ── Private window detection ──────────────────────────────────────────────
+
+    const isPrivateWindow = await window.inkPrivate?.isPrivateWindow?.() ?? false;
+    if (isPrivateWindow) {
+        document.documentElement.setAttribute('data-private-window', 'true');
+    }
+    window.inkPrivate?.onSetPrivateWindow?.((v) => {
+        if (v) document.documentElement.setAttribute('data-private-window', 'true');
+        else document.documentElement.removeAttribute('data-private-window');
+    });
+
     // ── Shared state ──────────────────────────────────────────────────────────
 
     let tabs           = new Map(); // tabIndex → <div.tab-button>
     let tabUrls        = new Map(); // tabIndex → url string
+    let tabPrivate     = new Map(); // tabIndex → boolean (private flag)
     let activeTabIndex = 0;
     let menuOpen       = false;
     let currentTabUrl   = '';
@@ -1273,12 +1285,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         window.tab.onTabCreated((_e, data) => {
             console.log('[tab-created] index:', data.index, 'afterIndex:', data.afterIndex, 'type:', typeof data.afterIndex);
-            createTabButton(data.index, data.title, data.afterIndex ?? null, data.active !== false);
+            tabPrivate.set(data.index, !!data.private);
+            createTabButton(data.index, data.title, data.afterIndex ?? null, data.active !== false, !!data.private);
             setTimeout(() => { updateTabWidths(data.totalTabs); updateScrollShadows(); }, 10);
         });
 
         window.tab.onTabRemoved((_e, data) => {
             tabUrls.delete(data.index);
+            tabPrivate.delete(data.index);
             removeTabButton(data.index);
             hideSuggestions();
             setTimeout(() => { updateTabWidths(data.totalTabs); updateScrollShadows(); }, 10);
@@ -1293,15 +1307,32 @@ document.addEventListener('DOMContentLoaded', async () => {
             updateBookmarkBtn(currentTabUrl);
             tabs.get(data.index)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
             updateScrollShadows();
+            // Show per-tab private indicator on address bar (only in non-private windows)
+            if (!isPrivateWindow) {
+                if (tabPrivate.get(data.index)) {
+                    document.documentElement.setAttribute('data-private-tab', 'true');
+                } else {
+                    document.documentElement.removeAttribute('data-private-tab');
+                }
+            }
         });
 
         window.tab.onUrlUpdated((_e, data) => {
             if (data.url) tabUrls.set(data.index, data.url);
+            if (data.private !== undefined) tabPrivate.set(data.index, !!data.private);
             if (data.index === activeTabIndex) {
                 updateSearchBarUrl(data.url);
                 currentTabUrl   = data.url   || '';
                 currentTabTitle = data.title || '';
                 updateBookmarkBtn(currentTabUrl);
+                // Sync private-tab attribute
+                if (!isPrivateWindow) {
+                    if (tabPrivate.get(data.index)) {
+                        document.documentElement.setAttribute('data-private-tab', 'true');
+                    } else {
+                        document.documentElement.removeAttribute('data-private-tab');
+                    }
+                }
             }
             updateTabTitle(data.index, data.title || data.url, data.favicon);
         });
@@ -1385,11 +1416,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.addEventListener('resize', () => setTimeout(() => { updateTabWidths(tabs.size); updateScrollShadows(); }, 100));
 
         setTimeout(() => { if (tabs.size > 0) { updateTabWidths(tabs.size); updateScrollShadows(); } }, 100);
+
+        // Private tab button (hidden in private windows via CSS)
+        const addPrivateBtn = document.getElementById('new-private-tab-btn');
+        if (addPrivateBtn) addPrivateBtn.addEventListener('click', () => window.tab.addPrivate());
     }
 
     // ── Tab DOM helpers ───────────────────────────────────────────────────────
 
-    function createTabButton(index, title, afterIndex = null, shouldActivate = true) {
+    function createTabButton(index, title, afterIndex = null, shouldActivate = true, isPrivate = false) {
         if (tabs.has(index)) return;
 
         const btn = document.createElement('div');
@@ -1398,6 +1433,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         btn.draggable      = true;
         btn.tabIndex       = 0;
         btn.role           = 'button';
+        if (isPrivate) btn.dataset.private = 'true';
 
         const titleSpan   = document.createElement('span');
         titleSpan.className   = 'tab-title';
@@ -1408,6 +1444,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         closeBtn.innerHTML = '×';
         closeBtn.onclick   = (e) => { e.stopPropagation(); window.tab.remove(parseInt(index)); };
 
+        if (isPrivate) {
+            const shield = document.createElement('span');
+            shield.className = 'tab-private-icon';
+            shield.title = 'Private tab';
+            shield.innerHTML = '<svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor"><path d="M8 1L2 3.5V8c0 3.3 2.5 5.7 6 7 3.5-1.3 6-3.7 6-7V3.5L8 1zm0 6.5h4c-.3 2.2-1.8 4-4 5.1V7.5H4V5l4-1.7V7.5z"/></svg>';
+            btn.appendChild(shield);
+        }
         btn.appendChild(titleSpan);
         btn.appendChild(closeBtn);
 
