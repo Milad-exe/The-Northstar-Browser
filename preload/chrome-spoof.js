@@ -9,7 +9,14 @@
 (function () {
     'use strict';
 
+<<<<<<< Updated upstream
     // Build the main-world injection as a string so it executes there
+=======
+    // Extension pages (background, popup, options) need the real window.chrome API.
+    // Only spoof on regular web content pages.
+    if (typeof location !== 'undefined' && location.protocol === 'chrome-extension:') return;
+
+>>>>>>> Stashed changes
     const mainWorldScript = `(function () {
   'use strict';
 

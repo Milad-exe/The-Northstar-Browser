@@ -394,7 +394,24 @@ class Tabs {
         if (this.shortcuts) {
             this.shortcuts.onTabCreated(tab);
         }
+<<<<<<< Updated upstream
         
+=======
+
+        // Block dangerous protocol navigations (javascript:, data:, vbscript:) initiated
+        // by page scripts or injected links.
+        const blockDangerousNav = (event, url) => {
+            try {
+                const proto = new URL(url).protocol;
+                if (proto === 'javascript:' || proto === 'data:' || proto === 'vbscript:') {
+                    event.preventDefault();
+                }
+            } catch {}
+        };
+        tab.webContents.on('will-navigate', blockDangerousNav);
+        tab.webContents.on('will-redirect', blockDangerousNav);
+
+>>>>>>> Stashed changes
         tab.webContents.on('did-navigate', (event, url) => {
             if (!url.startsWith('file://') && !isNavigatingProgrammatically) {
                 if (lastAddedUrl !== url) {
@@ -431,6 +448,14 @@ class Tabs {
 
         // All window.open / target="_blank" links open in a new tab, never a new BrowserWindow
         tab.webContents.setWindowOpenHandler(({ url }) => {
+            try {
+                const proto = new URL(url).protocol;
+                if (proto === 'javascript:' || proto === 'data:' || proto === 'vbscript:') {
+                    return { action: 'deny' };
+                }
+            } catch {
+                return { action: 'deny' };
+            }
             setImmediate(() => {
                 const newIndex = this.createTab(tabIndex, false);
                 this.loadUrl(newIndex, url);
@@ -451,6 +476,15 @@ class Tabs {
                     this.addToHistory(url, tab.webContents.getTitle())
                 }
             }
+<<<<<<< Updated upstream
+=======
+
+            const windowData = this.getWindowData();
+            if (windowData) focusMode.applyToTab(windowData, tab.webContents, url);
+            this.applyYouTubeSpaceFix(tab, url);
+            // CWS SPA navigation — re-inject button when navigating between extension pages
+            setTimeout(() => this.injectCwsButton(tab), 500);
+>>>>>>> Stashed changes
         })
         
         tab.isNavigatingProgrammatically = () => isNavigatingProgrammatically;
@@ -509,11 +543,108 @@ class Tabs {
         
         tab.webContents.on('did-finish-load', () => {
             this.sendNavigationUpdate(tabIndex)
+            this.injectCwsButton(tab)
         })
-        
+
         tab.webContents.on('did-stop-loading', () => {
             this.sendNavigationUpdate(tabIndex)
         })
+    }
+
+    // ── Chrome Web Store injection ─────────────────────────────────────────────
+    // CWS detects Firefox UA and hides the "Add to Chrome" button. We inject
+    // our own floating "Add to Ink" button that communicates with our extension
+    // installer via the inkExtensions contextBridge.
+    injectCwsButton(tab) {
+        if (!tab || !tab.webContents || tab.webContents.isDestroyed()) return;
+        const url = tab.webContents.getURL();
+        const match = url.match(/chromewebstore\.google\.com\/detail\/[^/]+\/([a-p]{32})/);
+        if (!match) return;
+        const extId = match[1];
+
+        const js = `(async () => {
+  const EXT_ID = ${JSON.stringify(extId)};
+  const BTN_ID = '__ink_cws_btn__';
+
+  if (document.getElementById(BTN_ID)) {
+    // Already injected — just refresh installed state
+    const installed = await window.inkExtensions?.isInstalled(EXT_ID);
+    const btn = document.getElementById(BTN_ID);
+    if (btn) {
+      btn.dataset.installed = installed ? '1' : '0';
+      btn.textContent = installed ? '✓ Installed in Ink' : 'Add to Ink';
+      btn.style.background = installed ? '#4caf50' : '#1a73e8';
+      btn.disabled = !!installed;
+    }
+    return;
+  }
+
+  const btn = document.createElement('button');
+  btn.id = BTN_ID;
+  btn.style.cssText = [
+    'position:fixed',
+    'bottom:24px',
+    'right:24px',
+    'z-index:2147483647',
+    'padding:12px 20px',
+    'background:#1a73e8',
+    'color:#fff',
+    'border:none',
+    'border-radius:8px',
+    'font-size:14px',
+    'font-weight:600',
+    'cursor:pointer',
+    'box-shadow:0 2px 8px rgba(0,0,0,0.3)',
+    'transition:background 0.2s,opacity 0.2s',
+  ].join(';');
+
+  const installed = await window.inkExtensions?.isInstalled(EXT_ID);
+  if (installed) {
+    btn.textContent = '✓ Installed in Ink';
+    btn.style.background = '#4caf50';
+    btn.disabled = true;
+  } else {
+    btn.textContent = 'Add to Ink';
+  }
+  btn.dataset.installed = installed ? '1' : '0';
+
+  btn.addEventListener('click', async () => {
+    if (btn.dataset.installed === '1') return;
+    btn.textContent = 'Installing…';
+    btn.disabled = true;
+    btn.style.opacity = '0.8';
+    try {
+      const result = await window.inkExtensions?.install(EXT_ID);
+      if (result?.ok) {
+        btn.textContent = '✓ Installed in Ink';
+        btn.style.background = '#4caf50';
+        btn.dataset.installed = '1';
+      } else {
+        btn.textContent = 'Install failed';
+        btn.style.background = '#d32f2f';
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        setTimeout(() => {
+          btn.textContent = 'Add to Ink';
+          btn.style.background = '#1a73e8';
+        }, 3000);
+      }
+    } catch (e) {
+      btn.textContent = 'Install failed';
+      btn.style.background = '#d32f2f';
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      setTimeout(() => {
+        btn.textContent = 'Add to Ink';
+        btn.style.background = '#1a73e8';
+      }, 3000);
+    }
+  });
+
+  document.body.appendChild(btn);
+})();`;
+
+        try { tab.webContents.executeJavaScript(js, true); } catch {}
     }
 
     sendTabUpdate(tabIndex, tab, url, title, favicon) {

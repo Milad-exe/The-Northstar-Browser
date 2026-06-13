@@ -21,6 +21,13 @@
     "test": "jest"
   },
   "dependencies": {
+<<<<<<< Updated upstream
     "electron": "^38.1.2"
+=======
+    "adm-zip": "^0.5.17",
+    "dompurify": "^3.4.10",
+    "electron": "^38.1.2",
+    "tldts": "^7.4.2"
+>>>>>>> Stashed changes
   }
 }

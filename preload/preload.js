@@ -264,6 +264,13 @@ contextBridge.exposeInMainWorld('windowControls', {
   onMaximizeChanged:(fn) => ipcRenderer.on('window-maximize-changed', (_e, v) => fn(v)),
 });
 
+contextBridge.exposeInMainWorld('inkExtensions', {
+    install:     (id) => ipcRenderer.invoke('extension-install', id),
+    uninstall:   (id) => ipcRenderer.invoke('extension-uninstall', id),
+    isInstalled: (id) => ipcRenderer.invoke('extension-is-installed', id),
+    getAll:      ()   => ipcRenderer.invoke('extension-list'),
+});
+
 contextBridge.exposeInMainWorld('inkSettings', {
   get:               ()         => ipcRenderer.invoke('settings-get'),
   set:               (key, val) => ipcRenderer.invoke('settings-set', key, val),

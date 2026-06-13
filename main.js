@@ -26,11 +26,20 @@ app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
 app.userAgentFallback = UserAgent.generate();
 
 // ── Imports ──────────────────────────────────────────────────────────────────
+<<<<<<< Updated upstream
 
 const path          = require('path');
 const WindowManager = require('./Features/window-manager');
 const Bruno         = require('./Features/Bruno');
 const focusMode     = require('./Features/focus-mode');
+=======
+const WindowManager      = require('./Features/window-manager');
+const Bruno              = require('./Features/Bruno');
+const focusMode          = require('./Features/focus-mode');
+const adBlocker          = require('./Features/ad-blocker');
+const privateSessionSetup = require('./Features/private-session');
+const extensions           = require('./Features/extensions');
+>>>>>>> Stashed changes
 
 // IPC feature modules
 const tabsIpc          = require('./ipc/tabs');
@@ -40,6 +49,7 @@ const historyIpc       = require('./ipc/history');
 const bookmarksIpc     = require('./ipc/bookmarks');
 const folderDropdownIpc = require('./ipc/folder-dropdown');
 const settingsIpc      = require('./ipc/settings');
+const extensionsIpc    = require('./ipc/extensions');
 
 // ── App ──────────────────────────────────────────────────────────────────────
 
@@ -67,6 +77,7 @@ class Ink {
         bookmarksIpc.register(ipcMain, deps);
         folderDropdownIpc.register(ipcMain, deps);
         settingsIpc.register(ipcMain, deps);
+        extensionsIpc.register(ipcMain, { extensions });
     }
 
     initApp() {
@@ -80,6 +91,49 @@ class Ink {
             UserAgent.setupSession(session.defaultSession);
             Menu.setApplicationMenu(null);
 
+<<<<<<< Updated upstream
+=======
+            // Extensions — load persisted extensions from disk into the default session.
+            await extensions.init();
+            await extensions.loadAllIntoSession(session.defaultSession);
+
+            // Ad blocking — network-level (cancel requests) + cosmetic (hide elements).
+            // init() loads the cached filter list synchronously then refreshes in background.
+            await adBlocker.init();
+            adBlocker.enableBlockingInSession(session.defaultSession);
+
+            // DNS-over-HTTPS — routes all resolver queries through Cloudflare's DoH.
+            // Must be called after app.whenReady().
+            try {
+                app.configureHostResolver({
+                    secureDnsMode:    'secure',
+                    secureDnsServers: ['https://1.1.1.1/dns-query', 'https://1.0.0.1/dns-query'],
+                });
+            } catch {}
+
+            // Private session — in-memory only, nothing persisted to disk.
+            // partition without 'persist:' prefix = no disk writes.
+            const privateSession = session.fromPartition('private', { cache: false });
+            // privateSessionSetup replaces UserAgent.setupSession — Electron only allows ONE
+            // onBeforeSendHeaders listener per session; the combined handler covers UA spoof,
+            // Sec-GPC, Accept-Language normalization, cross-origin Referer stripping, and
+            // response-side Referrer-Policy / X-DNS-Prefetch-Control injection.
+            privateSessionSetup.setup(privateSession);
+            adBlocker.enableBlockingInSession(privateSession);
+            privateSession.registerPreloadScript({
+                type: 'frame', id: 'chrome-spoof-private',
+                filePath: path.join(__dirname, 'preload/chrome-spoof.js'),
+            });
+            privateSession.registerPreloadScript({
+                type: 'frame', id: 'adblock-cosmetic-private',
+                filePath: path.join(__dirname, 'preload/ad-block-cosmetic.js'),
+            });
+            privateSession.registerPreloadScript({
+                type: 'frame', id: 'private-hardening',
+                filePath: path.join(__dirname, 'preload/private-hardening.js'),
+            });
+
+>>>>>>> Stashed changes
             // Inject window.chrome spoof into every web page so Google doesn't
             // redirect to the "unsupported browser" page.
             session.defaultSession.registerPreloadScript({
