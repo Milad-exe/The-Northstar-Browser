@@ -280,6 +280,14 @@ contextBridge.exposeInMainWorld('inkSettings', {
   loginGoogle:       (clientId, clientSecret) => ipcRenderer.invoke('google-login', clientId, clientSecret),
 });
 
+contextBridge.exposeInMainWorld('urlUtils', {
+    getDomain: (url) => {
+        try {
+            return new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+        } catch { return ''; }
+    }
+});
+
 contextBridge.exposeInMainWorld("bruno", {
     open: () => ipcRenderer.invoke('bruno-open'),
     close: () => ipcRenderer.invoke('bruno-close'),

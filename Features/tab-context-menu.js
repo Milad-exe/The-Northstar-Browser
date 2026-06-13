@@ -1,4 +1,5 @@
 const { clipboard, shell } = require('electron');
+const { sanitizeUrl, isSafeExternal } = require('./url-security');
 
 class TabContextMenu {
     constructor(tab, params, tabManager) {
@@ -34,11 +35,10 @@ class TabContextMenu {
     }
 
     openInNewTab(url) {
-        // Lazy-load: tab shows in the bar but the page doesn't load until the user switches to it.
-        // This prevents background autoplay on video sites.
-        let title = url;
-        try { title = new URL(url).hostname; } catch {}
-        this.tabManager.createLazyTab(url, title, false);
+        const safe = sanitizeUrl(url);
+        let title = safe;
+        try { title = new URL(safe).hostname; } catch {}
+        this.tabManager.createLazyTab(safe, title, false);
     }
 
     addPageItems(params) {
@@ -143,7 +143,7 @@ class TabContextMenu {
             },
             {
                 label: 'Open Link in New Window',
-                click: () => shell.openExternal(params.linkURL),
+                click: () => { if (isSafeExternal(params.linkURL)) shell.openExternal(params.linkURL); },
             },
             {
                 label: 'Copy Link Address',

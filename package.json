@@ -21,6 +21,8 @@
     "test": "jest"
   },
   "dependencies": {
-    "electron": "^38.1.2"
+    "dompurify": "^3.4.10",
+    "electron": "^38.1.2",
+    "tldts": "^7.4.2"
   }
 }

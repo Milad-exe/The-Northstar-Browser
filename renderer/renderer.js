@@ -12,6 +12,11 @@
 
 // ── Module-level utilities ────────────────────────────────────────────────────
 
+/** Sanitize an HTML string using DOMPurify when available. */
+const sanitizeHtml = (typeof DOMPurify !== 'undefined')
+    ? (html) => DOMPurify.sanitize(html, { FORCE_BODY: false })
+    : (html) => html;
+
 /** Returns a debounced wrapper around `fn` with a `.cancel()` method. */
 function debounce(fn, delay = 150) {
     let t;
@@ -41,6 +46,27 @@ function makeFolderIcon(cls) {
 
 document.addEventListener('DOMContentLoaded', async () => {
 
+    // ── Tab state + DOM refs must be ready before any await ───────────────────
+    // The main process sends 'tab-created' in its did-finish-load handler, which
+    // fires after the renderer's load event.  Because this DOMContentLoaded
+    // callback is async, any await that precedes initTabBar() creates a window
+    // where 'tab-created' IPC arrives with no listener registered and is dropped.
+    // Declaring the shared tab state and calling initTabBar() synchronously here
+    // guarantees the listener is always registered before did-finish-load fires.
+
+    let tabs           = new Map(); // tabIndex → <div.tab-button>
+    let tabUrls        = new Map(); // tabIndex → url string
+    let tabPrivate     = new Map(); // tabIndex → boolean (private flag)
+    let activeTabIndex = 0;
+    let currentTabUrl   = '';
+    let currentTabTitle = '';
+    let isPrivateWindow = false;   // updated after the isPrivateWindow await below
+
+    const tabBar        = document.getElementById('tab-bar');
+    const tabsContainer = document.getElementById('tabs-container');
+
+    initTabBar(); // registers all tab IPC listeners synchronously
+
     // ── Settings ──────────────────────────────────────────────────────────────
 
     let settings = {};
@@ -51,7 +77,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // ── Private window detection ──────────────────────────────────────────────
 
-    const isPrivateWindow = await window.inkPrivate?.isPrivateWindow?.() ?? false;
+    isPrivateWindow = await window.inkPrivate?.isPrivateWindow?.() ?? false;
     if (isPrivateWindow) {
         document.documentElement.setAttribute('data-private-window', 'true');
     }
@@ -62,13 +88,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // ── Shared state ──────────────────────────────────────────────────────────
 
-    let tabs           = new Map(); // tabIndex → <div.tab-button>
-    let tabUrls        = new Map(); // tabIndex → url string
-    let tabPrivate     = new Map(); // tabIndex → boolean (private flag)
-    let activeTabIndex = 0;
-    let menuOpen       = false;
-    let currentTabUrl   = '';
-    let currentTabTitle = '';
+    let menuOpen = false;
 
     // ── Bookmark bar state (must be declared before initBookmarkBar() is called) ──
     let bookmarkBarVisible = !!settings.bookmarkBarVisible;
@@ -86,8 +106,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const reloadBtn        = document.getElementById('reload-btn');
     const menuBtn          = document.getElementById('menu-btn');
     const addBtn           = document.getElementById('new-tab-btn');
-    const tabBar           = document.getElementById('tab-bar');
-    const tabsContainer    = document.getElementById('tabs-container');
     const bookmarkBtn      = document.getElementById('bookmark-btn');
     const bookmarkBar      = document.getElementById('bookmark-bar');
     const bookmarkBarItems = document.getElementById('bookmark-bar-items');
@@ -98,7 +116,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initNavButtons();
     initAddressBar();
     initBookmarkBar();
-    initTabBar();
+    // initTabBar() already called above (before the awaits)
     initFocusModeAndPomodoro();
     initBrunoAndMenu();
 
@@ -174,8 +192,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function initAddressBar() {
         searchBar.addEventListener('input',   () => { userTyping = true; updateSuggestions(); });
-        searchBar.addEventListener('focus',   () => { if (userTyping && searchBar.value.trim()) updateSuggestions(); });
-        searchBar.addEventListener('blur',    () => {
+        searchBar.addEventListener('focus', () => {
+            if (!userTyping) {
+                if (currentTabUrl && searchBar.value !== currentTabUrl) searchBar.value = currentTabUrl;
+                searchBar.select();
+            } else if (searchBar.value.trim()) {
+                updateSuggestions();
+            }
+        });
+        searchBar.addEventListener('blur', () => {
+            const domain = getDomainDisplay(currentTabUrl);
+            if (domain) searchBar.value = domain;
             setTimeout(() => {
                 if (overlayPointerDown) return;
                 if (document.activeElement === searchBar) return;
@@ -407,8 +434,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.tab.loadUrl(activeTabIndex, formatted);
     }
 
+    function getDomainDisplay(url) {
+        if (!url || url === 'newtab' || url.startsWith('file://')) return url || '';
+        return window.urlUtils?.getDomain(url) || url;
+    }
+
     function updateSearchBarUrl(url) {
-        searchBar.value = url;
+        if (document.activeElement !== searchBar) {
+            searchBar.value = getDomainDisplay(url);
+        } else {
+            searchBar.value = url;
+        }
         hideSuggestions();
     }
 

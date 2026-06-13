@@ -8,6 +8,7 @@
 const path = require('path');
 const { WebContentsView, Menu } = require('electron');
 const { broadcastBookmarksChanged } = require('./utils');
+const { sanitizeUrl } = require('../Features/url-security');
 
 // Bookmark-prompt popup dimensions
 const PROMPT_W = 320;
@@ -38,7 +39,7 @@ function register(ipcMain, { wm, webContents }) {
     // ── Write ─────────────────────────────────────────────────────────────────
 
     ipcMain.handle('bookmarks-add', async (_e, url, title) => {
-        const added = await wm.bookmarks.add(url, title);
+        const added = await wm.bookmarks.add(sanitizeUrl(url), title);
         broadcast();
         return added;
     });
@@ -113,7 +114,7 @@ function register(ipcMain, { wm, webContents }) {
         const sourceTabIndex = getSenderTabIndex(wd, _e.sender);
         const shouldActivate = !!switchToTab;
         const idx = wd.tabs.createTab(sourceTabIndex, shouldActivate);
-        wd.tabs.loadUrl(idx, url);
+        wd.tabs.loadUrl(idx, sanitizeUrl(url));
         return true;
     });
 

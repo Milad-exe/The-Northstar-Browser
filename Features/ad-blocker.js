@@ -19,13 +19,17 @@
 
 const fs   = require('fs');
 const path = require('path');
-const { app, net } = require('electron');
+const { app, net }  = require('electron');
+const { parse: parseTld } = require('tldts');
 
 // ── Filter list sources ───────────────────────────────────────────────────────
 
 // Steven Black's unified hosts (ads + tracking only variant, ~160 k domains).
 const HOSTS_URL =
     'https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts';
+
+// EasyList — primary ABP-format filter list (~80 k rules).
+const EASYLIST_URL = 'https://easylist.to/easylist/easylist.txt';
 
 // Cache lifetime before a silent background refresh is triggered.
 const CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
@@ -71,6 +75,22 @@ const HARDCODED = [
     'mc.yandex.ru',
 ];
 
+// ── Never-block allowlist ─────────────────────────────────────────────────────
+// Domains that must never be blocked regardless of what the filter lists say.
+// These are video / media delivery or core authentication infrastructure whose
+// absence breaks entire sites rather than just removing ads.
+
+const NEVER_BLOCK = new Set([
+    // YouTube core
+    'youtube.com', 'youtu.be', 'youtube-nocookie.com',
+    'googlevideo.com',      // video streaming CDN
+    'ytimg.com',            // thumbnails & image sprites
+    'yt3.ggpht.com',        // channel avatars / thumbnails
+    'gstatic.com',          // Google static assets (fonts, icons)
+    // Google sign-in (needed for YouTube login)
+    'accounts.google.com',
+]);
+
 // ── URL substring patterns ────────────────────────────────────────────────────
 // For paths that slip through domain-level blocking (same domain, ad sub-path).
 
@@ -110,20 +130,32 @@ class AdBlocker {
         this._cacheDir = path.join(app.getPath('userData'), 'ink', 'adblock');
         try { fs.mkdirSync(this._cacheDir, { recursive: true }); } catch {}
 
-        // Load cached list synchronously — fast, available for first requests.
-        const cacheFile = path.join(this._cacheDir, 'hosts.txt');
-        let cacheLoaded = false;
+        const hostsFile    = path.join(this._cacheDir, 'hosts.txt');
+        const easylistFile = path.join(this._cacheDir, 'easylist.txt');
+
+        // Load both caches synchronously — fast, available for first requests.
+        let hostsCached = false;
+        let easylistCached = false;
         try {
-            if (fs.existsSync(cacheFile)) {
-                this._parseHosts(fs.readFileSync(cacheFile, 'utf-8'));
-                cacheLoaded = true;
+            if (fs.existsSync(hostsFile)) {
+                this._parseHosts(fs.readFileSync(hostsFile, 'utf-8'));
+                hostsCached = true;
+            }
+        } catch {}
+        try {
+            if (fs.existsSync(easylistFile)) {
+                this._parseEasyList(fs.readFileSync(easylistFile, 'utf-8'));
+                easylistCached = true;
             }
         } catch {}
 
         this.initialized = true;
 
-        // Refresh in the background (non-blocking).
-        this._maybeRefresh(cacheFile, cacheLoaded).catch(() => {});
+        // Refresh stale or missing lists in the background (non-blocking).
+        this._maybeRefresh([
+            { url: HOSTS_URL,    file: hostsFile,    loaded: hostsCached,    parse: t => this._parseHosts(t),    minSize: 50_000  },
+            { url: EASYLIST_URL, file: easylistFile, loaded: easylistCached, parse: t => this._parseEasyList(t), minSize: 100_000 },
+        ]).catch(() => {});
     }
 
     /**
@@ -166,14 +198,16 @@ class AdBlocker {
 
             const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
 
-            // Exact domain check.
+            // Always allow core infrastructure regardless of filter lists.
+            if (NEVER_BLOCK.has(host)) return false;
+
+            // Exact hostname check.
             if (this.blockedDomains.has(host)) return true;
 
-            // Parent-domain check: sub.ads.example.com → ads.example.com
-            const parts = host.split('.');
-            for (let i = 1; i < parts.length - 1; i++) {
-                if (this.blockedDomains.has(parts.slice(i).join('.'))) return true;
-            }
+            // eTLD+1 check via tldts — correctly handles compound public suffixes
+            // (.co.uk, .com.au, etc.) that naive dot-splitting gets wrong.
+            const { domain: etld1 } = parseTld(host, { allowPrivateDomains: true });
+            if (etld1 && etld1 !== host && this.blockedDomains.has(etld1)) return true;
 
             // URL substring patterns.
             for (const sub of URL_SUBSTRINGS) {
@@ -220,27 +254,56 @@ class AdBlocker {
                !domain.includes('*');
     }
 
-    async _maybeRefresh(cacheFile, cacheLoaded) {
-        let needsRefresh = !cacheLoaded;
-        if (!needsRefresh) {
-            try {
-                const stat = fs.statSync(cacheFile);
-                needsRefresh = (Date.now() - stat.mtimeMs) > CACHE_TTL_MS;
-            } catch {
-                needsRefresh = true;
-            }
-        }
+    // sources: [{ url, file, loaded, parse, minSize }]
+    async _maybeRefresh(sources) {
+        const fetches = sources
+            .filter(s => !s.loaded || this._isStale(s.file))
+            .map(s =>
+                this._fetch(s.url)
+                    .then(text => {
+                        if (text && text.length > s.minSize) {
+                            fs.writeFileSync(s.file, text, 'utf-8');
+                            s.parse(text);
+                        }
+                    })
+                    .catch(() => {})
+            );
+        await Promise.allSettled(fetches);
+    }
 
-        if (!needsRefresh) return;
+    _isStale(file) {
+        try { return (Date.now() - fs.statSync(file).mtimeMs) > CACHE_TTL_MS; }
+        catch { return true; }
+    }
 
-        try {
-            const text = await this._fetch(HOSTS_URL);
-            if (text && text.length > 50_000) {
-                fs.writeFileSync(cacheFile, text, 'utf-8');
-                this._parseHosts(text);
-            }
-        } catch (err) {
-            // Silently ignore network failures — cached/hardcoded list still works.
+    // Parse ABP/EasyList network rules.  Only extracts pure domain-level blocks:
+    //   ||domain^           →  block entire domain
+    //   ||domain^$options   →  block entire domain (options ignored for simplicity)
+    //
+    // Path-specific rules like ||youtube.com/api/stats/ads^ are intentionally
+    // skipped — extracting the domain from them would block the whole site.
+    _parseEasyList(text) {
+        for (const line of text.split('\n')) {
+            const trimmed = line.trim();
+            if (!trimmed ||
+                trimmed.startsWith('!') ||
+                trimmed.startsWith('@') ||
+                trimmed.includes('#')) continue;
+
+            if (!trimmed.startsWith('||')) continue;
+
+            const afterPipes = trimmed.slice(2);
+
+            // Skip path-specific rules: a '/' before (or without) the '^' anchor
+            // means the rule targets a URL path, not just the hostname.
+            const slashIdx = afterPipes.indexOf('/');
+            const caretIdx = afterPipes.indexOf('^');
+            if (slashIdx !== -1 && (caretIdx === -1 || slashIdx < caretIdx)) continue;
+
+            // Extract domain: everything up to the first ^, *, or $ (no / possible here).
+            const endIdx = afterPipes.search(/[\^\*\$]/);
+            const domain = (endIdx === -1 ? afterPipes : afterPipes.slice(0, endIdx)).toLowerCase();
+            if (this._isValidDomain(domain)) this.blockedDomains.add(domain);
         }
     }
 

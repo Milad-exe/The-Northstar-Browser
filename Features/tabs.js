@@ -6,6 +6,7 @@ const contextMenu = require("./tab-context-menu");
 const NavigationHistory = require("./navigation-history");
 const FindDialogManager = require("./find-dialog");
 const focusMode = require("./focus-mode");
+const { isSafeExternal } = require('./url-security');
 
 const YOUTUBE_SPACE_FIX_JS = `
 (() => {
@@ -557,7 +558,36 @@ class Tabs {
         if (this.shortcuts) {
             this.shortcuts.onTabCreated(tab);
         }
-        
+
+        // Block dangerous protocol navigations (javascript:, data:, vbscript:) initiated
+        // by page scripts or injected links.
+        const blockDangerousNav = (event, url) => {
+            try {
+                const proto = new URL(url).protocol;
+                if (proto === 'javascript:' || proto === 'data:' || proto === 'vbscript:') {
+                    event.preventDefault();
+                }
+            } catch {}
+        };
+        tab.webContents.on('will-navigate', blockDangerousNav);
+        tab.webContents.on('will-redirect', blockDangerousNav);
+
+        // Route all window.open / target=_blank calls through our tab system instead
+        // of letting Electron open a new BrowserWindow.
+        tab.webContents.setWindowOpenHandler(({ url }) => {
+            try {
+                const proto = new URL(url).protocol;
+                if (proto === 'javascript:' || proto === 'data:' || proto === 'vbscript:') {
+                    return { action: 'deny' };
+                }
+            } catch {
+                return { action: 'deny' };
+            }
+            // Open safe URLs as a new tab in the same window.
+            setImmediate(() => this.createLazyTab(url, url, false));
+            return { action: 'deny' };
+        });
+
         tab.webContents.on('did-navigate', (event, url) => {
             if (!url.startsWith('file://') && !isNavigatingProgrammatically) {
                 if (lastAddedUrl !== url) {

@@ -10,6 +10,7 @@
 const path = require('path');
 const { WebContentsView, Menu } = require('electron');
 const { closeFolderDropdown, broadcastBookmarksChanged } = require('./utils');
+const { sanitizeUrl } = require('../Features/url-security');
 
 // Cursor-poll interval when dragging a bookmark out of the dropdown (ms)
 const EXTERN_DRAG_POLL_MS = 30;
@@ -105,7 +106,7 @@ function register(ipcMain, { wm, screen, webContents }) {
         if (!wd) return;
         closeFolderDropdown(wd);
         wd.window.webContents.focus();
-        wd.tabs?.loadUrl(wd.tabs.activeTabIndex, url);
+        wd.tabs?.loadUrl(wd.tabs.activeTabIndex, sanitizeUrl(url));
     });
 
     ipcMain.on('folder-dropdown-new-tab', (_e, url) => {
@@ -115,7 +116,7 @@ function register(ipcMain, { wm, screen, webContents }) {
         wd.window.webContents.focus();
         if (wd.tabs) {
             const idx = wd.tabs.createTab(null, false);
-            wd.tabs.loadUrl(idx, url);
+            wd.tabs.loadUrl(idx, sanitizeUrl(url));
         }
     });
 

@@ -6,6 +6,8 @@
  *         and session persistence mode.
  */
 
+const { sanitizeUrl } = require('../Features/url-security');
+
 function register(ipcMain, { wm, BrowserWindow }) {
 
     // ── Basic tab operations ──────────────────────────────────────────────────
@@ -19,9 +21,10 @@ function register(ipcMain, { wm, BrowserWindow }) {
     ipcMain.handle('addTabLazy', (_e, url) => {
         const wd = wm.getWindowByWebContents(_e.sender);
         if (!wd) return;
-        let title = url;
-        try { title = new URL(url).hostname; } catch {}
-        wd.tabs.createLazyTab(url, title, false);
+        const safe = sanitizeUrl(url);
+        let title = safe;
+        try { title = new URL(safe).hostname; } catch {}
+        wd.tabs.createLazyTab(safe, title, false);
     });
 
     ipcMain.handle('removeTab', (_e, index) => {
@@ -36,7 +39,7 @@ function register(ipcMain, { wm, BrowserWindow }) {
 
     ipcMain.handle('loadUrl', (_e, index, url) => {
         const wd = wm.getWindowByWebContents(_e.sender);
-        if (wd) wd.tabs.loadUrl(index, url);
+        if (wd) wd.tabs.loadUrl(index, sanitizeUrl(url));
     });
 
     ipcMain.handle('goBack', (_e, index) => {
@@ -94,7 +97,7 @@ function register(ipcMain, { wm, BrowserWindow }) {
     ipcMain.handle('navigate-active-tab', (_e, url) => {
         const wd = wm.getWindowByWebContents(_e.sender);
         if (!wd) return false;
-        wd.tabs.loadUrl(wd.tabs.activeTabIndex, url);
+        wd.tabs.loadUrl(wd.tabs.activeTabIndex, sanitizeUrl(url));
         return true;
     });
 
@@ -152,7 +155,7 @@ function register(ipcMain, { wm, BrowserWindow }) {
                 dst.tabs.createTab();
             } else {
                 const idx = dst.tabs.createTab();
-                dst.tabs.loadUrl(idx, url);
+                dst.tabs.loadUrl(idx, sanitizeUrl(url));
             }
             src.tabs.removeTab(tabIndex);
             return true;
@@ -173,9 +176,10 @@ function register(ipcMain, { wm, BrowserWindow }) {
                 width: 800, height: 600,
             });
             if (url && url !== 'newtab') {
+                const safeUrl = sanitizeUrl(url);
                 newWin.window.webContents.once('did-finish-load', () => {
                     const firstIdx = Array.from(newWin.tabs.tabMap.keys())[0];
-                    if (firstIdx !== undefined) newWin.tabs.loadUrl(firstIdx, url);
+                    if (firstIdx !== undefined) newWin.tabs.loadUrl(firstIdx, safeUrl);
                 });
             }
             src.tabs.removeTab(tabIndex);
