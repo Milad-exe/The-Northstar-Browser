@@ -21,55 +21,9 @@
 const { app, ipcMain, session, BrowserWindow, Menu, webContents, nativeTheme, screen } = require('electron');
 const path          = require('path');
 const UserAgent     = require('./Features/user-agent');
-const { handleProtocolCallback } = require('./Features/google-auth');
 
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
 app.userAgentFallback = UserAgent.generate();
-
-// ── ink:// protocol — OAuth callback handler ──────────────────────────────────
-// After the user authenticates in their system browser, Google redirects to
-// ink://oauth?code=…  The OS routes that URL back to this process via:
-//   macOS:         app 'open-url' event  (no single-instance lock required)
-//   Windows/Linux: app 'second-instance' event (requires single-instance lock)
-//
-// In development (electron . main.js), pass the script path so the Windows
-// registry entry points back to this instance, not bare electron.exe.
-if (process.defaultApp) {
-    if (process.argv.length >= 2) {
-        app.setAsDefaultProtocolClient('ink', process.execPath, [path.resolve(process.argv[1])]);
-    }
-} else {
-    app.setAsDefaultProtocolClient('ink');
-}
-
-// macOS: OS delivers ink:// URL as an event to the already-running process.
-app.on('open-url', (event, url) => {
-    event.preventDefault();
-    if (url.startsWith('ink://oauth')) handleProtocolCallback(url);
-});
-
-// Windows/Linux: OS launches a second instance with the URL in its argv.
-// Single-instance lock redirects that second instance's args here instead.
-if (process.platform !== 'darwin') {
-    const gotLock = app.requestSingleInstanceLock();
-    if (!gotLock) {
-        app.quit();
-    } else {
-        app.on('second-instance', (_event, argv) => {
-            const wins = BrowserWindow.getAllWindows();
-            if (wins.length > 0) {
-                const win = wins[0];
-                if (win.isMinimized()) win.restore();
-                win.focus();
-            }
-            // Strip surrounding quotes Windows sometimes adds to protocol URLs
-            const callbackUrl = argv
-                .map(a => a.replace(/^"|"$/g, ''))
-                .find(a => a.startsWith('ink://'));
-            if (callbackUrl) handleProtocolCallback(callbackUrl);
-        });
-    }
-}
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 const WindowManager      = require('./Features/window-manager');

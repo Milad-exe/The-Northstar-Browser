@@ -121,17 +121,26 @@ class Tabs {
         });
 
         this.mainWindow.on('leave-full-screen', () => {
+            // Capture before reset: true means OS fullscreen was entered because YouTube
+            // requested it (not the user pressing F11). In that case, YouTube triggered
+            // its own exitFullscreen() and is cleaning up its CSS itself — calling
+            // applyYouTubeExitFullscreen here races the macOS animation and double-toggles
+            // back into fullscreen (works on Windows where exit is instant, breaks on Mac).
+            const wasHtmlRequested = this.htmlFullScreenRequested;
             this.userFullScreenActive = false;
             this.isHtmlFullScreen = false;
             this.htmlFullScreenRequested = false;
             this.resizeAllTabs();
-            // Force any HTML fullscreen elements to exit if the OS window left fullscreen
-            this.tabMap.forEach(tab => {
-                if (tab && tab.webContents) {
-                    tab.webContents.executeJavaScript('if (document.fullscreenElement) document.exitFullscreen();').catch(() => {});
-                    this.applyYouTubeExitFullscreen(tab);
-                }
-            });
+            if (!wasHtmlRequested) {
+                // OS fullscreen was user-initiated (F11 / green button) while YouTube was
+                // in CSS fullscreen — force YouTube to clean up its own state.
+                this.tabMap.forEach(tab => {
+                    if (tab && tab.webContents) {
+                        tab.webContents.executeJavaScript('if (document.fullscreenElement) document.exitFullscreen();').catch(() => {});
+                        this.applyYouTubeExitFullscreen(tab);
+                    }
+                });
+            }
         });
         
         this.mainWindow.on('close', (event) => {

@@ -1,7 +1,7 @@
 const { shell } = require('electron');
+const http = require('http');
 const crypto = require('crypto');
-
-const REDIRECT_URI = 'ink://oauth';
+const url = require('url');
 
 function createCodeVerifier() {
     return crypto.randomBytes(32).toString('hex');
@@ -14,93 +14,90 @@ function createCodeChallenge(verifier) {
         .replace(/=/g, '');
 }
 
-// ── Pending OAuth state ───────────────────────────────────────────────────────
-// Only one flow can be in-flight at a time.
-let _resolve      = null;
-let _reject       = null;
-let _verifier     = null;
-let _clientId     = null;
-let _clientSecret = null;
-let _timeout      = null;
-
-function clearPending() {
-    if (_timeout) clearTimeout(_timeout);
-    _resolve = _reject = _verifier = _clientId = _clientSecret = _timeout = null;
-}
-
-/**
- * Initiates the Google OAuth 2.0 desktop flow using the system browser.
- * Google redirects to ink://oauth?code=… which the OS routes back to this
- * app via the registered ink:// protocol handler — no local HTTP server needed.
- *
- * Requires ink://oauth to be listed as an authorised redirect URI in the
- * Google Cloud Console OAuth 2.0 client (Desktop app type).
- */
 function loginWithGoogle(clientId, clientSecret, scope = 'email profile') {
     return new Promise((resolve, reject) => {
-        if (_reject) _reject(new Error('New login attempt started'));
-        clearPending();
+        const codeVerifier = createCodeVerifier();
+        const codeChallenge = createCodeChallenge(codeVerifier);
 
-        const verifier  = createCodeVerifier();
-        const challenge = createCodeChallenge(verifier);
+        const server = http.createServer();
 
-        _resolve      = resolve;
-        _reject       = reject;
-        _verifier     = verifier;
-        _clientId     = clientId;
-        _clientSecret = clientSecret;
+        // Track connections so we can forcefully close them on cleanup
+        const connections = {};
+        server.on('connection', (conn) => {
+            const key = conn.remoteAddress + ':' + conn.remotePort;
+            connections[key] = conn;
+            conn.on('close', () => { delete connections[key]; });
+        });
+        server.destroyAllConnections = () => {
+            for (const key in connections) connections[key].destroy();
+        };
 
-        _timeout = setTimeout(() => {
-            clearPending();
-            reject(new Error('OAuth flow timed out'));
+        server.on('request', async (req, res) => {
+            const reqUrl = url.parse(req.url, true);
+            if (reqUrl.pathname !== '/') {
+                res.writeHead(404);
+                res.end();
+                return;
+            }
+
+            const authCode = reqUrl.query.code;
+            const error = reqUrl.query.error;
+
+            if (authCode) {
+                res.writeHead(200, { 'Content-Type': 'text/html' });
+                res.end(`<html>
+                    <head><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;background:#141414;color:#fff;}</style></head>
+                    <body><div style="text-align:center;"><h1>Authentication Successful!</h1><p>You can now close this tab and return to Ink.</p></div></body>
+                </html>`);
+
+                const port = server.address().port;
+                const redirectUri = `http://127.0.0.1:${port}`;
+                server.close();
+                server.destroyAllConnections();
+
+                try {
+                    const tokenResponse = await exchangeCodeForToken(authCode, redirectUri, clientId, clientSecret, codeVerifier);
+                    resolve(tokenResponse);
+                } catch (err) {
+                    reject(err);
+                }
+            } else if (error) {
+                res.writeHead(400, { 'Content-Type': 'text/html' });
+                res.end(`<html>
+                    <head><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;background:#141414;color:#fff;}</style></head>
+                    <body><div style="text-align:center;"><h1 style="color:#e74c3c;">Authentication Failed</h1><p>Error: ${error}</p><p>You can close this tab and try again.</p></div></body>
+                </html>`);
+                server.close();
+                server.destroyAllConnections();
+                reject(new Error(`OAuth Error: ${error}`));
+            }
+        });
+
+        server.listen(0, '127.0.0.1', () => {
+            const port = server.address().port;
+            const redirectUri = `http://127.0.0.1:${port}`;
+
+            const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+            authUrl.searchParams.append('client_id',             clientId);
+            authUrl.searchParams.append('redirect_uri',          redirectUri);
+            authUrl.searchParams.append('response_type',         'code');
+            authUrl.searchParams.append('scope',                 scope);
+            authUrl.searchParams.append('code_challenge',        codeChallenge);
+            authUrl.searchParams.append('code_challenge_method', 'S256');
+            authUrl.searchParams.append('access_type',           'offline');
+            authUrl.searchParams.append('prompt',                'consent');
+
+            shell.openExternal(authUrl.href);
+        });
+
+        setTimeout(() => {
+            if (server.listening) {
+                server.close();
+                server.destroyAllConnections();
+                reject(new Error('OAuth flow timed out'));
+            }
         }, 5 * 60 * 1000);
-
-        const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-        authUrl.searchParams.append('client_id',             clientId);
-        authUrl.searchParams.append('redirect_uri',          REDIRECT_URI);
-        authUrl.searchParams.append('response_type',         'code');
-        authUrl.searchParams.append('scope',                 scope);
-        authUrl.searchParams.append('code_challenge',        challenge);
-        authUrl.searchParams.append('code_challenge_method', 'S256');
-        authUrl.searchParams.append('access_type',           'offline');
-        authUrl.searchParams.append('prompt',                'consent');
-
-        shell.openExternal(authUrl.href);
     });
-}
-
-/**
- * Called from main.js when the OS delivers an ink:// URL back to this process.
- *   macOS:         app 'open-url' event
- *   Windows/Linux: app 'second-instance' argv
- */
-function handleProtocolCallback(callbackUrl) {
-    if (!_resolve) return;
-
-    const resolve      = _resolve;
-    const reject       = _reject;
-    const verifier     = _verifier;
-    const clientId     = _clientId;
-    const clientSecret = _clientSecret;
-    clearPending();
-
-    let parsed;
-    try { parsed = new URL(callbackUrl); } catch {
-        return reject(new Error('Malformed OAuth callback URL'));
-    }
-
-    const code  = parsed.searchParams.get('code');
-    const error = parsed.searchParams.get('error');
-
-    if (error) {
-        reject(new Error(`OAuth Error: ${error}`));
-    } else if (code) {
-        exchangeCodeForToken(code, REDIRECT_URI, clientId, clientSecret, verifier)
-            .then(resolve)
-            .catch(reject);
-    } else {
-        reject(new Error('OAuth callback contained neither code nor error'));
-    }
 }
 
 async function exchangeCodeForToken(authCode, redirectUri, clientId, clientSecret, codeVerifier) {
@@ -125,4 +122,4 @@ async function exchangeCodeForToken(authCode, redirectUri, clientId, clientSecre
     return response.json();
 }
 
-module.exports = { loginWithGoogle, handleProtocolCallback };
+module.exports = { loginWithGoogle };
