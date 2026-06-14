@@ -682,8 +682,16 @@ class Tabs {
         });
 
         tab.webContents.on('leave-html-full-screen', () => {
-            this.isHtmlFullScreen = false;
             if (this.htmlFullScreenRequested && this.mainWindow.isFullScreen()) {
+                // OS fullscreen will exit next. Keep isHtmlFullScreen = true so
+                // getTabBounds() returns full-window bounds during the macOS exit
+                // animation — avoids a corrupted intermediate state (full-window size
+                // minus the 88px toolbar offset) that visually sticks until a mouse
+                // event triggers a repaint. leave-full-screen clears the flag and does
+                // the final resize once the animation is done.
+                // Also keep htmlFullScreenRequested = true so leave-full-screen knows
+                // NOT to call applyYouTubeExitFullscreen (which would race the animation
+                // and double-toggle back into fullscreen on macOS).
                 setTimeout(() => {
                     try {
                         if (this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.isFullScreen()) {
@@ -691,13 +699,15 @@ class Tabs {
                         }
                     } catch {}
                 }, 0);
+            } else {
+                // No OS fullscreen exit pending — clean up immediately.
+                this.isHtmlFullScreen = false;
+                this.htmlFullScreenRequested = false;
+                // Do NOT call applyYouTubeExitFullscreen here — YouTube cleans up its own
+                // CSS state (.ytp-fullscreen) when HTML5 fullscreen exits. Clicking the button
+                // here causes a double-toggle and also fires spuriously when DevTools opens.
+                this.resizeAllTabs();
             }
-            this.htmlFullScreenRequested = false;
-            // Do NOT call applyYouTubeExitFullscreen here — YouTube cleans up its own
-            // CSS state (.ytp-fullscreen) when HTML5 fullscreen exits. Clicking the button
-            // here causes a double-toggle (F key exits → we click → re-enters) and also
-            // fires spuriously when DevTools opens (Chrome forces exitFullscreen on devtools open).
-            this.resizeAllTabs();
         });
 
         // Error page — skip aborts (e.g. navigating away mid-load) and sub-frame errors
