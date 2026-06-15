@@ -1,5 +1,5 @@
 {
-  "name": "ink",
+  "name": "the-ink-browser",
   "version": "1.0.0",
   "description": "productivity web browser",
   "homepage": "https://github.com/Milad-exe/The-Ink-Browser#readme",
@@ -20,12 +20,16 @@
     "build": "electron-builder",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
     "test": "jest"
   },
   "build": {
-    "appId": "com.ink.browser",
-    "productName": "Ink",
+    "appId": "com.inkbrowser.app",
+    "productName": "The Ink Browser",
     "copyright": "Copyright © 2025 Milad Rakhshbahar",
+    "directories": {
+      "output": "dist"
+    },
     "files": [
       "main.js",
       "package.json",
@@ -37,13 +41,17 @@
       "node_modules/**/*"
     ],
     "win": {
-      "target": "nsis",
-      "icon": "build/icon.ico"
+      "icon": "icons/icon.ico",
+      "target": ["nsis"]
     },
     "mac": {
-      "target": "dmg",
-      "icon": "build/icon.icns",
+      "icon": "icons/icon.icns",
+      "target": ["dmg"],
       "category": "public.app-category.utilities"
+    },
+    "linux": {
+      "icon": "icons/icon.png",
+      "target": ["AppImage"]
     },
     "nsis": {
       "oneClick": false,
@@ -52,10 +60,10 @@
   },
   "dependencies": {
     "dompurify": "^3.4.10",
-    "electron": "^38.1.2",
     "tldts": "^7.4.2"
   },
   "devDependencies": {
+    "electron": "^38.1.2",
     "electron-builder": "^26.15.3"
   }
 }
