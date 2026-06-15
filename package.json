@@ -18,11 +18,44 @@
     "start": "electron .",
     "dev": "electron . --dev",
     "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
     "test": "jest"
+  },
+  "build": {
+    "appId": "com.ink.browser",
+    "productName": "Ink",
+    "copyright": "Copyright © 2025 Milad Rakhshbahar",
+    "files": [
+      "main.js",
+      "package.json",
+      "logo.png",
+      "Features/**/*",
+      "ipc/**/*",
+      "preload/**/*",
+      "renderer/**/*",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "build/icon.icns",
+      "category": "public.app-category.utilities"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "dependencies": {
     "dompurify": "^3.4.10",
     "electron": "^38.1.2",
     "tldts": "^7.4.2"
+  },
+  "devDependencies": {
+    "electron-builder": "^26.15.3"
   }
 }
