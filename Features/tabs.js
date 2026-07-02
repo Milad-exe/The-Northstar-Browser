@@ -349,7 +349,7 @@ class Tabs {
         const wd = this.getWindowData();
         if (!wd?.window?.contentView) return;
 
-        const overlays = [wd.menu, wd.suggestions, wd.bookmarkPrompt, wd.folderDropdown];
+        const overlays = [wd.menu, wd.suggestions, wd.bookmarkPrompt, wd.folderDropdown, wd.downloadsPanel];
         overlays.forEach((view) => {
             if (!view) return;
             try {
@@ -441,6 +441,23 @@ class Tabs {
 
         if (shouldActivate) {
             this.showTab(tabIndex)
+            // A freshly opened blank tab should focus the address bar, like
+            // Chrome/Firefox. showTab() just gave OS focus to the tab's child
+            // WebContentsView, so we must pull focus back to the chrome view
+            // FIRST — otherwise the renderer's searchBar.focus() is a no-op and
+            // keystrokes go to the (blank) page. We fire once immediately and
+            // again after the newtab page finishes loading, because the page's
+            // own load can re-grab OS focus and undo the first attempt.
+            const focusAddressBar = () => {
+                if (this.activeTabIndex !== tabIndex || this.mainWindow.isDestroyed()) return;
+                try {
+                    this.mainWindow.webContents.focus();
+                    this.mainWindow.webContents.send('focus-address-bar');
+                } catch {}
+            };
+            setImmediate(focusAddressBar);
+            setTimeout(focusAddressBar, 200);
+            tab.webContents.once('did-finish-load', () => setTimeout(focusAddressBar, 0));
         } else {
             const activeTab = this.tabMap.get(previousActiveTabIndex)
             if (activeTab) {
@@ -530,7 +547,7 @@ class Tabs {
         
         // utility-bar (50px) + tab-bar (38px) + optional bookmark-bar (28px)
         const yOffset = 88 + (this.bookmarkBarHeight || 0)
-        let width = contentBounds.width - (this.brunoWidth || 0)
+        let width = contentBounds.width
         let height = contentBounds.height - yOffset
         if (width < 0) width = 0;
         if (height < 0) height = 0;
@@ -609,22 +626,21 @@ class Tabs {
                     if (!this.privateTabs.has(tabIndex)) {
                         this.addToHistory(url, tab.webContents.getTitle())
                     }
+                    this.saveStateDebounced()
                 }
             } else if (url.startsWith('file://')) {
                 let resolvedType = 'newtab';
                 if (url.includes('/Settings/index.html')) resolvedType = 'settings';
                 else if (url.includes('/Bookmarks/index.html')) resolvedType = 'bookmarks';
                 else if (url.includes('/History/index.html')) resolvedType = 'history';
-                else if (url.includes('/Bruno/index.html')) resolvedType = 'bruno';
-                
+
                 this.tabUrls.set(tabIndex, resolvedType)
                 lastAddedUrl = resolvedType;
-                
+
                 let title = 'New Tab';
                 if (resolvedType === 'settings') title = 'Settings';
                 else if (resolvedType === 'bookmarks') title = 'Bookmarks';
                 else if (resolvedType === 'history') title = 'History';
-                else if (resolvedType === 'bruno') title = 'Bruno';
 
                 this.sendTabUpdate(tabIndex, tab, resolvedType, title)
                 this.sendNavigationUpdate(tabIndex)
@@ -660,6 +676,7 @@ class Tabs {
                     if (!this.privateTabs.has(tabIndex)) {
                         this.addToHistory(url, tab.webContents.getTitle())
                     }
+                    this.saveStateDebounced()
                 }
             }
 
@@ -734,6 +751,7 @@ class Tabs {
         
         tab.webContents.on('page-title-updated', (event, title) => {
             tab.lazyTitle = title;
+            this.navigationHistory.setCurrentTitle(tabIndex, title);
             const currentUrl = this.tabUrls.get(tabIndex) || ''
             if (currentUrl !== 'newtab' && currentUrl !== 'history' && !currentUrl.startsWith('file://')) {
                 this.sendTabUpdate(tabIndex, tab, currentUrl, title)
@@ -761,14 +779,13 @@ class Tabs {
         let displayUrl = url;
         let displayTitle = title || this.computeDisplayTitleFor(tabIndex) || "New Tab";
         
-        let isInternal = ['newtab', 'settings', 'bookmarks', 'history', 'bruno'].includes(url) || (url && url.startsWith('file://'));
+        let isInternal = ['newtab', 'settings', 'bookmarks', 'history'].includes(url) || (url && url.startsWith('file://'));
 
         if (isInternal) {
             displayUrl = '';
             if (url === 'settings' || (url && url.includes('/Settings/index.html'))) displayTitle = 'Settings';
             else if (url === 'bookmarks' || (url && url.includes('/Bookmarks/index.html'))) displayTitle = 'Bookmarks';
             else if (url === 'history' || (url && url.includes('/History/index.html'))) displayTitle = 'History';
-            else if (url === 'bruno' || (url && url.includes('/Bruno/index.html'))) displayTitle = 'Bruno';
             else displayTitle = 'New Tab';
         }
         
@@ -882,7 +899,8 @@ class Tabs {
             this.sendTabUpdate(index, tab, url, tempTitle);
             
             this.navigationHistory.addEntry(index, url)
-            
+            this.saveStateDebounced()
+
             setTimeout(() => {
                 this.sendNavigationUpdate(index)
             }, 200)
@@ -1024,6 +1042,26 @@ class Tabs {
         }
     }
 
+    // Jump straight to a history entry (back/forward long-press dropdown)
+    goToHistoryIndex(index, historyIndex) {
+        if (!this.tabMap.has(index)) return;
+        const tab = this.tabMap.get(index);
+        const url = this.navigationHistory.goToIndex(index, historyIndex);
+        if (url === null) return;
+
+        tab.setNavigatingProgrammatically(true);
+        if (url && url !== 'newtab') {
+            tab.webContents.loadURL(url);
+            this.tabUrls.set(index, url);
+        } else {
+            const isPriv = this.privateTabs.has(index);
+            tab.webContents.loadFile(isPriv ? 'renderer/NewTab/private.html' : 'renderer/NewTab/index.html');
+            this.tabUrls.set(index, 'newtab');
+        }
+        this.sendTabUpdate(index, tab, this.tabUrls.get(index));
+        this.sendNavigationUpdate(index);
+    }
+
     reload(index) {
         if (this.tabMap.has(index)) {
             const tab = this.tabMap.get(index)
@@ -1119,8 +1157,10 @@ class Tabs {
                 pinned: this.pinnedTabs.has(idx)
             };
         });
-        // Map active to its ordinal in current order
-        const activeOrdinal = Math.max(0, order.indexOf(this.activeTabIndex));
+        // Map active to its ordinal within the SAVED list (selected), not the
+        // full tab order — filtered-out tabs (private / unpinned) would shift
+        // the index and the wrong tab would be focused on restore.
+        const activeOrdinal = Math.max(0, selected.indexOf(this.activeTabIndex));
         return { tabs, activeIndex: activeOrdinal, persistAllTabs: includeAll };
     }
 

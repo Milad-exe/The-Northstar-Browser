@@ -47,6 +47,14 @@
     </div>
 
     <div class="trailing-icons">
+      <!-- Downloads: hidden until the first download of the session -->
+      <button id="downloads-btn" class="icon-btn downloads-btn hidden" title="Downloads">
+        <svg class="icon-svg" viewBox="0 0 20 20" fill="none">
+          <path d="M10 3v8.5M6.5 8.5L10 12l3.5-3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M4 15.5h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <span class="downloads-dot"></span>
+      </button>
       <!-- Bookmark: filled star when bookmarked, outline when not -->
       <button id="bookmark-btn" class="icon-btn" title="Bookmark">
         <svg class="icon-svg bookmark-outline" viewBox="0 0 20 20" fill="none">
@@ -61,13 +69,6 @@
         <svg class="icon-svg" viewBox="0 0 20 20" fill="none">
           <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5"/>
           <path d="M10 6v4l2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </button>
-      <!-- Bruno: terminal/api icon -->
-      <button id="bruno-btn" class="icon-btn" title="Bruno API Client">
-        <svg class="icon-svg" viewBox="0 0 20 20" fill="none">
-          <rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/>
-          <path d="M6 8l3 2-3 2M11 12h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>
       <button id="menu-btn" class="icon-btn menu-btn" title="Menu">
@@ -87,12 +88,12 @@
 
   <!-- Tab Bar -->
   <div id="tab-bar">
-    <button id="tab-scroll-left" class="tab-scroll-btn" aria-label="Scroll tabs left">‹</button>
+    <button id="tab-scroll-left" class="tab-scroll-btn" tabindex="-1" aria-label="Scroll tabs left">‹</button>
     <div id="tabs-container"></div>
-    <button id="tab-scroll-right" class="tab-scroll-btn" aria-label="Scroll tabs right">›</button>
+    <button id="tab-scroll-right" class="tab-scroll-btn" tabindex="-1" aria-label="Scroll tabs right">›</button>
     <div id="tab-actions">
-      <button id="new-tab-btn" class="tab-add" aria-label="New tab">+</button>
-      <button id="new-private-tab-btn" class="tab-add tab-add-private" aria-label="New private tab" title="New Private Tab (⌘⇧P)">
+      <button id="new-tab-btn" class="tab-add" tabindex="-1" aria-label="New tab">+</button>
+      <button id="new-private-tab-btn" class="tab-add tab-add-private" tabindex="-1" aria-label="New private tab" title="New Private Tab (⌘⇧P)">
         <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><path d="M8 1L2 3.5V8c0 3.3 2.5 5.7 6 7 3.5-1.3 6-3.7 6-7V3.5L8 1zm0 6.5h4c-.3 2.2-1.8 4-4 5.1V7.5H4V5l4-1.7V7.5z"/></svg>
       </button>
     </div>

@@ -27,10 +27,10 @@ app.userAgentFallback = UserAgent.generate();
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 const WindowManager      = require('./Features/window-manager');
-const Bruno              = require('./Features/Bruno');
 const focusMode          = require('./Features/focus-mode');
 const adBlocker          = require('./Features/ad-blocker');
 const privateSessionSetup = require('./Features/private-session');
+const downloadManager    = require('./Features/download-manager');
 
 // IPC feature modules
 const tabsIpc          = require('./ipc/tabs');
@@ -40,6 +40,7 @@ const historyIpc       = require('./ipc/history');
 const bookmarksIpc     = require('./ipc/bookmarks');
 const folderDropdownIpc = require('./ipc/folder-dropdown');
 const settingsIpc      = require('./ipc/settings');
+const downloadsIpc     = require('./ipc/downloads');
 
 // ── App ──────────────────────────────────────────────────────────────────────
 
@@ -67,6 +68,7 @@ class Ink {
         bookmarksIpc.register(ipcMain, deps);
         folderDropdownIpc.register(ipcMain, deps);
         settingsIpc.register(ipcMain, deps);
+        downloadsIpc.register(ipcMain, deps);
     }
 
     initApp() {
@@ -76,7 +78,7 @@ class Ink {
 
             app.dock?.setIcon(path.join(__dirname, 'logo.png')); // macOS only
 
-            // Apply Firefox UA + privacy headers to every request on the default session
+            // Apply the Chrome UA + header normalization to the default session
             UserAgent.setupSession(session.defaultSession);
             Menu.setApplicationMenu(null);
 
@@ -85,11 +87,13 @@ class Ink {
             await adBlocker.init();
             adBlocker.enableBlockingInSession(session.defaultSession);
 
-            // DNS-over-HTTPS — routes all resolver queries through Cloudflare's DoH.
-            // Must be called after app.whenReady().
+            // DNS-over-HTTPS — prefer Cloudflare's DoH but fall back to the system
+            // resolver. 'secure' (DoH-only) stalls every page load on networks
+            // that block or throttle 1.1.1.1, which made URLs slow or entirely
+            // unreachable. Must be called after app.whenReady().
             try {
                 app.configureHostResolver({
-                    secureDnsMode:    'secure',
+                    secureDnsMode:    'automatic',
                     secureDnsServers: ['https://1.1.1.1/dns-query', 'https://1.0.0.1/dns-query'],
                 });
             } catch {}
@@ -103,6 +107,11 @@ class Ink {
             // response-side Referrer-Policy / X-DNS-Prefetch-Control injection.
             privateSessionSetup.setup(privateSession);
             adBlocker.enableBlockingInSession(privateSession);
+
+            // Download manager — Firefox-style auto-save to the Downloads folder
+            // with progress in the toolbar panel. Both sessions share one list.
+            downloadManager.attach(session.defaultSession);
+            downloadManager.attach(privateSession, { private: true });
             privateSession.registerPreloadScript({
                 type: 'frame', id: 'chrome-spoof-private',
                 filePath: path.join(__dirname, 'preload/chrome-spoof.js'),
@@ -116,8 +125,8 @@ class Ink {
                 filePath: path.join(__dirname, 'preload/private-hardening.js'),
             });
 
-            // Inject window.chrome spoof into every web page so Google doesn't
-            // redirect to the "unsupported browser" page.
+            // Align the JS environment with the Chrome UA (userAgentData brands,
+            // window.chrome surface) so Google/Cloudflare consistency checks pass.
             session.defaultSession.registerPreloadScript({
                 type:     'frame',
                 id:       'chrome-spoof',
@@ -134,9 +143,6 @@ class Ink {
 
             // Allow all permission requests (camera, mic, notifications, etc.)
             session.defaultSession.setPermissionRequestHandler((_wc, _permission, cb) => cb(true));
-
-            // Bruno panel — registers its own IPC handlers internally
-            new Bruno();
 
             this.windowManager.createWindow();
 
@@ -174,5 +180,4 @@ class Ink {
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
-const inkInstance = new Ink();
-global.inkInstance = inkInstance; // Bruno feature needs global access
+new Ink();

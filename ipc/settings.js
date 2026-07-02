@@ -120,7 +120,7 @@ function register(ipcMain, { wm, webContents, nativeTheme, app, focusMode }) {
         }
     });
 
-    // Forward address bar focus request (used by Bruno and other panels)
+    // Forward address bar focus request (used by panels that need to hand focus back)
     ipcMain.on('focus-address-bar', (_e) => {
         const wd = wm.getWindowByWebContents(_e.sender);
         if (wd) wd.window.webContents.send('focus-address-bar');

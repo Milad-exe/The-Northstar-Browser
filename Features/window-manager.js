@@ -167,10 +167,18 @@ class WindowManager {
         window.on('resize', _saveBounds);
         window.on('move',   _saveBounds);
 
-        // If this is the last window, persist its bounds before it closes.
+        // If this is the last window, persist its bounds and tab state before it
+        // closes. On Windows/Linux 'before-quit' fires after this window has
+        // already been removed from the map, so savePrimaryState() finds no
+        // primary window — this is the last reliable moment to save.
         window.on('close', () => {
             if (this.windows.size === 1) {
                 this._persistWindowBounds(window);
+                try {
+                    if (tabs.tabMap.size > 0 && !tabs.isPrivateWindow) {
+                        this.persistence.saveState(tabs.buildSerializableState());
+                    }
+                } catch {}
             }
         });
 
@@ -309,12 +317,12 @@ class WindowManager {
     getWindowByWebContents(webContents) {
         for (const [id, windowData] of this.windows) {
             if (windowData.window.webContents === webContents) return windowData;
-            // Also match child WebContentsViews (Bruno, suggestions, menu, bookmarkPrompt, folderDropdown)
-            if (windowData.bruno?.webContents === webContents) return windowData;
+            // Also match child WebContentsViews (suggestions, menu, bookmarkPrompt, folderDropdown, downloads)
             if (windowData.suggestions?.webContents === webContents) return windowData;
             if (windowData.menu?.webContents === webContents) return windowData;
             if (windowData.bookmarkPrompt?.webContents === webContents) return windowData;
             if (windowData.folderDropdown?.webContents === webContents) return windowData;
+            if (windowData.downloadsPanel?.webContents === webContents) return windowData;
             // Match tab WebContentsViews
             if (windowData.tabs) {
                 for (const [, tab] of windowData.tabs.tabMap) {

@@ -8,12 +8,20 @@ class NavigationHistory {
     initializeTab(tabIndex, initialUrl = 'newtab') {
         const bst = new BinarySearchTree()
         bst.insert(initialUrl, 0)
-        
+
         this.tabHistories.set(tabIndex, {
             tree: bst,
             currentIndex: 0,
-            maxIndex: 0
+            maxIndex: 0,
+            titles: new Map(), // history-entry index → page title
         })
+    }
+
+    // Record the page title for the entry the tab is currently viewing.
+    setCurrentTitle(tabIndex, title) {
+        const tabHistory = this.tabHistories.get(tabIndex)
+        if (!tabHistory || !title) return
+        tabHistory.titles.set(tabHistory.currentIndex, title)
     }
 
     addEntry(tabIndex, url) {
@@ -161,6 +169,18 @@ class NavigationHistory {
         return null
     }
 
+    // Jump directly to an arbitrary entry (used by the back/forward long-press list)
+    goToIndex(tabIndex, targetIndex) {
+        const tabHistory = this.tabHistories.get(tabIndex)
+        if (!tabHistory) return null
+
+        const node = tabHistory.tree.find(targetIndex)
+        if (!node) return null
+
+        tabHistory.currentIndex = targetIndex
+        return node.data
+    }
+
     getCurrentUrl(tabIndex) {
         if (!this.tabHistories.has(tabIndex)) {
             return null
@@ -177,10 +197,11 @@ class NavigationHistory {
         }
         
         const tabHistory = this.tabHistories.get(tabIndex)
+        const titles = tabHistory.titles || new Map()
         return {
             currentIndex: tabHistory.currentIndex,
             maxIndex: tabHistory.maxIndex,
-            entries: tabHistory.tree.toArray(),
+            entries: tabHistory.tree.toArray().map(e => ({ ...e, title: titles.get(e.index) || null })),
             size: tabHistory.tree.getSize()
         }
     }

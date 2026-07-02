@@ -86,6 +86,7 @@
       const secondary = document.createElement('span');
       secondary.className = 'secondary';
       if (item.type === 'switch-tab')  secondary.textContent = 'Switch';
+      else if (item.type === 'navigate') secondary.textContent = 'Visit';
       else if (item.type === 'action') secondary.textContent = 'Search';
       else if (item.type === 'google') secondary.textContent = 'Google';
       else if (item.type === 'duckduckgo') secondary.textContent = 'DDG';

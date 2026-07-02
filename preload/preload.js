@@ -138,6 +138,7 @@ contextBridge.exposeInMainWorld(
         loadUrl: (index, url) => ipcRenderer.invoke("loadUrl", index, url),
         goBack: (index) => ipcRenderer.invoke("goBack", index),
         goForward: (index) => ipcRenderer.invoke("goForward", index),
+        showNavHistoryMenu: (index, x, y) => ipcRenderer.invoke("show-nav-history-menu", index, x, y),
         reload: (index) => ipcRenderer.invoke("reload", index),
         getTabUrl: (index) => ipcRenderer.invoke("getTabUrl", index),
         getButton: (index) => ipcRenderer.invoke("getTabButton", index),
@@ -154,6 +155,9 @@ contextBridge.exposeInMainWorld(
 contextBridge.exposeInMainWorld('inkPrivate', {
     newPrivateWindow: () => ipcRenderer.invoke('newPrivateWindow'),
     isPrivateWindow:  () => ipcRenderer.invoke('isPrivateWindow'),
+    // Synchronous variant — lets the renderer finish setup in one tick so tab
+    // IPC can't arrive mid-initialization (see renderer.js init comment).
+    isPrivateWindowSync: () => { try { return ipcRenderer.sendSync('is-private-window-sync'); } catch { return false; } },
     onSetPrivateWindow: (cb) => ipcRenderer.on('set-private-window', (_e, v) => cb(v)),
 });
 
@@ -195,6 +199,7 @@ contextBridge.exposeInMainWorld(
 
 // Suggestions overlay controls from the main renderer
 contextBridge.exposeInMainWorld('suggestions', {
+    warm: () => ipcRenderer.invoke('suggestions-warm'),
     open: (bounds, items, activeIndex) => ipcRenderer.invoke('suggestions-open', { bounds, items, activeIndex }),
     update: (bounds, items, activeIndex) => ipcRenderer.invoke('suggestions-update', { bounds, items, activeIndex }),
     close: () => ipcRenderer.invoke('suggestions-close'),
@@ -206,6 +211,7 @@ contextBridge.exposeInMainWorld('suggestions', {
 contextBridge.exposeInMainWorld("electronAPI", {
   windowClick: (pos) => ipcRenderer.send("window-click", pos),
   onShowFindInPage: (callback) => ipcRenderer.on('show-find-in-page', callback),
+  onFocusAddressBar: (callback) => ipcRenderer.on('focus-address-bar', () => callback()),
   openHistoryTab: () => ipcRenderer.invoke('open-history-tab'),
   openBookmarksTab: () => ipcRenderer.invoke('open-bookmarks-tab'),
   navigateActiveTab: (url) => ipcRenderer.invoke('navigate-active-tab', url),
@@ -274,10 +280,19 @@ contextBridge.exposeInMainWorld('windowControls', {
 
 contextBridge.exposeInMainWorld('inkSettings', {
   get:               ()         => ipcRenderer.invoke('settings-get'),
+  getSync:           ()         => { try { return ipcRenderer.sendSync('settings-get-sync') || {}; } catch { return {}; } },
   set:               (key, val) => ipcRenderer.invoke('settings-set', key, val),
   clearHistory:      ()         => ipcRenderer.invoke('settings-clear-history'),
   toggleBookmarkBar: ()         => ipcRenderer.send('toggle-bookmark-bar'),
   loginGoogle:       (clientId, clientSecret) => ipcRenderer.invoke('google-login', clientId, clientSecret),
+});
+
+contextBridge.exposeInMainWorld('downloads', {
+    getAll:        ()       => ipcRenderer.invoke('downloads-get'),
+    togglePanel:   (anchor) => ipcRenderer.invoke('downloads-panel-toggle', anchor),
+    closePanel:    ()       => ipcRenderer.invoke('downloads-panel-close'),
+    onChanged:     (fn)     => ipcRenderer.on('downloads-changed',     (_e, item) => fn(item)),
+    onPanelClosed: (fn)     => ipcRenderer.on('downloads-panel-closed', ()        => fn()),
 });
 
 contextBridge.exposeInMainWorld('urlUtils', {
@@ -286,46 +301,4 @@ contextBridge.exposeInMainWorld('urlUtils', {
             return new URL(url).hostname.toLowerCase().replace(/^www\./, '');
         } catch { return ''; }
     }
-});
-
-contextBridge.exposeInMainWorld("bruno", {
-    open: () => ipcRenderer.invoke('bruno-open'),
-    close: () => ipcRenderer.invoke('bruno-close'),
-    selectDirectory: () => ipcRenderer.invoke('bruno-select-directory'),
-    // Resize divider
-    resizeStart: (x) => ipcRenderer.invoke('bruno-resize-start', x),
-    resizeMove:  (x) => ipcRenderer.invoke('bruno-resize-move', x),
-    resizeEnd:   ()  => ipcRenderer.invoke('bruno-resize-end'),
-    // Request operations
-    listRequests:  (path)                 => ipcRenderer.invoke('bruno-list-requests', path),
-    createRequest: (path, name)           => ipcRenderer.invoke('bruno-create-request', path, name),
-    saveRequest:   (path, filename, data) => ipcRenderer.invoke('bruno-save-request', path, filename, data),
-    loadRequest:   (path)                 => ipcRenderer.invoke('bruno-load-request', path),
-    deleteRequest: (path, filename)       => ipcRenderer.invoke('bruno-delete-request', path, filename),
-    // Environment operations
-    createEnvironment:    (path, name) => ipcRenderer.invoke('bruno-create-environment', path, name),
-    listEnvironments:     (path)       => ipcRenderer.invoke('bruno-list-environments', path),
-    loadEnvironment:      (path)       => ipcRenderer.invoke('bruno-load-environment', path),
-    loadEnvironmentFull:  (path)       => ipcRenderer.invoke('bruno-load-environment-full', path),
-    saveEnvironment:      (path, vars) => ipcRenderer.invoke('bruno-save-environment', path, vars),
-    deleteEnvironment:    (path)       => ipcRenderer.invoke('bruno-delete-environment', path),
-    // Collection
-    openCollection:        ()         => ipcRenderer.invoke('bruno-list-collections'),
-    createCollection:      ()         => ipcRenderer.invoke('bruno-create-collection'),
-    initCollection:        (path)     => ipcRenderer.invoke('bruno-init-collection', path),
-    getActiveEnvironment:  (path)     => ipcRenderer.invoke('bruno-get-active-environment', path),
-    setActiveEnvironment:  (path, n)  => ipcRenderer.invoke('bruno-set-active-environment', path, n),
-    // State persistence
-    saveState: (state) => ipcRenderer.invoke('bruno-save-state', state),
-    loadState: ()      => ipcRenderer.invoke('bruno-load-state'),
-    // File ops (legacy / export-import)
-    exportCollection:    (path)       => ipcRenderer.invoke('bruno-export-collection', path),
-    importCollection:    (path)       => ipcRenderer.invoke('bruno-import-collection', path),
-    deleteCollectionFile:(path)       => ipcRenderer.invoke('bruno-delete-collection-file', path),
-    loadCollectionFile:  (path)       => ipcRenderer.invoke('bruno-load-collection-file', path),
-    saveCollectionFile:  (path, data) => ipcRenderer.invoke('bruno-save-collection-file', path, data),
-    gitInit:        (path) => ipcRenderer.invoke('bruno-git-init', path),
-    isGitRepo:      (path) => ipcRenderer.invoke('bruno-is-git-repo', path),
-    gitStatus:      (path) => ipcRenderer.invoke('bruno-git-status', path),
-    createGitignore:(path) => ipcRenderer.invoke('bruno-create-gitignore', path)
 });

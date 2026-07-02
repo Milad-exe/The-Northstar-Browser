@@ -117,6 +117,21 @@ body { display: flex; flex-direction: column; }
 }
 .icon-btn.active:hover { color: var(--text); }
 
+/* Downloads button state */
+.downloads-btn { position: relative; }
+.downloads-btn.hidden { display: none; }
+.downloads-btn .downloads-dot {
+  display: none; position: absolute; top: 5px; right: 5px;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #4a9eda;
+}
+.downloads-btn.has-new .downloads-dot { display: block; }
+.downloads-btn.downloading .icon-svg { animation: dl-pulse 1.2s ease-in-out infinite; }
+@keyframes dl-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
 /* Bookmark state */
 #bookmark-btn .bookmark-filled { display: none; }
 #bookmark-btn.bookmarked .bookmark-outline { display: none; }

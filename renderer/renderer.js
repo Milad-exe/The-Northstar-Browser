@@ -44,15 +44,17 @@ function makeFolderIcon(cls) {
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
 
-    // ── Tab state + DOM refs must be ready before any await ───────────────────
-    // The main process sends 'tab-created' in its did-finish-load handler, which
-    // fires after the renderer's load event.  Because this DOMContentLoaded
-    // callback is async, any await that precedes initTabBar() creates a window
-    // where 'tab-created' IPC arrives with no listener registered and is dropped.
-    // Declaring the shared tab state and calling initTabBar() synchronously here
-    // guarantees the listener is always registered before did-finish-load fires.
+    // ── Fully synchronous startup ─────────────────────────────────────────────
+    // The main process sends tab-created / tab-switched / url-updated /
+    // navigation-updated from its did-finish-load handler, which fires after
+    // this callback. IF this callback were async, those IPC handlers could run
+    // during an await — before the const DOM refs (searchBar, backBtn, …) and
+    // the suggestion state below are initialized — throwing "Cannot access X
+    // before initialization" and leaving the address bar/nav buttons dead.
+    // Loading settings synchronously keeps the entire setup in one tick, so no
+    // IPC is processed until every declaration and init function has run.
 
     let tabs           = new Map(); // tabIndex → <div.tab-button>
     let tabUrls        = new Map(); // tabIndex → url string
@@ -60,24 +62,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     let activeTabIndex = 0;
     let currentTabUrl   = '';
     let currentTabTitle = '';
-    let isPrivateWindow = false;   // updated after the isPrivateWindow await below
 
-    const tabBar        = document.getElementById('tab-bar');
-    const tabsContainer = document.getElementById('tabs-container');
-
-    initTabBar(); // registers all tab IPC listeners synchronously
-
-    // ── Settings ──────────────────────────────────────────────────────────────
-
+    // ── Settings (synchronous) ────────────────────────────────────────────────
     let settings = {};
-    try { settings = await window.inkSettings.get(); } catch {}
+    try { settings = window.inkSettings.getSync() || {}; } catch {}
 
     const getSearchEngine  = () => settings.searchEngine || 'google';
     const getPomSetting    = (key, def) => (typeof settings[key] === 'number' ? settings[key] : def);
 
-    // ── Private window detection ──────────────────────────────────────────────
-
-    isPrivateWindow = await window.inkPrivate?.isPrivateWindow?.() ?? false;
+    // ── Private window detection (synchronous) ────────────────────────────────
+    let isPrivateWindow = false;
+    try { isPrivateWindow = window.inkPrivate?.isPrivateWindowSync?.() ?? false; } catch {}
     if (isPrivateWindow) {
         document.documentElement.setAttribute('data-private-window', 'true');
     }
@@ -100,6 +95,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // ── DOM references ─────────────────────────────────────────────────────────
 
+    const tabBar        = document.getElementById('tab-bar');
+    const tabsContainer = document.getElementById('tabs-container');
     const searchBar        = document.getElementById('searchBar');
     const backBtn          = document.getElementById('back-btn');
     const forwardBtn       = document.getElementById('forward-btn');
@@ -112,13 +109,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // ── Init sequence ─────────────────────────────────────────────────────────
 
+    initTabBar(); // registers all tab IPC listeners
     initWindowControls();
     initNavButtons();
     initAddressBar();
     initBookmarkBar();
-    // initTabBar() already called above (before the awaits)
     initFocusModeAndPomodoro();
-    initBrunoAndMenu();
+    initMenu();
+    initDownloads();
 
     // ─────────────────────────────────────────────────────────────────────────
     // Window controls
@@ -166,8 +164,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ─────────────────────────────────────────────────────────────────────────
 
     function initNavButtons() {
-        backBtn.addEventListener('click',   () => window.tab.goBack(activeTabIndex));
-        forwardBtn.addEventListener('click',() => window.tab.goForward(activeTabIndex));
+        setupNavButton(backBtn,    () => window.tab.goBack(activeTabIndex));
+        setupNavButton(forwardBtn, () => window.tab.goForward(activeTabIndex));
         reloadBtn.addEventListener('click', () => window.tab.reload(activeTabIndex));
         addBtn.addEventListener('click',    () => window.tab.add());
 
@@ -175,6 +173,37 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (menuOpen) window.electronAPI.windowClick({ x: e.clientX, y: e.clientY });
         });
         window.menu.onClosed(() => { menuOpen = false; });
+    }
+
+    /**
+     * Back/forward buttons — click navigates one step; holding the button
+     * (or right-clicking it) shows the tab's history list, Firefox-style.
+     */
+    function setupNavButton(btn, action) {
+        let pressTimer = null;
+        let menuShown  = false;
+
+        const showHistoryMenu = () => {
+            const r = btn.getBoundingClientRect();
+            window.tab.showNavHistoryMenu(activeTabIndex, Math.round(r.left), Math.round(r.bottom + 2));
+        };
+
+        btn.addEventListener('mousedown', (e) => {
+            if (e.button !== 0 || btn.disabled) return;
+            menuShown = false;
+            clearTimeout(pressTimer);
+            pressTimer = setTimeout(() => { menuShown = true; showHistoryMenu(); }, 400);
+        });
+        btn.addEventListener('mouseup',    () => clearTimeout(pressTimer));
+        btn.addEventListener('mouseleave', () => clearTimeout(pressTimer));
+        btn.addEventListener('click', () => {
+            if (menuShown) { menuShown = false; return; } // long-press already handled
+            action();
+        });
+        btn.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            if (!btn.disabled) showHistoryMenu();
+        });
     }
 
     function updateNavigationButtons(canGoBack, canGoForward) {
@@ -191,7 +220,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ─────────────────────────────────────────────────────────────────────────
 
     function initAddressBar() {
-        searchBar.addEventListener('input',   () => { userTyping = true; updateSuggestions(); });
+        // Pre-warm the suggestions overlay so its first load doesn't steal
+        // focus (and a keystroke) once the user starts typing.
+        window.suggestions.warm?.().catch?.(() => {});
+
+        searchBar.addEventListener('input', (e) => {
+            userTyping = true;
+            // Only autocomplete on insertions — autofilling right after the user
+            // deletes text would "bring back" the URL they just erased.
+            lastInputWasInsert = !!(e.inputType && e.inputType.startsWith('insert'));
+            updateSuggestions();
+        });
         searchBar.addEventListener('focus', () => {
             if (!userTyping) {
                 if (currentTabUrl && searchBar.value !== currentTabUrl) searchBar.value = currentTabUrl;
@@ -211,7 +250,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         searchBar.addEventListener('keydown', onSearchKeyDown);
 
-        window.suggestions.onCreated(() => { userTyping = true; try { searchBar.focus(); } catch {} });
+        // Overlay view was (re)created — restore focus to the address bar, but
+        // only if the user was actually typing (the overlay is also pre-warmed
+        // at startup, which must not grab focus or fake a typing session).
+        window.suggestions.onCreated(() => { if (userTyping) { try { searchBar.focus(); } catch {} } });
         window.suggestions.onSelected(onSuggestionSelected);
         window.suggestions.onPointerDown(() => {
             overlayPointerDown = true;
@@ -221,6 +263,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (window.contentInteraction) {
             window.contentInteraction.onClicked(() => { hideSuggestions(); searchBar.blur(); });
         }
+
+        // New blank tab (main process) → focus + select the address bar so the
+        // user can immediately type a URL.
+        window.electronAPI.onFocusAddressBar?.(() => {
+            try { searchBar.focus(); searchBar.select(); } catch {}
+        });
 
         window.addEventListener('resize', positionSuggestions);
         window.addEventListener('scroll', positionSuggestions, true);
@@ -232,6 +280,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let activeSuggestionIndex = -1;
     let overlayPointerDown    = false;
     let userTyping           = false;
+    let lastInputWasInsert   = false;
 
     function getSuggestionsBounds() {
         const r = searchBar.getBoundingClientRect();
@@ -301,7 +350,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (e.key === 'ArrowUp')    { e.preventDefault(); setActiveSuggestion(activeSuggestionIndex - 1); return; }
             if (e.key === 'Escape')     { e.preventDefault(); hideSuggestions(); return; }
             if (e.key === 'Enter' && activeSuggestionIndex >= 0) {
-                e.preventDefault(); handleSuggestionSelect(activeSuggestionIndex); return;
+                e.preventDefault();
+                const item = currentSuggestions[activeSuggestionIndex];
+                // The action/navigate row's query is the raw typed prefix — use
+                // the live bar value so inline domain autofill is what loads.
+                if (item?.type === 'action' || item?.type === 'navigate') {
+                    const url = searchBar.value.trim();
+                    if (url) { loadUrlInActiveTab(url); hideSuggestions(); }
+                    return;
+                }
+                handleSuggestionSelect(activeSuggestionIndex); return;
             }
         }
         if (e.key === 'Enter') {
@@ -378,41 +436,169 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch { return []; }
     }
 
+    /**
+     * Relevance rank for a history/bookmark/tab entry against the query.
+     * Lower is better; -1 means "not relevant enough, hide it".
+     *
+     * This is what stops noise like `gymshark.com` / `spotify.com` showing for
+     * "y" just because the letter appears somewhere inside them — a bare
+     * substring only counts once the query is at least 3 chars long.
+     */
+    function linkScore(item, ql) {
+        let host = '', path = '';
+        const title = (item.title || '').toLowerCase();
+        try {
+            const u = new URL(item.url);
+            host = u.hostname.replace(/^www\./, '').toLowerCase();
+            path = (u.pathname + u.search).toLowerCase();
+        } catch { host = (item.url || '').toLowerCase(); }
+
+        if (host.startsWith(ql)) return 0;                                    // youtube.com for "you"
+        if (host.split('.').some(l => l.startsWith(ql))) return 1;            // sub-label: m.youtube.com
+        if (title.split(/[\s\-–—_/|:.()]+/).some(w => w.startsWith(ql))) return 2; // title word start
+        if (ql.length >= 3 && (host.includes(ql) || title.includes(ql) || path.includes(ql))) return 3;
+        return -1;
+    }
+
+    /**
+     * Firefox surfaces clean, high-frecency pages — not OAuth/sign-in redirects
+     * or giant tracking URLs. We lack visit counts, so approximate: a weak match
+     * (title/substring only, score ≥ 2) that lands on a login redirect or a long
+     * param-heavy URL is almost never what the user wants. Strong host matches
+     * (score < 2, e.g. youtube.com/watch?v=…) are always kept.
+     */
+    function isLowValueMatch(url, score) {
+        if (score < 2) return false;
+        const u = url || '';
+        if (u.length > 90) return true;
+        if (/[?&](continue|dsh|ifkv|flowName|flowEntry|checkConnection|gclid|gclsrc|gad_)/i.test(u)) return true;
+        if (/\/(signin|oauth2?|auth|login|challenge)\b/i.test(u)) return true;
+        return false;
+    }
+
+    /** Lower = cleaner: short URLs with a real title sort ahead of long/untitled ones. */
+    function cleanliness(item) {
+        const hasTitle = item.title && item.title !== item.url;
+        return (item.url || '').length + (hasTitle ? 0 : 40);
+    }
+
+    /**
+     * Firefox-style inline autocomplete: if the top domain match extends what
+     * the user typed, return the completed host (e.g. "you" → "youtube.com").
+     * Returns null when it isn't safe to autofill (caret not at end, user is
+     * deleting, query has spaces, etc.). Caller applies it to the input.
+     */
+    function computeAutofill(q, url) {
+        if (!lastInputWasInsert || !userTyping) return null;
+        if (document.activeElement !== searchBar) return null;
+        if (searchBar.value !== q) return null;                  // user typed more since
+        if (q.includes(' ') || /^https?:\/\//i.test(q)) return null;
+        if (searchBar.selectionStart !== q.length ||
+            searchBar.selectionEnd   !== q.length) return null;  // caret must be at the end
+
+        const ql = q.toLowerCase();
+        let host;
+        try { host = new URL(url).hostname.toLowerCase(); } catch { return null; }
+        const bare  = host.replace(/^www\./, '');
+        const match = bare.startsWith(ql) ? bare : (host.startsWith(ql) ? host : null);
+        return (match && match.length > q.length) ? match : null;
+    }
+
+    /** Does the typed text look like a URL/domain rather than a search? */
+    function looksLikeUrl(q) {
+        if (/^https?:\/\//i.test(q)) return true;
+        if (/\s/.test(q)) return false;
+        // bare domain / host[:port][/path] — needs a dot with a TLD-ish tail
+        return /^[^\s/]+\.[a-z]{2,}([:/].*)?$/i.test(q) || /^localhost([:/].*)?$/i.test(q);
+    }
+
     const updateSuggestions = debounce(async () => {
         const q = searchBar.value.trim();
         if (!q) { hideSuggestions(); return; }
+        const ql = q.toLowerCase();
 
-        const base = [{ type: 'action', query: q }];
-        renderSuggestions(base); // immediate feedback
+        // Immediate feedback while async sources load
+        renderSuggestions([looksLikeUrl(q) ? { type: 'navigate', query: q } : { type: 'action', query: q }]);
 
         try {
+            // Over-fetch links so relevance scoring (below) has enough
+            // candidates to find good matches before we truncate the list.
             const openTabs                 = getOpenTabSuggestions(q);
             const [bookmarks, hist, search] = await Promise.all([
-                getBookmarkSuggestions(q, 3),
-                getHistorySuggestions(q, 5),
+                getBookmarkSuggestions(q, 12),
+                getHistorySuggestions(q, 20),
                 getSearchSuggestions(q, 6),
             ]);
 
-            const merged    = [];
-            const seenUrls  = new Set();
-            const seenQuery = new Set();
+            // Score each link/tab; drop irrelevant and low-value (auth/redirect)
+            // matches. Bookmarks slightly outrank history at the same tier.
+            const scored = [];
+            const consider = (item, bias) => {
+                const s = linkScore(item, ql);
+                if (s < 0 || isLowValueMatch(item.url, s)) return;
+                scored.push({ item, score: s + bias, clean: cleanliness(item) });
+            };
+            for (const b of bookmarks) consider(b, -0.1);
+            for (const h of hist)      consider(h,  0);
+            for (const t of openTabs)  consider(t, -0.2);
+            // Sort by relevance tier, then by cleanliness (short, titled URLs first).
+            scored.sort((a, b) => (a.score - b.score) || (a.clean - b.clean));
 
-            // Action (what you typed) always first so pressing Enter is predictable
-            merged.push(...base);
-            for (const x of base) { if (x.query) seenQuery.add(x.query); }
-            // Then open tabs, bookmarks, history — URL matches above search suggestions
-            for (const t of openTabs)   { merged.push(t); seenUrls.add(t.url); }
-            for (const b of bookmarks)  { if (!seenUrls.has(b.url)) { merged.push(b); seenUrls.add(b.url); } }
-            for (const h of hist)       { if (!seenUrls.has(h.url))   { merged.push(h); seenUrls.add(h.url); } }
-            for (const s of search)     { if (!seenQuery.has(s.query)) { merged.push(s); seenQuery.add(s.query); } }
+            // Dedup by normalized host+path (ignoring www), keeping the best entry.
+            const rankedLinks = [];
+            const seenLinks   = new Set();
+            for (const { item } of scored) {
+                const key = normalizeUrl(item.url);
+                if (seenLinks.has(key)) continue;
+                seenLinks.add(key);
+                rankedLinks.push(item);
+            }
+
+            // Inline-autofill from the top domain-prefix match, and make the
+            // first row match what's now in the address bar so Enter is obvious.
+            const topDomain = rankedLinks.find(x => linkScore(x, ql) === 0);
+            const completed = topDomain ? computeAutofill(q, topDomain.url) : null;
+            if (completed) {
+                searchBar.value = q + completed.slice(q.length);
+                searchBar.setSelectionRange(q.length, searchBar.value.length);
+            }
+
+            const base = completed
+                ? { type: 'navigate', query: completed }
+                : (looksLikeUrl(q) ? { type: 'navigate', query: q } : { type: 'action', query: q });
+
+            // The heuristic already represents the autofilled domain — don't
+            // repeat it as a history row right underneath (Firefox collapses this).
+            const heuristicKey = completed ? normalizeUrl('https://' + completed) : null;
+
+            const merged    = [base];
+            const seenQuery = new Set([String(base.query).toLowerCase()]);
+
+            // History / bookmarks / open tabs — tight cap like Firefox (max 5).
+            let linkCount = 0;
+            for (const link of rankedLinks) {
+                if (heuristicKey && normalizeUrl(link.url) === heuristicKey) continue;
+                merged.push(link);
+                if (++linkCount >= 5) break;
+            }
+
+            // Search suggestions at the bottom (max 5); skip base-query dupes.
+            let searchCount = 0;
+            for (const s of search) {
+                const k = (s.query || '').toLowerCase();
+                if (k && !seenQuery.has(k)) { merged.push(s); seenQuery.add(k); if (++searchCount >= 5) break; }
+            }
 
             renderSuggestions(merged);
         } catch { /* keep base rendered */ }
     }, 120);
 
+    // Normalize for dedup: host (without www) + path, lowercased, no trailing slash.
     function normalizeUrl(u) {
-        try { const n = new URL(u); return (n.hostname + n.pathname).toLowerCase().replace(/\/$/, ''); }
-        catch { return u.toLowerCase(); }
+        try {
+            const n = new URL(u);
+            return (n.hostname.replace(/^www\./, '') + n.pathname).toLowerCase().replace(/\/$/, '');
+        } catch { return (u || '').toLowerCase(); }
     }
 
     // ── URL loading ───────────────────────────────────────────────────────────
@@ -440,6 +626,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function updateSearchBarUrl(url) {
+        // Never clobber the address bar while the user is typing in it — page
+        // events (redirects, title/favicon updates) kept re-inserting the old
+        // URL over freshly typed text.
+        if (document.activeElement === searchBar && userTyping) return;
         if (document.activeElement !== searchBar) {
             searchBar.value = getDomainDisplay(url);
         } else {
@@ -1320,7 +1510,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         // ── IPC events from main process ──────────────────────────────────────
 
         window.tab.onTabCreated((_e, data) => {
-            console.log('[tab-created] index:', data.index, 'afterIndex:', data.afterIndex, 'type:', typeof data.afterIndex);
             tabPrivate.set(data.index, !!data.private);
             createTabButton(data.index, data.title, data.afterIndex ?? null, data.active !== false, !!data.private);
             setTimeout(() => { updateTabWidths(data.totalTabs); updateScrollShadows(); }, 10);
@@ -1467,8 +1656,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         btn.className      = 'tab-button';
         btn.dataset.index  = index;
         btn.draggable      = true;
-        btn.tabIndex       = 0;
-        btn.role           = 'button';
+        // Not keyboard-focusable: the tab strip should never be a Tab-key stop.
+        btn.tabIndex       = -1;
         if (isPrivate) btn.dataset.private = 'true';
 
         const titleSpan   = document.createElement('span');
@@ -1477,6 +1666,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const closeBtn = document.createElement('button');
         closeBtn.className = 'tab-close';
+        closeBtn.tabIndex  = -1;
         closeBtn.innerHTML = '×';
         closeBtn.onclick   = (e) => { e.stopPropagation(); window.tab.remove(parseInt(index)); };
 
@@ -1500,21 +1690,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             e.preventDefault();
             e.stopPropagation();
             window.tab.remove(parseInt(index));
-        });
-        btn.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault(); window.tab.switch(parseInt(index));
-            } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-                e.preventDefault();
-                const all  = [...tabsContainer.querySelectorAll('.tab-button')];
-                const next = all[(all.indexOf(btn) + 1) % all.length];
-                if (next) next.focus();
-            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-                e.preventDefault();
-                const all  = [...tabsContainer.querySelectorAll('.tab-button')];
-                const prev = all[(all.indexOf(btn) - 1 + all.length) % all.length];
-                if (prev) prev.focus();
-            }
         });
 
         // Drag to reorder or detach to another window
@@ -1540,7 +1715,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         const afterBtn = afterIndex !== null ? tabs.get(afterIndex) : null;
-        console.log('[createTabButton] index:', index, 'afterIndex:', afterIndex, 'afterBtn found:', !!afterBtn, 'nextSibling:', afterBtn?.nextSibling?.dataset?.index);
         if (afterBtn && afterBtn.nextSibling) {
             tabsContainer.insertBefore(btn, afterBtn.nextSibling);
         } else if (afterBtn) {
@@ -1793,18 +1967,61 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Bruno panel + hamburger menu button
+    // Downloads button + panel
     // ─────────────────────────────────────────────────────────────────────────
 
-    function initBrunoAndMenu() {
-        const brunoBtn = document.getElementById('bruno-btn');
-        let brunoOpen  = false;
+    function initDownloads() {
+        const btn = document.getElementById('downloads-btn');
+        if (!btn || !window.downloads) return;
 
-        brunoBtn.addEventListener('click', () => {
-            if (brunoOpen) { window.bruno.close(); brunoOpen = false; brunoBtn.classList.remove('active'); }
-            else           { window.bruno.open();  brunoOpen = true;  brunoBtn.classList.add('active'); }
+        let panelOpen   = false;
+        let activeCount = 0;
+
+        function syncButton(items) {
+            activeCount = items.filter(i => i.state === 'progressing').length;
+            btn.classList.toggle('hidden', items.length === 0);
+            btn.classList.toggle('downloading', activeCount > 0);
+            btn.title = activeCount > 0 ? `Downloads — ${activeCount} in progress` : 'Downloads';
+        }
+
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const r = btn.getBoundingClientRect();
+            panelOpen = await window.downloads.togglePanel(
+                { left: r.left, right: r.right, top: r.top, bottom: r.bottom });
+            btn.classList.toggle('active', panelOpen);
+            if (panelOpen) btn.classList.remove('has-new');
         });
 
+        window.downloads.onPanelClosed(() => {
+            panelOpen = false;
+            btn.classList.remove('active');
+        });
+
+        window.downloads.onChanged(async (item) => {
+            const items = await window.downloads.getAll();
+            syncButton(items);
+            // Pulse ends → mark completion so the user notices the finished file
+            if (item && item.state === 'completed' && !panelOpen) btn.classList.add('has-new');
+        });
+
+        // Close the panel on clicks outside the button (chrome or page content)
+        window.addEventListener('click', (e) => {
+            if (panelOpen && !btn.contains(e.target)) window.downloads.closePanel();
+        });
+        if (window.contentInteraction) {
+            window.contentInteraction.onClicked(() => { if (panelOpen) window.downloads.closePanel(); });
+        }
+
+        // Restore button state for downloads started earlier in the session
+        window.downloads.getAll().then(syncButton).catch(() => {});
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Hamburger menu button
+    // ─────────────────────────────────────────────────────────────────────────
+
+    function initMenu() {
         menuBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             window.menu.open();

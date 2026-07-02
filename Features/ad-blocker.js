@@ -89,6 +89,13 @@ const NEVER_BLOCK = new Set([
     'gstatic.com',          // Google static assets (fonts, icons)
     // Google sign-in (needed for YouTube login)
     'accounts.google.com',
+    'accounts.youtube.com',
+    'googleusercontent.com',    // account avatars, Drive/Photos content
+    // Cloudflare bot-check infrastructure — blocking these makes every
+    // Cloudflare-protected site loop forever on the challenge page.
+    'challenges.cloudflare.com',
+    'hcaptcha.com',
+    'recaptcha.net',
 ]);
 
 // ── URL substring patterns ────────────────────────────────────────────────────

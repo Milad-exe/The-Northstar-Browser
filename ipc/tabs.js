@@ -6,7 +6,24 @@
  *         and session persistence mode.
  */
 
+const { Menu } = require('electron');
 const { sanitizeUrl } = require('../Features/url-security');
+
+// Compact label for a per-tab history entry ("host/path…" like Firefox's list)
+function navEntryLabel(url) {
+    if (!url || url === 'newtab') return 'New Tab';
+    if (url === 'settings')  return 'Settings';
+    if (url === 'history')   return 'History';
+    if (url === 'bookmarks') return 'Bookmarks';
+    try {
+        const u = new URL(url);
+        let label = u.hostname.replace(/^www\./, '') + (u.pathname !== '/' ? u.pathname : '');
+        if (u.search) label += u.search;
+        return label.length > 60 ? label.slice(0, 57) + '…' : label;
+    } catch {
+        return url.length > 60 ? url.slice(0, 57) + '…' : url;
+    }
+}
 
 function register(ipcMain, { wm, BrowserWindow }) {
 
@@ -75,6 +92,12 @@ function register(ipcMain, { wm, BrowserWindow }) {
         return wd?.tabs?.isPrivateWindow ?? false;
     });
 
+    // Synchronous variant used during renderer startup (keeps init single-tick)
+    ipcMain.on('is-private-window-sync', (_e) => {
+        const wd = wm.getWindowByWebContents(_e.sender);
+        _e.returnValue = wd?.tabs?.isPrivateWindow ?? false;
+    });
+
     ipcMain.handle('getTabUrl', (_e, index) => {
         const wd = wm.getWindowByWebContents(_e.sender);
         return wd ? (wd.tabs.tabUrls.get(index) || '') : '';
@@ -90,6 +113,33 @@ function register(ipcMain, { wm, BrowserWindow }) {
         const wd = wm.getWindowByWebContents(_e.sender);
         if (wd && wd.tabs) { wd.tabs.reorderTabs(order); return true; }
         return false;
+    });
+
+    // Long-press / right-click on back-forward buttons: show the tab's full
+    // navigation stack (newest first, current entry checked) as a native menu.
+    ipcMain.handle('show-nav-history-menu', (_e, index, x, y) => {
+        const wd = wm.getWindowByWebContents(_e.sender);
+        if (!wd?.tabs) return false;
+
+        const h = wd.tabs.navigationHistory.getHistory(index);
+        if (!h || !Array.isArray(h.entries) || h.entries.length < 2) return false;
+
+        const template = [...h.entries].reverse().map(entry => ({
+            // Prefer the page title (Firefox shows titles in this list); fall
+            // back to a compact host/path label when the title isn't known yet.
+            label:   entry.title || navEntryLabel(entry.data),
+            type:    'checkbox',
+            checked: entry.index === h.currentIndex,
+            enabled: entry.index !== h.currentIndex,
+            click:   () => { try { wd.tabs.goToHistoryIndex(index, entry.index); } catch {} },
+        }));
+
+        Menu.buildFromTemplate(template).popup({
+            window: wd.window,
+            x: Math.round(x),
+            y: Math.round(y),
+        });
+        return true;
     });
 
     // ── Navigation helpers (used by history / bookmarks pages) ───────────────

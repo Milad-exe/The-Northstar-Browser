@@ -17,10 +17,9 @@ function setup(sess) {
     sess.webRequest.onBeforeSendHeaders((details, callback) => {
         const headers = { ...details.requestHeaders };
 
-        // Remove Chromium client-hint headers (UA fingerprinting vector)
-        for (const key of Object.keys(headers)) {
-            if (key.toLowerCase().startsWith('sec-ch-ua')) delete headers[key];
-        }
+        // Align client-hint headers with the Chrome UA (stripping them entirely
+        // contradicts the Chromium engine and trips bot detection)
+        UserAgent.applyClientHintHeaders(headers);
 
         // Privacy signal headers
         headers['DNT']             = '1';
