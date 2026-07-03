@@ -117,6 +117,10 @@ body { display: flex; flex-direction: column; }
 }
 .icon-btn.active:hover { color: var(--text); }
 
+/* Reader / Picture-in-Picture buttons */
+.reader-btn.hidden, .pip-btn.hidden { display: none; }
+.reader-btn.active { color: var(--accent, #4a9eda); }
+
 /* Downloads button state */
 .downloads-btn { position: relative; }
 .downloads-btn.hidden { display: none; }

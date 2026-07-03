@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none';" />
+  <title>Reader View</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="reader-toolbar">
+    <button id="rd-close" class="rd-tool" title="Close reader view (Esc)" aria-label="Close">✕</button>
+    <div class="rd-tool-group">
+      <button id="rd-font-dec" class="rd-tool" title="Smaller text" aria-label="Smaller text">A−</button>
+      <button id="rd-font-inc" class="rd-tool" title="Larger text" aria-label="Larger text">A+</button>
+    </div>
+    <div class="rd-tool-group" id="rd-typeface">
+      <button data-face="sans" class="rd-tool rd-seg" title="Sans-serif">Sans</button>
+      <button data-face="serif" class="rd-tool rd-seg" title="Serif">Serif</button>
+    </div>
+    <div class="rd-tool-group" id="rd-width">
+      <button data-width="narrow" class="rd-tool rd-seg" title="Narrow">▮</button>
+      <button data-width="medium" class="rd-tool rd-seg" title="Medium">▮▮</button>
+      <button data-width="wide" class="rd-tool rd-seg" title="Wide">▮▮▮</button>
+    </div>
+    <div class="rd-tool-group" id="rd-theme">
+      <button data-theme="light" class="rd-tool rd-seg rd-swatch light" title="Light" aria-label="Light theme"></button>
+      <button data-theme="sepia" class="rd-tool rd-seg rd-swatch sepia" title="Sepia" aria-label="Sepia theme"></button>
+      <button data-theme="dark"  class="rd-tool rd-seg rd-swatch dark"  title="Dark" aria-label="Dark theme"></button>
+    </div>
+  </div>
+
+  <main id="reader-content">
+    <header id="rd-header">
+      <h1 id="rd-title"></h1>
+      <div id="rd-meta">
+        <span id="rd-site"></span>
+        <span id="rd-byline"></span>
+      </div>
+    </header>
+    <article id="rd-article"></article>
+  </main>
+
+  <div id="rd-error" class="hidden">Couldn't extract a readable article from this page.</div>
+
+  <script src="../../node_modules/dompurify/dist/purify.min.js"></script>
+  <script src="reader.js"></script>
+</body>
+</html>

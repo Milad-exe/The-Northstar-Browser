@@ -166,6 +166,25 @@ contextBridge.exposeInMainWorld('tabsUI', {
     onPinTab: (handler) => ipcRenderer.on('pin-tab', (_e, { index }) => handler(index)),
 });
 
+// Reader mode + Picture-in-Picture
+contextBridge.exposeInMainWorld('reader', {
+    toggle:   (index) => ipcRenderer.invoke('reader-toggle', index),
+    onState:  (cb) => ipcRenderer.on('reader-state',  (_e, d) => cb(d)),
+    onFailed: (cb) => ipcRenderer.on('reader-failed', (_e, d) => cb(d)),
+});
+contextBridge.exposeInMainWorld('pip', {
+    toggle:       (index) => ipcRenderer.invoke('toggle-pip', index),
+    onMediaState: (cb) => ipcRenderer.on('media-state', (_e, d) => cb(d)),
+});
+
+// Exposed to the Reader view (which loads inside a tab). getArticle() returns
+// null unless the tab is actually in reader mode, and exit() is a guarded no-op
+// otherwise — safe to expose to ordinary pages.
+contextBridge.exposeInMainWorld('inkReader', {
+    getArticle: () => ipcRenderer.invoke('reader-get-article'),
+    exit:       () => ipcRenderer.invoke('reader-exit'),
+});
+
 // Persistence controls
 contextBridge.exposeInMainWorld('persist', {
     getMode: () => ipcRenderer.invoke('getPersistMode'),

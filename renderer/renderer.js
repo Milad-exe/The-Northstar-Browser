@@ -117,6 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initFocusModeAndPomodoro();
     initMenu();
     initDownloads();
+    initReaderAndPip();
 
     // ─────────────────────────────────────────────────────────────────────────
     // Window controls
@@ -2015,6 +2016,50 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Restore button state for downloads started earlier in the session
         window.downloads.getAll().then(syncButton).catch(() => {});
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Reader mode + Picture-in-Picture buttons
+    // ─────────────────────────────────────────────────────────────────────────
+
+    function initReaderAndPip() {
+        const readerBtn = document.getElementById('reader-btn');
+        const pipBtn    = document.getElementById('pip-btn');
+
+        if (readerBtn && window.reader) {
+            readerBtn.addEventListener('click', () => window.reader.toggle(activeTabIndex));
+            // Main pushes { index, active, available } as pages load / tabs switch.
+            window.reader.onState((d) => {
+                if (!d || d.index !== activeTabIndex) return;
+                readerBtn.classList.toggle('hidden', !(d.available || d.active));
+                readerBtn.classList.toggle('active', !!d.active);
+                readerBtn.title = d.active ? 'Exit Reader View' : 'Reader View';
+            });
+            window.reader.onFailed((d) => {
+                if (!d || d.index !== activeTabIndex) return;
+                // brief shake/flash to signal extraction failed
+                readerBtn.animate(
+                    [{ transform: 'translateX(0)' }, { transform: 'translateX(-3px)' },
+                     { transform: 'translateX(3px)' }, { transform: 'translateX(0)' }],
+                    { duration: 220 });
+            });
+        }
+
+        if (pipBtn && window.pip) {
+            pipBtn.addEventListener('click', () => window.pip.toggle(activeTabIndex));
+            window.pip.onMediaState((d) => {
+                if (!d || d.index !== activeTabIndex) return;
+                pipBtn.classList.toggle('hidden', !d.playing);
+            });
+        }
+
+        // Reset both when switching tabs; the main process re-sends the correct
+        // state for the newly active tab immediately after.
+        window.tab.onTabSwitched(() => {
+            readerBtn?.classList.add('hidden');
+            readerBtn?.classList.remove('active');
+            pipBtn?.classList.add('hidden');
+        });
     }
 
     // ─────────────────────────────────────────────────────────────────────────

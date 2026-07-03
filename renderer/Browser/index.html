@@ -47,6 +47,20 @@
     </div>
 
     <div class="trailing-icons">
+      <!-- Reader mode: hidden until the page looks like an article -->
+      <button id="reader-btn" class="icon-btn reader-btn hidden" title="Reader View">
+        <svg class="icon-svg" viewBox="0 0 20 20" fill="none">
+          <rect x="3" y="4" width="14" height="12" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M6.5 8h5M6.5 11h7M6.5 13.5h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <!-- Picture-in-Picture: hidden until the active tab plays video -->
+      <button id="pip-btn" class="icon-btn pip-btn hidden" title="Picture-in-Picture">
+        <svg class="icon-svg" viewBox="0 0 20 20" fill="none">
+          <rect x="3" y="4.5" width="14" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+          <rect x="10" y="9" width="5.5" height="4.5" rx="1" fill="currentColor"/>
+        </svg>
+      </button>
       <!-- Downloads: hidden until the first download of the session -->
       <button id="downloads-btn" class="icon-btn downloads-btn hidden" title="Downloads">
         <svg class="icon-svg" viewBox="0 0 20 20" fill="none">

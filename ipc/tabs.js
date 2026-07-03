@@ -142,6 +142,48 @@ function register(ipcMain, { wm, BrowserWindow }) {
         return true;
     });
 
+    // ── Reader mode + Picture-in-Picture ─────────────────────────────────────
+
+    ipcMain.handle('reader-toggle', (_e, index) => {
+        const wd = wm.getWindowByWebContents(_e.sender);
+        if (!wd?.tabs) return false;
+        const idx = (typeof index === 'number') ? index : wd.tabs.activeTabIndex;
+        wd.tabs.toggleReader(idx);
+        return true;
+    });
+
+    // Served to the reader page: find which tab this webContents is, return its article.
+    ipcMain.handle('reader-get-article', (_e) => {
+        const wd = wm.getWindowByWebContents(_e.sender);
+        if (!wd?.tabs) return null;
+        for (const [idx, tab] of wd.tabs.tabMap) {
+            if (tab?.webContents === _e.sender) return wd.tabs.getReaderArticle(idx);
+        }
+        return null;
+    });
+
+    // Called from the reader page's own "close" button. Guarded so it only ever
+    // exits an active reader view (a normal page calling this is a no-op).
+    ipcMain.handle('reader-exit', (_e) => {
+        const wd = wm.getWindowByWebContents(_e.sender);
+        if (!wd?.tabs) return false;
+        for (const [idx, tab] of wd.tabs.tabMap) {
+            if (tab?.webContents === _e.sender && wd.tabs.readerMode.has(idx)) {
+                wd.tabs.toggleReader(idx);
+                return true;
+            }
+        }
+        return false;
+    });
+
+    ipcMain.handle('toggle-pip', (_e, index) => {
+        const wd = wm.getWindowByWebContents(_e.sender);
+        if (!wd?.tabs) return false;
+        const idx = (typeof index === 'number') ? index : wd.tabs.activeTabIndex;
+        wd.tabs.togglePictureInPicture(idx);
+        return true;
+    });
+
     // ── Navigation helpers (used by history / bookmarks pages) ───────────────
 
     ipcMain.handle('navigate-active-tab', (_e, url) => {

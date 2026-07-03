@@ -7,6 +7,7 @@ const NavigationHistory = require("./navigation-history");
 const FindDialogManager = require("./find-dialog");
 const focusMode = require("./focus-mode");
 const { isSafeExternal } = require('./url-security');
+const { READERABLE_JS, EXTRACT_JS, PIP_JS } = require('./reader');
 
 const YOUTUBE_SPACE_FIX_JS = `
 (() => {
@@ -111,6 +112,9 @@ class Tabs {
         this.isPrivateWindow = options?.private ?? false
         this.tabOrder = []
         this.closedTabHistory = [] // stack of {url, title} for "Reopen Closed Tab"
+        this.readerMode = new Set()       // tab indices currently showing the reader view
+        this.readerArticles = new Map()   // tabIndex → extracted article (served to the reader page)
+        this.readerOriginal = new Map()   // tabIndex → original URL to restore on exit
         
         this.mainWindow.on('resize', () => {
             this.resizeAllTabs()
@@ -615,6 +619,26 @@ class Tabs {
         });
 
         tab.webContents.on('did-navigate', (event, url) => {
+            // Reader view loaded — keep the address bar showing the real page URL
+            // and the article title instead of the internal file:// path.
+            if (url.includes('/Reader/index.html')) {
+                const orig = this.readerOriginal.get(tabIndex) || '';
+                const art  = this.readerArticles.get(tabIndex);
+                this.tabUrls.set(tabIndex, orig || 'reader');
+                lastAddedUrl = orig;
+                this.sendTabUpdate(tabIndex, tab, orig, art?.title || 'Reader View');
+                this.sendNavigationUpdate(tabIndex);
+                try { this.mainWindow.webContents.send('reader-state', { index: tabIndex, active: true, available: true }); } catch {}
+                isNavigatingProgrammatically = false;
+                return;
+            }
+            // Any other navigation exits reader mode for this tab.
+            if (this.readerMode.has(tabIndex)) {
+                this.readerMode.delete(tabIndex);
+                this.readerArticles.delete(tabIndex);
+                try { this.mainWindow.webContents.send('reader-state', { index: tabIndex, active: false }); } catch {}
+            }
+
             if (!url.startsWith('file://') && !isNavigatingProgrammatically) {
                 if (lastAddedUrl !== url) {
                     this.tabUrls.set(tabIndex, url)
@@ -768,11 +792,27 @@ class Tabs {
         
         tab.webContents.on('did-finish-load', () => {
             this.sendNavigationUpdate(tabIndex)
+            this.detectReaderable(tabIndex, tab)
         })
-        
+
         tab.webContents.on('did-stop-loading', () => {
             this.sendNavigationUpdate(tabIndex)
         })
+
+        // Picture-in-Picture is only offered while media is actually playing.
+        // Track a per-tab flag and tell the chrome to show/hide the PiP button.
+        tab.webContents.on('media-started-playing', () => {
+            tab.hasPlayingMedia = true;
+            if (tabIndex === this.activeTabIndex) {
+                try { this.mainWindow.webContents.send('media-state', { index: tabIndex, playing: true }); } catch {}
+            }
+        });
+        tab.webContents.on('media-paused', () => {
+            tab.hasPlayingMedia = false;
+            if (tabIndex === this.activeTabIndex) {
+                try { this.mainWindow.webContents.send('media-state', { index: tabIndex, playing: false }); } catch {}
+            }
+        });
     }
 
     sendTabUpdate(tabIndex, tab, url, title, favicon) {
@@ -877,9 +917,19 @@ class Tabs {
             
             this.sendNavigationUpdate(index)
 
+            // Sync reader/PiP button visibility to the newly active tab.
+            try {
+                this.mainWindow.webContents.send('media-state', { index, playing: !!tab.hasPlayingMedia });
+                if (this.readerMode.has(index)) {
+                    this.mainWindow.webContents.send('reader-state', { index, active: true, available: true });
+                } else {
+                    this.detectReaderable(index, tab);
+                }
+            } catch {}
+
             // Update window title to reflect the newly active tab
             this.updateWindowTitle(index)
-            
+
             // Put the website back into focus so keyboard events register immediately
             tab.webContents.focus()
             this.raiseFloatingViews()
@@ -1060,6 +1110,67 @@ class Tabs {
         }
         this.sendTabUpdate(index, tab, this.tabUrls.get(index));
         this.sendNavigationUpdate(index);
+    }
+
+    // ── Reader mode ────────────────────────────────────────────────────────────
+
+    // Ask the page whether it looks like an article; tell the chrome to
+    // enable/disable the reader button for the active tab.
+    detectReaderable(index, tab) {
+        if (this.readerMode.has(index)) return; // reader page itself isn't "readerable"
+        const url = (tab.webContents.getURL && tab.webContents.getURL()) || '';
+        if (!/^https?:/.test(url)) {
+            if (index === this.activeTabIndex) {
+                try { this.mainWindow.webContents.send('reader-state', { index, active: false, available: false }); } catch {}
+            }
+            return;
+        }
+        tab.webContents.executeJavaScript(READERABLE_JS, true)
+            .then((ok) => {
+                try { this.mainWindow.webContents.send('reader-state', { index, active: false, available: !!ok }); } catch {}
+            })
+            .catch(() => {});
+    }
+
+    async toggleReader(index) {
+        const tab = this.tabMap.get(index);
+        if (!tab) return;
+
+        if (this.readerMode.has(index)) {
+            // Exit — restore the original page.
+            const orig = this.readerOriginal.get(index);
+            this.readerMode.delete(index);
+            this.readerArticles.delete(index);
+            tab.setNavigatingProgrammatically(true);
+            if (orig) { this.tabUrls.set(index, orig); tab.webContents.loadURL(orig); }
+            else tab.webContents.reload();
+            return;
+        }
+
+        let article = null;
+        try { article = await tab.webContents.executeJavaScript(EXTRACT_JS, true); } catch {}
+        if (!article || !article.ok) {
+            try { this.mainWindow.webContents.send('reader-failed', { index }); } catch {}
+            return;
+        }
+        this.readerArticles.set(index, article);
+        this.readerOriginal.set(index, tab.webContents.getURL());
+        this.readerMode.add(index);
+        tab.setNavigatingProgrammatically(true);
+        tab.webContents.loadFile('renderer/Reader/index.html');
+    }
+
+    getReaderArticle(index) {
+        return this.readerArticles.get(index) || null;
+    }
+
+    // ── Picture-in-Picture ───────────────────────────────────────────────────────
+
+    togglePictureInPicture(index) {
+        const tab = this.tabMap.get(index);
+        if (!tab || !tab.webContents || tab.webContents.isDestroyed()) return;
+        // userGesture = true so the PiP request counts as user-activated.
+        tab.webContents.executeJavaScript(PIP_JS, true).catch(() => {});
     }
 
     reload(index) {

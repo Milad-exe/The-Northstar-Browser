@@ -367,6 +367,16 @@ class Shortcuts {
             const wd = this.getWindowData();
             if (wd) focusMode.toggle(wd);
         });
+
+        // Reader view — Cmd/Ctrl+Alt+R (Firefox convention)
+        this.registerShortcut('CmdOrCtrl+Alt+R', () => {
+            if (this.tabManager) this.tabManager.toggleReader(this.tabManager.activeTabIndex);
+        });
+
+        // Picture-in-Picture — Cmd/Ctrl+Alt+P
+        this.registerShortcut('CmdOrCtrl+Alt+P', () => {
+            if (this.tabManager) this.tabManager.togglePictureInPicture(this.tabManager.activeTabIndex);
+        });
     }
 
     // ── Window shortcuts ───────────────────────────────────────────────────────

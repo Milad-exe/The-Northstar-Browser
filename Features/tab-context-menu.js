@@ -183,6 +183,25 @@ class TabContextMenu {
         if (!params.srcURL || (params.mediaType !== 'video' && params.mediaType !== 'audio')) return;
         const label = params.mediaType === 'video' ? 'Video' : 'Audio';
         this.sep();
+        if (params.mediaType === 'video') {
+            this.contextTemplate.push({
+                label: 'Picture-in-Picture',
+                click: () => {
+                    const src = JSON.stringify(params.srcURL || '');
+                    // userGesture=true so the PiP request counts as user-activated.
+                    this.tab.webContents.executeJavaScript(`(() => {
+                        try {
+                            if (document.pictureInPictureElement) { document.exitPictureInPicture(); return; }
+                            const src = ${src};
+                            const vids = Array.from(document.querySelectorAll('video'));
+                            let v = vids.find(x => x.currentSrc === src || x.src === src)
+                                 || vids.filter(x => !x.paused)[0] || vids[0];
+                            if (v && v.requestPictureInPicture) v.requestPictureInPicture().catch(()=>{});
+                        } catch (e) {}
+                    })()`, true).catch(() => {});
+                },
+            });
+        }
         this.contextTemplate.push(
             {
                 label: `Open ${label} in New Tab`,
