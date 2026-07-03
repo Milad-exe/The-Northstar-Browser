@@ -63,6 +63,37 @@ function register(ipcMain, { wm, webContents, nativeTheme, app, focusMode }) {
         try { return await wm.history.clearHistory(); } catch { return false; }
     });
 
+    // Clear browsing data across a time range. Note: Electron can't scope
+    // cookies/cache/site-data to a time range, so those clear entirely when
+    // selected; the range applies to history and download list.
+    ipcMain.handle('clear-browsing-data', async (_e, payload) => {
+        const { session } = require('electron');
+        const downloadManager = require('../Features/download-manager');
+        const { range = 'all', types = {} } = payload || {};
+        const SPANS = { hour: 3600e3, day: 864e5, week: 6048e5, month: 24192e5, all: Infinity };
+        const span = SPANS[range] ?? Infinity;
+        const since = span === Infinity ? 0 : Date.now() - span;
+        const sess = session.defaultSession;
+
+        try {
+            if (types.history)   { await wm.history.clearSince(since); }
+            if (types.downloads) { downloadManager.clearFinished(); }
+            if (types.cache)     { await sess.clearCache(); }
+            if (types.cookies) {
+                await sess.clearStorageData({
+                    storages: ['cookies', 'localstorage', 'indexdb', 'websql',
+                               'serviceworkers', 'cachestorage', 'filesystem', 'shadercache'],
+                });
+                try { await sess.clearAuthCache(); } catch {}
+            }
+            // Notify chrome so the history/bookmark UIs can refresh.
+            try { wm.getAllWindows().forEach(w => w.window.webContents.send('browsing-data-cleared')); } catch {}
+            return { ok: true };
+        } catch (err) {
+            return { ok: false, error: err.message };
+        }
+    });
+
     ipcMain.handle('open-settings-tab', (_e) => {
         const wd = wm.getWindowByWebContents(_e.sender);
         if (wd) wd.tabs.createTabWithPage('renderer/Settings/index.html', 'settings', 'Settings');

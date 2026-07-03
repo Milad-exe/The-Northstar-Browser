@@ -124,6 +124,11 @@ class WindowManager {
             trafficLightPosition: { x: 14, y: 16 }, // Vertically center within 50px utility bar
             webPreferences: {
                 preload: path.join(__dirname, "../preload/preload.js"),
+                // The chrome UI loads only trusted local files, and its preload
+                // must require the extension browser-action module from disk
+                // (impossible in a sandboxed preload). Tabs stay sandboxed.
+                sandbox: false,
+                contextIsolation: true,
             }
         });
 
@@ -323,6 +328,7 @@ class WindowManager {
             if (windowData.bookmarkPrompt?.webContents === webContents) return windowData;
             if (windowData.folderDropdown?.webContents === webContents) return windowData;
             if (windowData.downloadsPanel?.webContents === webContents) return windowData;
+            if (windowData.passwordPrompt?.webContents === webContents) return windowData;
             // Match tab WebContentsViews
             if (windowData.tabs) {
                 for (const [, tab] of windowData.tabs.tabMap) {

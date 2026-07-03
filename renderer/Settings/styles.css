@@ -167,6 +167,89 @@ input[type="number"]:focus { border-color: rgba(255,255,255,0.3); }
 }
 .btn-danger:hover { background: rgba(231,76,60,0.12); border-color: rgba(231,76,60,0.7); }
 
+/* ── Clear browsing data ── */
+.cbd-range-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--border);
+}
+.cbd-range { min-width: 160px; }
+.cbd-check {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 11px 0; border-bottom: 1px solid var(--border); cursor: pointer;
+}
+.cbd-check input { margin-top: 2px; accent-color: var(--text); width: 15px; height: 15px; flex-shrink: 0; }
+.cbd-check .cbd-name { display: block; font-size: 13px; color: var(--text); }
+.cbd-check .cbd-desc { display: block; font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
+.cbd-actions { display: flex; justify-content: flex-end; padding-top: 16px; }
+
+/* ── Extensions ── */
+.btn {
+  background: transparent; border: 1px solid var(--border-2); color: var(--text);
+  border-radius: 0; padding: 7px 16px; font-family: var(--font);
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  white-space: nowrap; letter-spacing: 0.04em; text-transform: uppercase;
+}
+.btn:hover { background: var(--hover); border-color: var(--text-3); }
+.btn-sm { padding: 5px 12px; font-size: 11px; }
+.ext-add-buttons { display: flex; gap: 8px; flex-shrink: 0; }
+
+.ext-id-row { display: flex; gap: 8px; margin-top: 14px; }
+.ext-id-input {
+  flex: 1; padding: 8px 12px; background: var(--bg);
+  border: 1px solid var(--border-2); color: var(--text);
+  font-family: var(--font); font-size: 12.5px;
+}
+.ext-id-input::placeholder { color: var(--text-3); }
+
+.ext-error {
+  display: none; margin-top: 12px; padding: 8px 12px;
+  font-size: 12px; color: #e74c3c;
+  background: rgba(231,76,60,0.08); border: 1px solid rgba(231,76,60,0.3);
+}
+.ext-error.show { display: block; }
+
+/* ── Passwords ── */
+.pw-list { display: flex; flex-direction: column; }
+.pw-empty { font-size: 12px; color: var(--text-3); padding: 6px 0; }
+.pw-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 0; border-top: 1px solid var(--border);
+}
+.pw-row:first-child { border-top: none; }
+.pw-info { flex: 1; min-width: 0; }
+.pw-site { font-size: 13px; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pw-user { font-size: 11.5px; color: var(--text-3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pw-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.pw-secret {
+  width: 130px; padding: 5px 8px; font-family: ui-monospace, monospace; font-size: 12px;
+  background: var(--bg); border: 1px solid var(--border-2); color: var(--text);
+}
+
+.ext-list { display: flex; flex-direction: column; }
+.ext-empty { font-size: 12px; color: var(--text-3); padding: 6px 0; }
+
+.ext-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 0; border-top: 1px solid var(--border);
+}
+.ext-row:first-child { border-top: none; }
+.ext-icon {
+  width: 32px; height: 32px; flex-shrink: 0; border-radius: 6px;
+  background: var(--hover); display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 600; color: var(--text-2); overflow: hidden;
+}
+.ext-icon img { width: 24px; height: 24px; object-fit: contain; }
+.ext-info { flex: 1; min-width: 0; }
+.ext-name { font-size: 13px; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ext-desc { font-size: 11.5px; color: var(--text-2); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ext-meta { font-size: 11px; color: var(--text-3); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.04em; }
+.ext-controls { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.ext-count { font-size: 12px; color: var(--text-3); font-weight: 400; }
+.ext-row.disabled .ext-icon,
+.ext-row.disabled .ext-name,
+.ext-row.disabled .ext-desc { opacity: 0.5; }
+
 /* ── About ── */
 .about-card {
   display: flex; flex-direction: column; align-items: center;

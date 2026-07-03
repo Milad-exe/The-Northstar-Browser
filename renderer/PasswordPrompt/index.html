@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none';" />
+  <title>Save password</title>
+  <link rel="stylesheet" href="../themes.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="card">
+    <div id="head">
+      <span id="title">Save password?</span>
+      <button id="close" title="Not now" aria-label="Close">✕</button>
+    </div>
+    <div id="cred">
+      <div id="site"></div>
+      <div id="user"></div>
+    </div>
+    <div id="actions">
+      <button id="never" class="btn-ghost">Never</button>
+      <button id="save" class="btn-primary">Save</button>
+    </div>
+  </div>
+  <script src="prompt.js"></script>
+</body>
+</html>

@@ -98,6 +98,22 @@ class History {
             return false;
         }
     }
+
+    // Remove entries newer than `sinceMs` (keep older ones). sinceMs = 0 clears all.
+    async clearSince(sinceMs) {
+        try {
+            if (!sinceMs) return this.clearHistory();
+            const history = await this.read();
+            const kept = history.filter(e => {
+                const t = Date.parse(e.timestamp || 0);
+                return isNaN(t) ? true : t < sinceMs;
+            });
+            await this.write(kept);
+            return true;
+        } catch {
+            return false;
+        }
+    }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

@@ -1,5 +1,20 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Enable the <browser-action-list> element for extension toolbar buttons.
+// This preload is shared by the chrome window and by tabs, so only inject the
+// element into the browser chrome page — not arbitrary web pages.
+try {
+    const isChrome = location.protocol === 'file:' && /\/Browser\/index\.html$/.test(location.pathname);
+    if (isChrome) {
+        // Require by absolute file path — Electron's (non-sandboxed) preload
+        // require can't resolve this package by name (its "exports" map isn't
+        // honored here). The chrome window runs with sandbox:false so this works.
+        const p = require('path');
+        const baPath = p.join(__dirname, '..', 'node_modules', 'electron-chrome-extensions', 'dist', 'cjs', 'browser-action.js');
+        require(baPath).injectBrowserAction();
+    }
+} catch (e) {}
+
 try {
     const settings = ipcRenderer.sendSync('settings-get-sync');
     if (settings && settings.theme && settings.theme !== 'default') {
@@ -177,6 +192,7 @@ contextBridge.exposeInMainWorld('pip', {
     onMediaState: (cb) => ipcRenderer.on('media-state', (_e, d) => cb(d)),
 });
 
+
 // Exposed to the Reader view (which loads inside a tab). getArticle() returns
 // null unless the tab is actually in reader mode, and exit() is a guarded no-op
 // otherwise — safe to expose to ordinary pages.
@@ -313,6 +329,60 @@ contextBridge.exposeInMainWorld('downloads', {
     onChanged:     (fn)     => ipcRenderer.on('downloads-changed',     (_e, item) => fn(item)),
     onPanelClosed: (fn)     => ipcRenderer.on('downloads-panel-closed', ()        => fn()),
 });
+
+// ── Password autofill + save detection (runs in web-page tabs) ────────────────
+// The preload shares the page DOM, so we read/fill fields here and talk to the
+// main process for stored credentials. The origin is derived from the sender in
+// main, so a page can only ever touch its own credentials.
+(function passwordManager() {
+    if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
+
+    const setVal = (el, v) => {
+        try {
+            const desc = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value');
+            if (desc && desc.set) desc.set.call(el, v); else el.value = v;
+            el.dispatchEvent(new Event('input',  { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+        } catch { try { el.value = v; } catch {} }
+    };
+    const findUser = (scope) => scope && scope.querySelector(
+        'input[autocomplete="username"],input[type="email"],input[name*="user" i],' +
+        'input[name*="email" i],input[id*="user" i],input[id*="email" i],input[type="text"]'
+    );
+
+    function autofill() {
+        ipcRenderer.invoke('passwords-get-for-origin').then((creds) => {
+            if (!Array.isArray(creds) || creds.length !== 1) return; // skip when ambiguous
+            const pw = document.querySelector('input[type="password"]:not([disabled])');
+            if (!pw) return;
+            const cred = creds[0];
+            const user = pw.form ? findUser(pw.form) : findUser(document);
+            if (user && cred.username && !user.value) setVal(user, cred.username);
+            if (!pw.value) setVal(pw, cred.password);
+        }).catch(() => {});
+    }
+
+    function capture(form) {
+        const pw = form && form.querySelector && form.querySelector('input[type="password"]');
+        if (!pw || !pw.value) return;
+        const user = findUser(form);
+        ipcRenderer.invoke('passwords-offer', { username: user ? user.value : '', password: pw.value }).catch(() => {});
+    }
+
+    document.addEventListener('submit', (e) => { try { capture(e.target); } catch {} }, true);
+    // SPA logins that never fire 'submit': capture on click of a likely submit control.
+    document.addEventListener('click', (e) => {
+        try {
+            const btn = e.target.closest && e.target.closest('button,[type="submit"],[role="button"]');
+            const form = btn && btn.closest('form');
+            if (form && form.querySelector('input[type="password"]')) setTimeout(() => capture(form), 0);
+        } catch {}
+    }, true);
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', autofill);
+    else autofill();
+    setTimeout(autofill, 1200); // catch late-rendered login forms
+})();
 
 contextBridge.exposeInMainWorld('urlUtils', {
     getDomain: (url) => {

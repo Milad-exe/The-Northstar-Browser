@@ -8,6 +8,7 @@ const FindDialogManager = require("./find-dialog");
 const focusMode = require("./focus-mode");
 const { isSafeExternal } = require('./url-security');
 const { READERABLE_JS, EXTRACT_JS, PIP_JS } = require('./reader');
+const extensions = require('./extensions');
 
 const YOUTUBE_SPACE_FIX_JS = `
 (() => {
@@ -89,6 +90,18 @@ const YOUTUBE_SPACE_FIX_JS = `
     };
 })();
 `;
+
+// The Settings page needs privileged APIs (passwords, extension management)
+// that must NOT be exposed to ordinary web pages, so it uses a dedicated
+// preload. Every other page (web content, History, Bookmarks, New Tab) uses
+// the general preload.
+function preloadForPage(kind) {
+    const base = path.join(__dirname, '../preload');
+    if (kind === 'settings' || (typeof kind === 'string' && kind.includes('/Settings/'))) {
+        return path.join(base, 'settings-preload.js');
+    }
+    return path.join(base, 'preload.js');
+}
 
 class Tabs {
     constructor(mainWindow, History, Persistence, options = {}) {
@@ -213,7 +226,7 @@ class Tabs {
         const makePrivate = isPrivate || this.isPrivateWindow;
 
         const webPrefs = {
-            preload: path.join(__dirname, '../preload/preload.js'),
+            preload: preloadForPage(url),
             contextIsolation: true,
             nodeIntegration: false,
         };
@@ -230,8 +243,9 @@ class Tabs {
         this.mainWindow.contentView.addChildView(tab);
         this.raiseFloatingViews();
         tab.setVisible(false); // Do not show initially
-        
+
         UserAgent.setupTab(tab);
+        if (!makePrivate) extensions.addTab(tab.webContents, this.mainWindow);
         
         // Setup context menu
         tab.webContents.on("context-menu", async (_event, params) => {
@@ -353,7 +367,7 @@ class Tabs {
         const wd = this.getWindowData();
         if (!wd?.window?.contentView) return;
 
-        const overlays = [wd.menu, wd.suggestions, wd.bookmarkPrompt, wd.folderDropdown, wd.downloadsPanel];
+        const overlays = [wd.menu, wd.suggestions, wd.bookmarkPrompt, wd.folderDropdown, wd.downloadsPanel, wd.passwordPrompt];
         overlays.forEach((view) => {
             if (!view) return;
             try {
@@ -391,6 +405,7 @@ class Tabs {
         this.raiseFloatingViews()
 
         UserAgent.setupTab(tab)
+        if (!makePrivate) extensions.addTab(tab.webContents, this.mainWindow)
 
         tab.webContents.on("context-menu", async (_event, params) => {
             let menuParams = params;
@@ -490,10 +505,10 @@ class Tabs {
     createTabWithPage(pagePath, pageType, pageTitle) {
         const tabIndex = this.nextTabIndex
         this.nextTabIndex++
-        
+
         const tab = new WebContentsView({
             webPreferences: {
-                preload: path.join(__dirname, '../preload/preload.js'),
+                preload: preloadForPage(pageType),
                 contextIsolation: true,
                 nodeIntegration: false
             }
@@ -501,8 +516,9 @@ class Tabs {
         this.mainWindow.contentView.addChildView(tab)
         tab.webContents.loadFile(pagePath)
         this.raiseFloatingViews()
-        
+
         UserAgent.setupTab(tab)
+        extensions.addTab(tab.webContents, this.mainWindow)
         
         const bounds = this.getTabBounds()
         tab.setBounds(bounds)
@@ -929,6 +945,9 @@ class Tabs {
 
             // Update window title to reflect the newly active tab
             this.updateWindowTitle(index)
+
+            // Notify the extension system of the active tab (chrome.tabs + actions)
+            if (!this.privateTabs.has(index)) extensions.selectTab(tab.webContents)
 
             // Put the website back into focus so keyboard events register immediately
             tab.webContents.focus()

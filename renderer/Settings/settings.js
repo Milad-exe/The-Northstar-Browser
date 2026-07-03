@@ -123,17 +123,213 @@ document.addEventListener('DOMContentLoaded', async () => {
         showToast(adblockToggle.checked ? 'Ad blocking enabled' : 'Ad blocking disabled');
     });
 
-    // ── Privacy: Clear history ─────────────────────────────────────────────
-    document.getElementById('btn-clear-history').addEventListener('click', async () => {
-        const confirmed = confirm('Clear all browsing history? This cannot be undone.');
-        if (!confirmed) return;
+    // ── Privacy: Clear browsing data ───────────────────────────────────────
+    document.getElementById('btn-clear-data')?.addEventListener('click', async () => {
+        const types = {
+            history:   document.getElementById('cbd-history').checked,
+            cookies:   document.getElementById('cbd-cookies').checked,
+            cache:     document.getElementById('cbd-cache').checked,
+            downloads: document.getElementById('cbd-downloads').checked,
+        };
+        if (!Object.values(types).some(Boolean)) { showToast('Nothing selected'); return; }
+        const range = document.getElementById('cbd-range').value;
+        const rangeLabel = document.querySelector('#cbd-range option:checked')?.textContent || '';
+        if (!confirm(`Clear the selected data (${rangeLabel})? This cannot be undone.`)) return;
         try {
-            await window.inkSettings.clearHistory();
-            showToast('Browsing history cleared');
+            const res = await window.inkSettings.clearBrowsingData({ range, types });
+            showToast(res?.ok ? 'Browsing data cleared' : 'Failed to clear data');
         } catch {
-            showToast('Failed to clear history');
+            showToast('Failed to clear data');
         }
     });
+
+    // ── Passwords ──────────────────────────────────────────────────────────
+    const pwList  = document.getElementById('pw-list');
+    const pwEmpty = document.getElementById('pw-empty');
+
+    async function refreshPasswords() {
+        let items = [];
+        try { items = await window.inkPasswords.list(); } catch {}
+        pwList.innerHTML = '';
+        if (pwEmpty) pwEmpty.style.display = items.length ? 'none' : 'block';
+
+        for (const entry of items) {
+            const row = document.createElement('div');
+            row.className = 'pw-row';
+
+            const info = document.createElement('div');
+            info.className = 'pw-info';
+            let host = entry.origin;
+            try { host = new URL(entry.origin).host; } catch {}
+            const site = document.createElement('div');
+            site.className = 'pw-site'; site.textContent = host;
+            const user = document.createElement('div');
+            user.className = 'pw-user'; user.textContent = entry.username || '(no username)';
+            info.appendChild(site); info.appendChild(user);
+
+            const secret = document.createElement('input');
+            secret.type = 'password'; secret.value = '••••••••'; secret.readOnly = true;
+            secret.className = 'pw-secret';
+
+            const reveal = document.createElement('button');
+            reveal.className = 'btn btn-sm'; reveal.textContent = 'Show';
+            let shown = false;
+            reveal.addEventListener('click', async () => {
+                shown = !shown;
+                if (shown) {
+                    const pw = await window.inkPasswords.reveal(entry.id);
+                    secret.type = 'text'; secret.value = pw || ''; reveal.textContent = 'Hide';
+                } else {
+                    secret.type = 'password'; secret.value = '••••••••'; reveal.textContent = 'Show';
+                }
+            });
+
+            const del = document.createElement('button');
+            del.className = 'btn-danger btn-sm'; del.textContent = 'Remove';
+            del.addEventListener('click', async () => {
+                if (!confirm(`Remove the saved password for ${host}?`)) return;
+                await window.inkPasswords.remove(entry.id);
+            });
+
+            const controls = document.createElement('div');
+            controls.className = 'pw-controls';
+            controls.appendChild(secret); controls.appendChild(reveal); controls.appendChild(del);
+            row.appendChild(info); row.appendChild(controls);
+            pwList.appendChild(row);
+        }
+    }
+    window.inkPasswords?.onChanged(() => refreshPasswords());
+    refreshPasswords();
+
+    // ── Extensions ─────────────────────────────────────────────────────────
+    const extList  = document.getElementById('ext-list');
+    const extEmpty = document.getElementById('ext-empty');
+    const extError = document.getElementById('ext-error');
+
+    function extShowError(msg) {
+        extError.textContent = msg || '';
+        extError.classList.toggle('show', !!msg);
+    }
+
+    const extCount = document.getElementById('ext-count');
+
+    async function refreshExtensions() {
+        let items = [];
+        try { items = await window.inkExtensions.list(); } catch {}
+        extList.innerHTML = '';
+        extEmpty.style.display = items.length ? 'none' : 'block';
+        if (extCount) extCount.textContent = items.length ? `(${items.length})` : '';
+
+        for (const ext of items) {
+            const row = document.createElement('div');
+            row.className = 'ext-row' + (ext.enabled ? '' : ' disabled');
+
+            const icon = document.createElement('div');
+            icon.className = 'ext-icon';
+            if (ext.icon) {
+                const img = document.createElement('img');
+                img.src = ext.icon;
+                img.onerror = () => { icon.textContent = (ext.name || '?').charAt(0).toUpperCase(); };
+                icon.appendChild(img);
+            } else {
+                icon.textContent = (ext.name || '?').charAt(0).toUpperCase();
+            }
+
+            const info = document.createElement('div');
+            info.className = 'ext-info';
+            const name = document.createElement('div');
+            name.className = 'ext-name';
+            name.textContent = ext.name;
+            const meta = document.createElement('div');
+            meta.className = 'ext-meta';
+            meta.textContent = (ext.version ? 'v' + ext.version : '') + (ext.enabled ? '' : ' · disabled');
+            info.appendChild(name);
+            if (ext.description) {
+                const desc = document.createElement('div');
+                desc.className = 'ext-desc';
+                desc.textContent = ext.description;
+                info.appendChild(desc);
+            }
+            info.appendChild(meta);
+
+            const controls = document.createElement('div');
+            controls.className = 'ext-controls';
+
+            if (ext.optionsUrl) {
+                const optBtn = document.createElement('button');
+                optBtn.className = 'btn btn-sm';
+                optBtn.textContent = 'Options';
+                optBtn.disabled = !ext.enabled;
+                optBtn.addEventListener('click', () => window.inkExtensions.openOptions(ext.id));
+                controls.appendChild(optBtn);
+            }
+
+            const toggle = document.createElement('label');
+            toggle.className = 'toggle';
+            toggle.title = ext.enabled ? 'Disable' : 'Enable';
+            toggle.innerHTML = `<input type="checkbox" ${ext.enabled ? 'checked' : ''}><span class="track"></span>`;
+            toggle.querySelector('input').addEventListener('change', (e) => {
+                window.inkExtensions.setEnabled(ext.id, e.target.checked);
+            });
+            controls.appendChild(toggle);
+
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'btn-danger btn-sm';
+            removeBtn.textContent = 'Remove';
+            removeBtn.addEventListener('click', async () => {
+                if (!confirm(`Remove "${ext.name}"?`)) return;
+                await window.inkExtensions.remove(ext.id);
+            });
+            controls.appendChild(removeBtn);
+
+            row.appendChild(icon); row.appendChild(info); row.appendChild(controls);
+            extList.appendChild(row);
+        }
+    }
+
+    // Disable the install controls while an install is running so a slow store
+    // download can't be fired twice.
+    const extInstallBtns = ['btn-ext-store', 'btn-ext-unpacked', 'btn-ext-crx', 'btn-ext-install-id']
+        .map(id => document.getElementById(id)).filter(Boolean);
+    function setExtBusy(busy) { extInstallBtns.forEach(b => { b.disabled = busy; }); }
+
+    async function addExtension(mode) {
+        extShowError('');
+        setExtBusy(true);
+        try {
+            const res = await window.inkExtensions.add(mode);
+            if (res?.canceled) return;
+            if (res?.ok) showToast(`Added "${res.name}"`);
+            else extShowError(res?.error || 'Failed to add extension');
+        } catch (err) {
+            extShowError(err.message || 'Failed to add extension');
+        } finally { setExtBusy(false); }
+    }
+
+    document.getElementById('btn-ext-store')?.addEventListener('click', () => window.inkExtensions.openStore());
+    document.getElementById('btn-ext-unpacked')?.addEventListener('click', () => addExtension('unpacked'));
+    document.getElementById('btn-ext-crx')?.addEventListener('click', () => addExtension('crx'));
+
+    const idInput = document.getElementById('ext-id-input');
+    const installIdBtn = document.getElementById('btn-ext-install-id');
+    installIdBtn?.addEventListener('click', async () => {
+        const val = (idInput.value || '').trim();
+        if (!val) return;
+        extShowError('');
+        setExtBusy(true);
+        const label = installIdBtn.textContent;
+        installIdBtn.textContent = 'Installing…';
+        try {
+            const res = await window.inkExtensions.installId(val);
+            if (res?.ok) { showToast(`Installed "${res.name}"`); idInput.value = ''; }
+            else extShowError(res?.error || 'Install failed');
+        } catch (err) { extShowError(err.message || 'Install failed'); }
+        finally { setExtBusy(false); installIdBtn.textContent = label; }
+    });
+    idInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') installIdBtn.click(); });
+
+    window.inkExtensions?.onChanged(() => refreshExtensions());
+    refreshExtensions();
 
     // ── About: version ────────────────────────────────────────────────────
     if (settings._version) {

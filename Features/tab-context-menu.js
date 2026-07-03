@@ -7,6 +7,8 @@ class TabContextMenu {
         this.tabManager = tabManager;
         this.contextTemplate = [];
 
+        // Spelling suggestions come first when right-clicking a misspelled word
+        this.addSpellcheckItems(params);
         // Context-specific items first (most relevant to what was clicked)
         this.addLinkItems(params);
         this.addImageItems(params);
@@ -118,6 +120,26 @@ class TabContextMenu {
                 click: () => this.openInNewTab(`https://www.google.com/search?q=${encodeURIComponent(params.selectionText)}`),
             },
         );
+    }
+
+    addSpellcheckItems(params) {
+        if (!params.misspelledWord) return;
+        const wc   = this.tab.webContents;
+        const sess = wc.session;
+        const suggestions = params.dictionarySuggestions || [];
+
+        if (suggestions.length) {
+            suggestions.slice(0, 5).forEach(s => {
+                this.contextTemplate.push({ label: s, click: () => wc.replaceMisspelling(s) });
+            });
+        } else {
+            this.contextTemplate.push({ label: 'No spelling suggestions', enabled: false });
+        }
+        this.contextTemplate.push({ type: 'separator' });
+        this.contextTemplate.push({
+            label: 'Add to Dictionary',
+            click: () => { try { sess.addWordToSpellCheckerDictionary(params.misspelledWord); } catch {} },
+        });
     }
 
     addEditableItems(params) {

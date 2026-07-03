@@ -31,6 +31,7 @@ const focusMode          = require('./Features/focus-mode');
 const adBlocker          = require('./Features/ad-blocker');
 const privateSessionSetup = require('./Features/private-session');
 const downloadManager    = require('./Features/download-manager');
+const extensionManager   = require('./Features/extensions');
 
 // IPC feature modules
 const tabsIpc          = require('./ipc/tabs');
@@ -41,6 +42,8 @@ const bookmarksIpc     = require('./ipc/bookmarks');
 const folderDropdownIpc = require('./ipc/folder-dropdown');
 const settingsIpc      = require('./ipc/settings');
 const downloadsIpc     = require('./ipc/downloads');
+const extensionsIpc    = require('./ipc/extensions');
+const passwordsIpc     = require('./ipc/passwords');
 
 // ── App ──────────────────────────────────────────────────────────────────────
 
@@ -69,6 +72,8 @@ class Ink {
         folderDropdownIpc.register(ipcMain, deps);
         settingsIpc.register(ipcMain, deps);
         downloadsIpc.register(ipcMain, deps);
+        extensionsIpc.register(ipcMain, deps);
+        passwordsIpc.register(ipcMain, deps);
     }
 
     initApp() {
@@ -82,10 +87,26 @@ class Ink {
             UserAgent.setupSession(session.defaultSession);
             Menu.setApplicationMenu(null);
 
+            // Spellchecker — enable and set languages (OS locale + English fallback).
+            // Context-menu suggestions/add-to-dictionary are wired in tab-context-menu.js.
+            try {
+                const sess = session.defaultSession;
+                sess.setSpellCheckerEnabled(true);
+                const available = sess.availableSpellCheckerLanguages || [];
+                const wanted = [app.getLocale(), 'en-US'].filter(Boolean);
+                const langs = [...new Set(wanted)].filter(l => !available.length || available.includes(l));
+                sess.setSpellCheckerLanguages(langs.length ? langs : ['en-US']);
+            } catch {}
+
             // Ad blocking — network-level (cancel requests) + cosmetic (hide elements).
             // init() loads the cached filter list synchronously then refreshes in background.
             await adBlocker.init();
             adBlocker.enableBlockingInSession(session.defaultSession);
+
+            // Extensions — enable Chrome Web Store install + reload persisted
+            // extensions into the default session, and set up the chrome.* API
+            // implementation. Non-fatal if it fails.
+            await extensionManager.setup(session.defaultSession, this.windowManager).catch(() => {});
 
             // DNS-over-HTTPS — prefer Cloudflare's DoH but fall back to the system
             // resolver. 'secure' (DoH-only) stalls every page load on networks
