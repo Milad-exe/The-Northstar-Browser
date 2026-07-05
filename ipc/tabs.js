@@ -74,13 +74,14 @@ function register(ipcMain, { wm, BrowserWindow }) {
         if (wd) wd.tabs.reload(index);
     });
 
-    ipcMain.handle('newWindow', () => {
-        wm.createWindow();
+    ipcMain.handle('stopTab', (_e, index) => {
+        const wd = wm.getWindowByWebContents(_e.sender);
+        const tab = wd?.tabs?.tabMap.get(index);
+        if (tab) { try { tab.webContents.stop(); } catch {} }
     });
 
-    ipcMain.handle('addPrivateTab', (_e) => {
-        const wd = wm.getWindowByWebContents(_e.sender);
-        if (wd?.tabs) wd.tabs.createTab(null, true, true);
+    ipcMain.handle('newWindow', () => {
+        wm.createWindow();
     });
 
     ipcMain.handle('newPrivateWindow', (_e) => {
@@ -182,6 +183,39 @@ function register(ipcMain, { wm, BrowserWindow }) {
         const idx = (typeof index === 'number') ? index : wd.tabs.activeTabIndex;
         wd.tabs.togglePictureInPicture(idx);
         return true;
+    });
+
+    // ── Menu actions (find / print / zoom on the active tab) ──────────────────
+
+    const activeTabOf = (wd) => wd?.tabs ? (wd.tabs.tabMap.get(wd.tabs.activeTabIndex) || null) : null;
+
+    ipcMain.handle('menu-find', (_e) => {
+        const wd = wm.getWindowByWebContents(_e.sender);
+        const tab = activeTabOf(wd);
+        if (tab && wd.tabs.findDialog) { try { wd.tabs.findDialog.show(tab); } catch {} return true; }
+        return false;
+    });
+
+    ipcMain.handle('menu-print', (_e) => {
+        const tab = activeTabOf(wm.getWindowByWebContents(_e.sender));
+        if (tab) { try { tab.webContents.print(); } catch {} }
+        return true;
+    });
+
+    ipcMain.handle('menu-zoom', (_e, dir) => {
+        const tab = activeTabOf(wm.getWindowByWebContents(_e.sender));
+        if (!tab) return 100;
+        const wc = tab.webContents;
+        try {
+            if (dir !== 'get') {
+                let level = wc.getZoomLevel();
+                if (dir === 'in')       level = Math.min(5, level + 0.5);
+                else if (dir === 'out') level = Math.max(-3, level - 0.5);
+                else                    level = 0; // reset
+                wc.setZoomLevel(level);
+            }
+            return Math.round(wc.getZoomFactor() * 100);
+        } catch { return 100; }
     });
 
     // ── Navigation helpers (used by history / bookmarks pages) ───────────────

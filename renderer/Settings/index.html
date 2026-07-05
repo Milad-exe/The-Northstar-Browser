@@ -173,17 +173,60 @@
         <h2>Privacy</h2>
 
         <div class="card">
-          <div class="card-title">Ad &amp; tracker blocking</div>
-          <div class="card-desc">Block ads, trackers, and analytics across all websites.</div>
+          <div class="card-title">Tracking protection</div>
+          <div class="card-desc">Block ads, trackers and cross-site profiling everywhere. Every layer is on for maximum privacy — switch one off only if a site misbehaves.</div>
+
+          <div class="privacy-stat">
+            <span class="privacy-stat-num" id="privacy-count">0</span>
+            <span class="privacy-stat-label">ads &amp; trackers blocked this session</span>
+          </div>
+
           <div class="toggle-row">
             <div>
-              <div class="row-label">Enable ad blocking</div>
-              <div class="row-desc">Blocks requests to known ad networks and hides ad containers</div>
+              <div class="row-label">Block ads &amp; trackers</div>
+              <div class="row-desc">Cancels requests to known ad, analytics and tracker networks (EasyList + EasyPrivacy + hosts) and hides leftover ad containers</div>
             </div>
-            <label class="toggle">
-              <input type="checkbox" id="adblock-toggle">
-              <span class="track"></span>
-            </label>
+            <label class="toggle"><input type="checkbox" id="adblock-toggle"><span class="track"></span></label>
+          </div>
+
+          <div class="toggle-row">
+            <div>
+              <div class="row-label">Block third-party cookies</div>
+              <div class="row-desc">Drops cross-site cookies used to follow you between sites — may sign you out of some embedded content</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="thirdparty-toggle"><span class="track"></span></label>
+          </div>
+
+          <div class="toggle-row">
+            <div>
+              <div class="row-label">Upgrade connections to HTTPS</div>
+              <div class="row-desc">Loads pages over an encrypted connection whenever one is available</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="https-toggle"><span class="track"></span></label>
+          </div>
+
+          <div class="toggle-row">
+            <div>
+              <div class="row-label">Strip tracking parameters</div>
+              <div class="row-desc">Removes tags like utm_*, fbclid and gclid from links you open</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="params-toggle"><span class="track"></span></label>
+          </div>
+
+          <div class="toggle-row">
+            <div>
+              <div class="row-label">Send “Do Not Track” &amp; GPC signals</div>
+              <div class="row-desc">Asks sites not to sell or share your data — Global Privacy Control is legally binding in some regions</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="signals-toggle"><span class="track"></span></label>
+          </div>
+
+          <div class="toggle-row">
+            <div>
+              <div class="row-label">Minimize referrer information</div>
+              <div class="row-desc">Trims the address shared with other sites when you follow a link off a page</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="referrer-toggle"><span class="track"></span></label>
           </div>
         </div>
 

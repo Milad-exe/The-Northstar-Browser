@@ -1,18 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
-  <!-- Spokes -->
-  <line x1="50" y1="50" x2="80" y2="50"  stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-  <line x1="50" y1="50" x2="65" y2="76"  stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-  <line x1="50" y1="50" x2="35" y2="76"  stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-  <line x1="50" y1="50" x2="20" y2="50"  stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-  <line x1="50" y1="50" x2="35" y2="24"  stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-  <line x1="50" y1="50" x2="65" y2="24"  stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-  <!-- Outer nodes -->
-  <circle cx="80" cy="50" r="6" fill="currentColor"/>
-  <circle cx="65" cy="76" r="6" fill="currentColor"/>
-  <circle cx="35" cy="76" r="6" fill="currentColor"/>
-  <circle cx="20" cy="50" r="6" fill="currentColor"/>
-  <circle cx="35" cy="24" r="6" fill="currentColor"/>
-  <circle cx="65" cy="24" r="6" fill="currentColor"/>
-  <!-- Center node -->
-  <circle cx="50" cy="50" r="9" fill="currentColor"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="16 14 68 68" fill="none">
+  <!-- Ink browser mark — an open book (focus + study). Two solid pages meeting
+       at a centre spine. Single colour via currentColor so it tints / inverts
+       cleanly and stays legible at favicon sizes. -->
+  <g fill="currentColor">
+    <path d="M49 33 C 40 27 27 26 18 29 L18 68 C 27 65 40 66 49 71 Z"/>
+    <path d="M51 33 C 60 27 73 26 82 29 L82 68 C 73 65 60 66 51 71 Z"/>
+  </g>
 </svg>

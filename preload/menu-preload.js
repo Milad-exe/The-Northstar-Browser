@@ -18,15 +18,20 @@ ipcRenderer.on('theme-changed', (_e, theme) => {
 });
 
 contextBridge.exposeInMainWorld("electronAPI", {
+  platform: process.platform,
   windowClick: (pos) => ipcRenderer.send("window-click", pos),
   addTab: () => ipcRenderer.invoke("addTab"),
   newWindow: () => ipcRenderer.invoke("newWindow"),
+  newPrivateWindow: () => ipcRenderer.invoke("newPrivateWindow"),
   openHistoryTab: () => ipcRenderer.invoke("open-history-tab"),
   openBookmarksTab: () => ipcRenderer.invoke("open-bookmarks-tab"),
   openSettingsTab: () => ipcRenderer.invoke("open-settings-tab"),
   closeMenu: () => ipcRenderer.invoke("close-menu"),
   toggleBookmarkBar: () => ipcRenderer.send("toggle-bookmark-bar"),
   getSettings: () => ipcRenderer.invoke("settings-get"),
+  find:  () => ipcRenderer.invoke("menu-find"),
+  print: () => ipcRenderer.invoke("menu-print"),
+  zoom:  (dir) => ipcRenderer.invoke("menu-zoom", dir),
 });
 
 // Expose persistence controls to the menu renderer

@@ -6,67 +6,74 @@ html, body {
   height: 100%; width: 100%;
   font-family: var(--font);
   background: var(--bg); color: var(--text);
-  overflow: hidden; display: flex; flex-direction: column;
+  overflow: hidden;
   -webkit-font-smoothing: antialiased;
 }
-
-.main-wrapper { flex: 1; overflow-y: auto; }
-
-.container {
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  min-height: 100%; padding: 40px 20px; gap: 48px;
+/* Frosted: let the window vibrancy show through the home page. */
+html[data-vibrancy="true"], html[data-vibrancy="true"] body {
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
 }
 
-/* ── Time & Greeting ── */
-.greeting-section {
-  display: flex; flex-direction: column; align-items: center; gap: 8px;
+.home {
+  height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  padding: 40px 24px;
 }
 
-.time-display {
-  font-size: 110px; font-weight: 200;
-  letter-spacing: -6px; line-height: 1;
-  color: var(--text); font-family: var(--mono);
+.hero {
+  display: flex; flex-direction: column; align-items: center;
+  width: 100%; max-width: 620px; gap: 20px;
+  transform: translateY(-5%); /* sit a touch above dead-centre — optically balanced */
 }
 
-.greeting-text {
-  font-size: 13px; font-weight: 400;
-  letter-spacing: 0.14em; text-transform: uppercase;
+/* ── Clock (the focal point) ── */
+.clock {
+  font-family: var(--mono);
+  font-size: clamp(66px, 12vw, 132px);
+  font-weight: 300; line-height: 0.9;
+  letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums; /* digits never jitter as the time ticks */
+  color: var(--text);
+}
+
+/* ── Greeting · Date ── */
+.meta {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 11.5px; font-weight: 600;
+  letter-spacing: 0.18em; text-transform: uppercase;
   color: var(--text-3);
 }
+.meta .sep { opacity: 0.55; }
 
-.date-text {
-  font-size: 11px; font-weight: 500;
-  letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-3);
+/* ── Search / launcher ── */
+.search {
+  margin-top: 16px; width: 100%;
+  display: flex; align-items: center; gap: 12px;
+  height: 54px; padding: 0 20px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 }
-
-/* ── Search ── */
-.search-section { width: 100%; max-width: 560px; }
-
-.search-bar {
-  display: flex; align-items: center; height: 46px;
-  background: transparent; border: 1px solid var(--border);
-  border-radius: 0; padding: 0 18px; gap: 10px;
-  transition: border-color 0.15s;
+.search:focus-within {
+  border-color: var(--text-3);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  box-shadow: 0 10px 34px rgba(0,0,0,0.20);
 }
-.search-bar:focus-within { border-color: var(--border-2); }
+.search-icon { color: var(--text-3); flex-shrink: 0; transition: color 0.15s; }
+.search:focus-within .search-icon { color: var(--text-2); }
 
-.search-bar input {
-  flex: 1; background: transparent; border: none; outline: none;
-  font-family: var(--font); font-size: 14px; color: var(--text); text-align: center;
+.search-input {
+  flex: 1; min-width: 0;
+  background: transparent; border: none; outline: none;
+  font-family: var(--font); font-size: 15px; letter-spacing: -0.01em;
+  color: var(--text);
 }
-.search-bar input::placeholder { color: var(--text-3); text-align: center; }
-.search-bar .search-icon { color: var(--text-3); flex-shrink: 0; }
+.search-input::placeholder { color: var(--text-3); }
 
-/* ── Logo ── */
-.home-logo { width: 40px; height: 40px; filter: invert(1); opacity: 0.06; }
+::-webkit-scrollbar { width: 0; height: 0; }
 
-/* ── Scrollbar ── */
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border-2); }
-
-@media (max-width: 600px) {
-  .time-display { font-size: 64px; letter-spacing: -3px; }
-  .search-bar { height: 40px; padding: 0 14px; }
+@media (max-width: 560px) {
+  .clock { font-size: clamp(54px, 16vw, 84px); }
+  .search { height: 48px; }
 }

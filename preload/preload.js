@@ -4,7 +4,18 @@ const { contextBridge, ipcRenderer } = require('electron');
 // This preload is shared by the chrome window and by tabs, so only inject the
 // element into the browser chrome page — not arbitrary web pages.
 try {
-    const isChrome = location.protocol === 'file:' && /\/Browser\/index\.html$/.test(location.pathname);
+    const isFile = location.protocol === 'file:';
+    const isChrome    = isFile && /\/Browser\/index\.html$/.test(location.pathname);
+    // Chrome + internal pages paint translucently over the window vibrancy.
+    const isFrostable = isFile && /\/(Browser|NewTab|Settings|History|Bookmarks)\/(index|private)\.html$/.test(location.pathname);
+
+    // macOS frosted-glass: flag frostable pages so their CSS goes translucent.
+    if (process.platform === 'darwin' && isFrostable) {
+        const mark = () => document.documentElement.setAttribute('data-vibrancy', 'true');
+        if (document.documentElement) mark();
+        else document.addEventListener('DOMContentLoaded', mark);
+    }
+
     if (isChrome) {
         // Require by absolute file path — Electron's (non-sandboxed) preload
         // require can't resolve this package by name (its "exports" map isn't
@@ -147,7 +158,6 @@ contextBridge.exposeInMainWorld(
     "tab", {
         add: () => ipcRenderer.invoke("addTab"),
         addLazy: (url) => ipcRenderer.invoke("addTabLazy", url),
-        addPrivate: () => ipcRenderer.invoke("addPrivateTab"),
         remove: (index) => ipcRenderer.invoke("removeTab", index),
         switch: (index) => ipcRenderer.invoke("switchTab", index),
         loadUrl: (index, url) => ipcRenderer.invoke("loadUrl", index, url),
@@ -155,6 +165,7 @@ contextBridge.exposeInMainWorld(
         goForward: (index) => ipcRenderer.invoke("goForward", index),
         showNavHistoryMenu: (index, x, y) => ipcRenderer.invoke("show-nav-history-menu", index, x, y),
         reload: (index) => ipcRenderer.invoke("reload", index),
+        stop: (index) => ipcRenderer.invoke("stopTab", index),
         getTabUrl: (index) => ipcRenderer.invoke("getTabUrl", index),
         getButton: (index) => ipcRenderer.invoke("getTabButton", index),
         pin: (index) => ipcRenderer.invoke("pinTab", index),
@@ -163,7 +174,8 @@ contextBridge.exposeInMainWorld(
         onTabRemoved: (callback) => ipcRenderer.on('tab-removed', callback),
         onTabSwitched: (callback) => ipcRenderer.on('tab-switched', callback),
         onUrlUpdated: (callback) => ipcRenderer.on('url-updated', callback),
-        onNavigationUpdated: (callback) => ipcRenderer.on('navigation-updated', callback)
+        onNavigationUpdated: (callback) => ipcRenderer.on('navigation-updated', callback),
+        onTabLoading: (callback) => ipcRenderer.on('tab-loading', callback)
     }
 );
 
@@ -235,8 +247,8 @@ contextBridge.exposeInMainWorld(
 // Suggestions overlay controls from the main renderer
 contextBridge.exposeInMainWorld('suggestions', {
     warm: () => ipcRenderer.invoke('suggestions-warm'),
-    open: (bounds, items, activeIndex) => ipcRenderer.invoke('suggestions-open', { bounds, items, activeIndex }),
-    update: (bounds, items, activeIndex) => ipcRenderer.invoke('suggestions-update', { bounds, items, activeIndex }),
+    open: (bounds, items, activeIndex, query, engine) => ipcRenderer.invoke('suggestions-open', { bounds, items, activeIndex, query, engine }),
+    update: (bounds, items, activeIndex, query, engine) => ipcRenderer.invoke('suggestions-update', { bounds, items, activeIndex, query, engine }),
     close: () => ipcRenderer.invoke('suggestions-close'),
     onSelected:   (handler) => ipcRenderer.on('suggestion-selected',   (_e, item) => handler(item)),
     onPointerDown:(handler) => ipcRenderer.on('suggestions-pointer-down', () => handler()),

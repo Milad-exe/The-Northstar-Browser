@@ -121,7 +121,12 @@ class WindowManager {
             icon: path.join(__dirname, '../logo.png'),
             frame: process.platform === 'linux' ? true : false,
             titleBarStyle: process.platform === 'win32' || process.platform === 'linux' ? 'default' : 'hiddenInset',
-            trafficLightPosition: { x: 14, y: 16 }, // Vertically center within 50px utility bar
+            trafficLightPosition: { x: 14, y: 13 }, // Vertically center within the 40px top tab strip
+            // macOS frosted-glass: the window material shows through the
+            // translucent chrome (renderer paints the chrome with alpha).
+            ...(process.platform === 'darwin'
+                ? { vibrancy: 'under-window', visualEffectState: 'active', backgroundColor: '#00000000' }
+                : { backgroundColor: '#0c0c0c' }),
             webPreferences: {
                 preload: path.join(__dirname, "../preload/preload.js"),
                 // The chrome UI loads only trusted local files, and its preload

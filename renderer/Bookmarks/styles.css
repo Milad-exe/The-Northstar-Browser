@@ -7,6 +7,9 @@ body {
   min-height: 100vh; font-size: 13px; color: var(--text);
   -webkit-font-smoothing: antialiased;
 }
+html[data-vibrancy="true"], html[data-vibrancy="true"] body {
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+}
 
 .page { max-width: 820px; margin: 0 auto; padding: 48px 32px 64px; }
 
@@ -17,15 +20,21 @@ body {
   padding-bottom: 16px; border-bottom: 1px solid var(--border);
 }
 
-#container { border: 1px solid var(--border); }
+#container {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  overflow: hidden;
+  padding: 5px;
+}
 
 .bookmark-entry {
   display: flex; align-items: center; gap: 12px;
-  padding: 9px 16px; border-bottom: 1px solid var(--border);
-  cursor: pointer; transition: background 0.08s;
+  padding: 9px 12px; margin: 1px 0;
+  border-radius: 9px;
+  cursor: pointer; transition: background 0.1s;
 }
-.bookmark-entry:last-child { border-bottom: none; }
-.bookmark-entry:hover { background: var(--hover); }
+.bookmark-entry:hover { background: var(--active-bg); }
 
 .bookmark-favicon { width: 14px; height: 14px; flex-shrink: 0; border-radius: 2px; opacity: 0.7; }
 

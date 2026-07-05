@@ -1,5 +1,14 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// macOS frosted-glass flag (Settings runs with this preload).
+try {
+    if (process.platform === 'darwin') {
+        const mark = () => document.documentElement.setAttribute('data-vibrancy', 'true');
+        if (document.documentElement) mark();
+        else document.addEventListener('DOMContentLoaded', mark);
+    }
+} catch (e) {}
+
 try {
     const settings = ipcRenderer.sendSync('settings-get-sync');
     if (settings && settings.theme && settings.theme !== 'default') {
@@ -22,6 +31,7 @@ contextBridge.exposeInMainWorld('inkSettings', {
   set:          (key, val)  => ipcRenderer.invoke('settings-set', key, val),
   clearHistory: ()          => ipcRenderer.invoke('settings-clear-history'),
   clearBrowsingData: (opts) => ipcRenderer.invoke('clear-browsing-data', opts),
+  privacyStats: ()          => ipcRenderer.invoke('privacy-get-stats'),
   toggleBookmarkBar: ()     => ipcRenderer.send('toggle-bookmark-bar'),
   openHistoryTab:  ()       => ipcRenderer.invoke('open-history-tab'),
   openBookmarksTab: ()      => ipcRenderer.invoke('open-bookmarks-tab'),

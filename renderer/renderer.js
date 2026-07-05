@@ -59,6 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let tabs           = new Map(); // tabIndex → <div.tab-button>
     let tabUrls        = new Map(); // tabIndex → url string
     let tabPrivate     = new Map(); // tabIndex → boolean (private flag)
+    let tabLoading     = new Set(); // tabIndexes currently loading
     let activeTabIndex = 0;
     let currentTabUrl   = '';
     let currentTabTitle = '';
@@ -101,6 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const backBtn          = document.getElementById('back-btn');
     const forwardBtn       = document.getElementById('forward-btn');
     const reloadBtn        = document.getElementById('reload-btn');
+    const omnibox          = document.querySelector('.omnibox');
     const menuBtn          = document.getElementById('menu-btn');
     const addBtn           = document.getElementById('new-tab-btn');
     const bookmarkBtn      = document.getElementById('bookmark-btn');
@@ -167,7 +169,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function initNavButtons() {
         setupNavButton(backBtn,    () => window.tab.goBack(activeTabIndex));
         setupNavButton(forwardBtn, () => window.tab.goForward(activeTabIndex));
-        reloadBtn.addEventListener('click', () => window.tab.reload(activeTabIndex));
+        reloadBtn.addEventListener('click', () => {
+            if (tabLoading.has(activeTabIndex)) window.tab.stop(activeTabIndex);
+            else                                window.tab.reload(activeTabIndex);
+        });
         addBtn.addEventListener('click',    () => window.tab.add());
 
         window.addEventListener('click', (e) => {
@@ -233,6 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateSuggestions();
         });
         searchBar.addEventListener('focus', () => {
+            updateOmniboxIcon();
             if (!userTyping) {
                 if (currentTabUrl && searchBar.value !== currentTabUrl) searchBar.value = currentTabUrl;
                 searchBar.select();
@@ -243,6 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
         searchBar.addEventListener('blur', () => {
             const domain = getDomainDisplay(currentTabUrl);
             if (domain) searchBar.value = domain;
+            updateOmniboxIcon();
             setTimeout(() => {
                 if (overlayPointerDown) return;
                 if (document.activeElement === searchBar) return;
@@ -282,6 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let overlayPointerDown    = false;
     let userTyping           = false;
     let lastInputWasInsert   = false;
+    let currentQuery         = '';   // the user's typed text, for match highlighting
 
     function getSuggestionsBounds() {
         const r = searchBar.getBoundingClientRect();
@@ -290,7 +298,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function positionSuggestions() {
         if (!currentSuggestions.length) return;
-        window.suggestions.update(getSuggestionsBounds(), currentSuggestions, activeSuggestionIndex);
+        window.suggestions.update(getSuggestionsBounds(), currentSuggestions, activeSuggestionIndex, currentQuery, getSearchEngine());
     }
 
     function hideSuggestions() {
@@ -306,7 +314,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentSuggestions    = list;
         activeSuggestionIndex = list.length ? 0 : -1;
         if (!list.length) { hideSuggestions(); return; }
-        window.suggestions.open(getSuggestionsBounds(), currentSuggestions, activeSuggestionIndex).catch(() => {});
+        window.suggestions.open(getSuggestionsBounds(), currentSuggestions, activeSuggestionIndex, currentQuery, getSearchEngine()).catch(() => {});
     }
 
     function setActiveSuggestion(newIndex) {
@@ -316,7 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
         activeSuggestionIndex = newIndex;
         const item = currentSuggestions[newIndex];
         if (item) searchBar.value = item.url || item.query || '';
-        window.suggestions.update(getSuggestionsBounds(), currentSuggestions, activeSuggestionIndex);
+        window.suggestions.update(getSuggestionsBounds(), currentSuggestions, activeSuggestionIndex, currentQuery, getSearchEngine());
     }
 
     function handleSuggestionSelect(index) {
@@ -517,6 +525,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const q = searchBar.value.trim();
         if (!q) { hideSuggestions(); return; }
         const ql = q.toLowerCase();
+        currentQuery = q; // typed text drives the bold-completion highlighting
 
         // Immediate feedback while async sources load
         renderSuggestions([looksLikeUrl(q) ? { type: 'navigate', query: q } : { type: 'action', query: q }]);
@@ -636,7 +645,32 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             searchBar.value = url;
         }
+        updateOmniboxIcon();
         hideSuggestions();
+    }
+
+    // Context-aware address-bar icon: a lock on HTTPS, a "not secure" glyph on
+    // HTTP, and the search glyph while typing or on internal / new-tab pages.
+    function updateOmniboxIcon() {
+        if (!omnibox) return;
+        if (document.activeElement === searchBar) { omnibox.dataset.omni = 'search'; return; }
+        const url = currentTabUrl || '';
+        if      (/^https:\/\//i.test(url)) omnibox.dataset.omni = 'secure';
+        else if (/^http:\/\//i.test(url))  omnibox.dataset.omni = 'insecure';
+        else                               omnibox.dataset.omni = 'search';
+    }
+
+    // Loading state → tab spinner + reload/stop button toggle.
+    function setTabLoading(index, loading) {
+        if (loading) tabLoading.add(index); else tabLoading.delete(index);
+        tabs.get(index)?.classList.toggle('loading', !!loading);
+        if (index === activeTabIndex) updateReloadButton();
+    }
+
+    function updateReloadButton() {
+        const loading = tabLoading.has(activeTabIndex);
+        reloadBtn.classList.toggle('loading', loading);
+        reloadBtn.title = loading ? 'Stop' : 'Reload';
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1519,6 +1553,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.tab.onTabRemoved((_e, data) => {
             tabUrls.delete(data.index);
             tabPrivate.delete(data.index);
+            tabLoading.delete(data.index);
             removeTabButton(data.index);
             hideSuggestions();
             setTimeout(() => { updateTabWidths(data.totalTabs); updateScrollShadows(); }, 10);
@@ -1528,6 +1563,7 @@ document.addEventListener('DOMContentLoaded', () => {
             activeTabIndex = data.index;
             if (data.url) tabUrls.set(data.index, data.url);
             setActiveTab(data.index);
+            updateReloadButton();
             updateSearchBarUrl(data.url || '');
             currentTabUrl = data.url || '';
             updateBookmarkBtn(currentTabUrl);
@@ -1565,6 +1601,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         window.tab.onNavigationUpdated((_e, data) => {
             if (data.index === activeTabIndex) updateNavigationButtons(data.canGoBack, data.canGoForward);
+        });
+
+        window.tab.onTabLoading((_e, data) => {
+            setTabLoading(data.index, data.loading);
         });
 
         window.tabsUI?.onPinTab((index) => {
@@ -1642,10 +1682,6 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('resize', () => setTimeout(() => { updateTabWidths(tabs.size); updateScrollShadows(); }, 100));
 
         setTimeout(() => { if (tabs.size > 0) { updateTabWidths(tabs.size); updateScrollShadows(); } }, 100);
-
-        // Private tab button (hidden in private windows via CSS)
-        const addPrivateBtn = document.getElementById('new-private-tab-btn');
-        if (addPrivateBtn) addPrivateBtn.addEventListener('click', () => window.tab.addPrivate());
     }
 
     // ── Tab DOM helpers ───────────────────────────────────────────────────────
@@ -1776,9 +1812,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!count) return;
         requestAnimationFrame(() => {
             const barW         = tabsContainer.offsetWidth || tabBar.offsetWidth;
-            const PINNED_W     = 36;
-            const MIN_W        = 80;
-            const MAX_W        = 240;
+            const PINNED_W     = 34;
+            const MIN_W        = 120;   // comfortable resting minimum
+            const COMFY_W      = 200;   // preferred width when there's room to spare
             const allTabs      = [...tabs.values()];
             const pinned       = allTabs.filter(t => t.classList.contains('pinned'));
             const unpinned     = allTabs.filter(t => !t.classList.contains('pinned'));
@@ -1794,9 +1830,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const remaining = barW - pinned.length * PINNED_W;
             const ideal     = Math.floor(Math.max(0, remaining) / unpinned.length);
-            const finalW    = Math.max(MIN_W, Math.min(MAX_W, ideal));
+
+            // Tabs sit at a comfortable fixed width (COMFY_W), left-packed. With
+            // many tabs they shrink evenly to share the bar, down to MIN_W, after
+            // which the strip scrolls. This keeps a couple of tabs substantial
+            // instead of tiny chips, without stretching them across the whole bar.
+            const finalW = Math.max(MIN_W, Math.min(COMFY_W, ideal));
             tabsContainer.style.overflowX = ideal < MIN_W ? 'auto' : 'hidden';
-            unpinned.forEach(t => Object.assign(t.style, { width: `${finalW}px`, minWidth: `${MIN_W}px`, maxWidth: `${MAX_W}px`, flex: '0 0 auto' }));
+            unpinned.forEach(t => Object.assign(t.style, { width: `${finalW}px`, minWidth: `${finalW}px`, maxWidth: `${finalW}px`, flex: '0 0 auto' }));
         });
     }
 
@@ -2037,11 +2078,9 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             window.reader.onFailed((d) => {
                 if (!d || d.index !== activeTabIndex) return;
-                // brief shake/flash to signal extraction failed
-                readerBtn.animate(
-                    [{ transform: 'translateX(0)' }, { transform: 'translateX(-3px)' },
-                     { transform: 'translateX(3px)' }, { transform: 'translateX(0)' }],
-                    { duration: 220 });
+                // quiet feedback that extraction failed — no motion
+                readerBtn.title = 'No article found on this page';
+                setTimeout(() => { readerBtn.title = 'Reader View'; }, 1600);
             });
         }
 

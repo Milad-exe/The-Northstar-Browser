@@ -245,6 +245,7 @@ class Tabs {
         tab.setVisible(false); // Do not show initially
 
         UserAgent.setupTab(tab);
+        this._applyTabBackground(tab, url || 'newtab');
         if (!makePrivate) extensions.addTab(tab.webContents, this.mainWindow);
         
         // Setup context menu
@@ -405,6 +406,7 @@ class Tabs {
         this.raiseFloatingViews()
 
         UserAgent.setupTab(tab)
+        this._applyTabBackground(tab, 'newtab')
         if (!makePrivate) extensions.addTab(tab.webContents, this.mainWindow)
 
         tab.webContents.on("context-menu", async (_event, params) => {
@@ -518,6 +520,7 @@ class Tabs {
         this.raiseFloatingViews()
 
         UserAgent.setupTab(tab)
+        this._applyTabBackground(tab, pageType)
         extensions.addTab(tab.webContents, this.mainWindow)
         
         const bounds = this.getTabBounds()
@@ -558,6 +561,18 @@ class Tabs {
         return tabIndex
     }
     
+    // With macOS vibrancy the window is transparent, so a tab that doesn't fully
+    // paint would bleed the frosted material through. Internal pages (new tab,
+    // settings, history, bookmarks) opt INTO that frost with a transparent view;
+    // web content gets an opaque white backing (matching Chrome) so nothing bleeds.
+    _applyTabBackground(tab, urlOrType) {
+        const t = urlOrType || '';
+        const internal =
+            t === 'newtab' || t === 'settings' || t === 'history' || t === 'bookmarks' ||
+            (typeof t === 'string' && /\/(NewTab|Settings|History|Bookmarks)\//.test(t));
+        try { tab.setBackgroundColor(internal ? '#00000000' : '#ffffff'); } catch {}
+    }
+
     getTabBounds() {
         const contentBounds = this.mainWindow.getContentBounds()
         
@@ -635,6 +650,9 @@ class Tabs {
         });
 
         tab.webContents.on('did-navigate', (event, url) => {
+            // Keep the view backing in sync: frosted (transparent) for internal
+            // pages, opaque for web content so vibrancy doesn't bleed through.
+            this._applyTabBackground(tab, url);
             // Reader view loaded — keep the address bar showing the real page URL
             // and the article title instead of the internal file:// path.
             if (url.includes('/Reader/index.html')) {
@@ -806,6 +824,10 @@ class Tabs {
             }
         })
         
+        tab.webContents.on('did-start-loading', () => {
+            this.sendLoadingState(tabIndex, true)
+        })
+
         tab.webContents.on('did-finish-load', () => {
             this.sendNavigationUpdate(tabIndex)
             this.detectReaderable(tabIndex, tab)
@@ -813,6 +835,7 @@ class Tabs {
 
         tab.webContents.on('did-stop-loading', () => {
             this.sendNavigationUpdate(tabIndex)
+            this.sendLoadingState(tabIndex, false)
         })
 
         // Picture-in-Picture is only offered while media is actually playing.
@@ -867,6 +890,14 @@ class Tabs {
         }
     }
     
+    // Tell the chrome a tab started/stopped loading so it can show a tab
+    // spinner and flip the reload button to a stop button (and back).
+    sendLoadingState(tabIndex, loading) {
+        try {
+            this.mainWindow.webContents.send('tab-loading', { index: tabIndex, loading: !!loading });
+        } catch (e) {}
+    }
+
     sendNavigationUpdate(tabIndex) {
         if (this.tabMap.has(tabIndex) && tabIndex === this.activeTabIndex) {
             try {
@@ -932,6 +963,9 @@ class Tabs {
             })
             
             this.sendNavigationUpdate(index)
+
+            // Reflect the newly active tab's loading state on the reload button.
+            try { this.sendLoadingState(index, tab.webContents.isLoading()); } catch (e) {}
 
             // Sync reader/PiP button visibility to the newly active tab.
             try {

@@ -114,14 +114,37 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // ── Privacy: Ad blocking ──────────────────────────────────────────────
-    const adblockToggle = document.getElementById('adblock-toggle');
-    adblockToggle.checked = settings.adBlockEnabled !== false; // default on
-
-    adblockToggle.addEventListener('change', async () => {
-        await save('adBlockEnabled', adblockToggle.checked);
-        showToast(adblockToggle.checked ? 'Ad blocking enabled' : 'Ad blocking disabled');
+    // ── Privacy: Tracking protection ──────────────────────────────────────
+    const privacyToggles = [
+        { id: 'adblock-toggle',    key: 'adBlockEnabled',         label: 'Ad & tracker blocking' },
+        { id: 'thirdparty-toggle', key: 'blockThirdPartyCookies', label: 'Third-party cookie blocking' },
+        { id: 'https-toggle',      key: 'httpsUpgrade',           label: 'HTTPS upgrade' },
+        { id: 'params-toggle',     key: 'stripTrackingParams',    label: 'Tracking-parameter stripping' },
+        { id: 'signals-toggle',    key: 'privacySignals',         label: 'Do Not Track / GPC signals' },
+        { id: 'referrer-toggle',   key: 'trimReferrer',           label: 'Referrer minimization' },
+    ];
+    privacyToggles.forEach(({ id, key, label }) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.checked = settings[key] !== false; // every layer defaults on
+        el.addEventListener('change', async () => {
+            await save(key, el.checked);
+            showToast(`${label} ${el.checked ? 'on' : 'off'}`);
+        });
     });
+
+    // Live "blocked this session" counter.
+    const privacyCount = document.getElementById('privacy-count');
+    async function refreshPrivacyStats() {
+        try {
+            const s = await window.inkSettings.privacyStats();
+            if (privacyCount && s && typeof s.blocked === 'number') {
+                privacyCount.textContent = s.blocked.toLocaleString();
+            }
+        } catch {}
+    }
+    refreshPrivacyStats();
+    setInterval(refreshPrivacyStats, 2000);
 
     // ── Privacy: Clear browsing data ───────────────────────────────────────
     document.getElementById('btn-clear-data')?.addEventListener('click', async () => {

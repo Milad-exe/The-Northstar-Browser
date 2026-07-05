@@ -31,6 +31,10 @@ const HOSTS_URL =
 // EasyList — primary ABP-format filter list (~80 k rules).
 const EASYLIST_URL = 'https://easylist.to/easylist/easylist.txt';
 
+// EasyPrivacy — dedicated tracker / analytics / beacon blocklist. This is the
+// list that turns the ad-blocker into real tracking protection.
+const EASYPRIVACY_URL = 'https://easylist.to/easylist/easyprivacy.txt';
+
 // Cache lifetime before a silent background refresh is triggered.
 const CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
 
@@ -124,6 +128,7 @@ class AdBlocker {
         this.blockedDomains = new Set(HARDCODED);
         this.initialized    = false;
         this.enabled        = true;
+        this.blockedCount   = 0;      // running tally of blocked requests this session
         this._cacheDir      = null;
     }
 
@@ -137,12 +142,12 @@ class AdBlocker {
         this._cacheDir = path.join(app.getPath('userData'), 'ink', 'adblock');
         try { fs.mkdirSync(this._cacheDir, { recursive: true }); } catch {}
 
-        const hostsFile    = path.join(this._cacheDir, 'hosts.txt');
-        const easylistFile = path.join(this._cacheDir, 'easylist.txt');
+        const hostsFile       = path.join(this._cacheDir, 'hosts.txt');
+        const easylistFile    = path.join(this._cacheDir, 'easylist.txt');
+        const easyprivacyFile = path.join(this._cacheDir, 'easyprivacy.txt');
 
-        // Load both caches synchronously — fast, available for first requests.
-        let hostsCached = false;
-        let easylistCached = false;
+        // Load caches synchronously — fast, available for first requests.
+        let hostsCached = false, easylistCached = false, easyprivacyCached = false;
         try {
             if (fs.existsSync(hostsFile)) {
                 this._parseHosts(fs.readFileSync(hostsFile, 'utf-8'));
@@ -155,13 +160,20 @@ class AdBlocker {
                 easylistCached = true;
             }
         } catch {}
+        try {
+            if (fs.existsSync(easyprivacyFile)) {
+                this._parseEasyList(fs.readFileSync(easyprivacyFile, 'utf-8'));
+                easyprivacyCached = true;
+            }
+        } catch {}
 
         this.initialized = true;
 
         // Refresh stale or missing lists in the background (non-blocking).
         this._maybeRefresh([
-            { url: HOSTS_URL,    file: hostsFile,    loaded: hostsCached,    parse: t => this._parseHosts(t),    minSize: 50_000  },
-            { url: EASYLIST_URL, file: easylistFile, loaded: easylistCached, parse: t => this._parseEasyList(t), minSize: 100_000 },
+            { url: HOSTS_URL,       file: hostsFile,       loaded: hostsCached,       parse: t => this._parseHosts(t),    minSize: 50_000  },
+            { url: EASYLIST_URL,    file: easylistFile,    loaded: easylistCached,    parse: t => this._parseEasyList(t), minSize: 100_000 },
+            { url: EASYPRIVACY_URL, file: easyprivacyFile, loaded: easyprivacyCached, parse: t => this._parseEasyList(t), minSize: 50_000  },
         ]).catch(() => {});
     }
 
@@ -172,12 +184,18 @@ class AdBlocker {
     enableBlockingInSession(sess) {
         sess.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, cb) => {
             if (this.enabled && this._shouldBlock(details.url, details.resourceType)) {
+                this.blockedCount++;
                 cb({ cancel: true });
             } else {
                 cb({});
             }
         });
     }
+
+    // Public block check — used by the privacy orchestrator, which owns the
+    // default session's single onBeforeRequest handler.
+    shouldBlock(url, resourceType) { return this._shouldBlock(url, resourceType); }
+    recordBlock() { this.blockedCount++; }
 
     setEnabled(v) { this.enabled = !!v; }
 
@@ -186,6 +204,7 @@ class AdBlocker {
             domains:     this.blockedDomains.size,
             enabled:     this.enabled,
             initialized: this.initialized,
+            blocked:     this.blockedCount,
         };
     }
 

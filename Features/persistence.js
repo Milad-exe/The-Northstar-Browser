@@ -10,6 +10,12 @@ const DEFAULTS = {
     bookmarkBarVisible: false,
     blockShortform:    false,
     adBlockEnabled:    true,
+    // Privacy / tracking protection (default to maximum protection)
+    blockThirdPartyCookies: true,
+    httpsUpgrade:           true,
+    stripTrackingParams:    true,
+    privacySignals:         true,
+    trimReferrer:           true,
     settingsPage:      'general',
     windowBounds:      null,
     windowState:       null,

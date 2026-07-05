@@ -12,10 +12,11 @@ body {
 
 .container {
   display: flex; flex-direction: column; gap: 12px;
-  padding: 14px;
+  padding: 15px;
   background: var(--surface);
   border: 1px solid var(--border-2);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.42), 0 2px 10px rgba(0,0,0,0.24);
 }
 
 h3 {
@@ -36,28 +37,29 @@ h3 {
 }
 
 .field input {
-  padding: 6px 9px;
+  padding: 8px 10px;
   font-family: var(--font); font-size: 12.5px;
   border: 1px solid var(--border-2);
   background: var(--bg);
   color: var(--text);
-  border-radius: 0; outline: none;
-  transition: border-color 0.12s;
+  border-radius: 8px; outline: none;
+  transition: border-color 0.14s, box-shadow 0.14s;
 }
 .field input:focus { border-color: var(--text-3); }
 
 .actions { display: flex; gap: 6px; }
 
 button {
-  flex: 1; padding: 6px 10px;
+  flex: 1; padding: 8px 10px;
   background: transparent;
   border: 1px solid var(--border-2);
+  border-radius: 8px;
   font-family: var(--font); font-size: 12px; font-weight: 500;
   color: var(--text-2); cursor: pointer;
   transition: background 0.1s, color 0.1s;
 }
-button:hover { background: var(--hover); color: var(--text); }
-button:active { background: var(--active-bg); }
+button:hover { background: var(--active-bg); color: var(--text); }
+button:active { background: var(--hover); }
 
 button.primary {
   background: var(--text); color: var(--bg);
@@ -67,6 +69,6 @@ button.primary:hover { opacity: 0.88; }
 
 button.remove {
   background: transparent; color: var(--danger);
-  border-color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
 }
-button.remove:hover { background: rgba(224,82,82,0.1); }
+button.remove:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }

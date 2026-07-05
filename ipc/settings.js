@@ -7,14 +7,20 @@
  */
 
 const { loginWithGoogle } = require('../Features/google-auth');
-const adBlocker = require('../Features/ad-blocker');
+const privacy = require('../Features/privacy');
+
+// Privacy / tracking-protection settings routed through the privacy orchestrator.
+const PRIVACY_KEYS = [
+    'adBlockEnabled', 'blockThirdPartyCookies', 'httpsUpgrade',
+    'stripTrackingParams', 'privacySignals', 'trimReferrer',
+];
 
 function register(ipcMain, { wm, webContents, nativeTheme, app, focusMode }) {
 
     focusMode.setShortformEnabled(wm, !!wm.persistence.get('blockShortform'));
 
-    // Apply persisted ad-block state (may have been toggled off last session).
-    adBlocker.setEnabled(!!wm.persistence.get('adBlockEnabled'));
+    // Seed every privacy layer from persisted settings (defaults are maximal).
+    PRIVACY_KEYS.forEach(k => privacy.setConfig(k, wm.persistence.get(k)));
 
     // ── Settings ──────────────────────────────────────────────────────────────
 
@@ -48,16 +54,22 @@ function register(ipcMain, { wm, webContents, nativeTheme, app, focusMode }) {
             focusMode.setShortformEnabled(wm, !!value);
         }
 
-        if (key === 'adBlockEnabled') {
-            adBlocker.setEnabled(!!value);
-            // Broadcast to all frames so the cosmetic preload can inject/remove CSS live.
-            webContents.getAllWebContents().forEach(wc => {
-                try { wc.send('adblock-set-enabled', !!value); } catch {}
-            });
+        if (PRIVACY_KEYS.includes(key)) {
+            privacy.setConfig(key, value);
+            // Ad blocking also drives the cosmetic preload — broadcast so it can
+            // inject / remove element-hiding CSS live.
+            if (key === 'adBlockEnabled') {
+                webContents.getAllWebContents().forEach(wc => {
+                    try { wc.send('adblock-set-enabled', !!value); } catch {}
+                });
+            }
         }
 
         return true;
     });
+
+    // Live tracking-protection stats for the Privacy settings panel.
+    ipcMain.handle('privacy-get-stats', () => privacy.getStats());
 
     ipcMain.handle('settings-clear-history', async () => {
         try { return await wm.history.clearHistory(); } catch { return false; }

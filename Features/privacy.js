@@ -1,0 +1,185 @@
+'use strict';
+/**
+ * Privacy & tracking protection for the default (normal) Electron session.
+ *
+ * Electron allows exactly ONE listener per webRequest event per session, so
+ * this module is the single owner of the default session's request pipeline.
+ * It composes several protections into those handlers, each independently
+ * toggleable from Settings → Privacy:
+ *
+ *   onBeforeRequest      ad/tracker network blocking (via ad-blocker),
+ *                        HTTPS upgrade, tracking-parameter stripping
+ *   onBeforeSendHeaders  UA client-hint alignment, GPC/DNT signals,
+ *                        cross-site Referer trimming, third-party cookie blocking
+ *   onHeadersReceived    Referrer-Policy tightening, DNS-prefetch off
+ *
+ * The private session keeps its own hardened setup (Features/private-session.js);
+ * this module targets normal browsing so those protections apply everywhere.
+ */
+
+const UserAgent = require('./user-agent');
+const adBlocker = require('./ad-blocker');
+const { parse: parseTld } = require('tldts');
+
+// Live configuration — mirrors the persisted privacy settings. Defaults to the
+// most protective state; ipc/settings.js overrides from disk at startup.
+const config = {
+    adBlockEnabled:          true, // block ads + trackers at the network level
+    blockThirdPartyCookies:  true, // drop cookies on cross-site requests
+    httpsUpgrade:            true, // upgrade http:// navigations to https://
+    stripTrackingParams:     true, // remove utm_*, fbclid, gclid, … from URLs
+    privacySignals:          true, // send Sec-GPC + DNT
+    trimReferrer:            true, // strip Referer across sites, tighten policy
+};
+
+// Known tracking / campaign query parameters, stripped from top-level URLs.
+const TRACKING_PARAMS = new Set([
+    'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+    'utm_id', 'utm_name', 'utm_cid', 'utm_reader', 'utm_referrer',
+    'utm_source_platform', 'utm_creative_format', 'utm_marketing_tactic',
+    'gclid', 'gclsrc', 'dclid', 'gbraid', 'wbraid', 'gad_source',
+    'fbclid', 'msclkid', 'mc_eid', 'mc_cid', 'yclid', 'twclid', 'ttclid',
+    'igshid', 'igsh', 'scid', 'vero_id', 'vero_conv',
+    '_openstat', 'oly_anon_id', 'oly_enc_id', 'mkt_tok', 'hsa_cam', 'hsa_grp',
+    'ref_src', 'ref_url', 'spm', 'wickedid',
+]);
+
+// Hosts that must never be force-upgraded to HTTPS (local / dev / non-web).
+function isLocalHost(host) {
+    return host === 'localhost' ||
+           host === '127.0.0.1' ||
+           host === '::1' ||
+           host.endsWith('.local') ||
+           host.endsWith('.localhost') ||
+           host.endsWith('.onion');
+}
+
+function etld1(host) {
+    try { return parseTld(host, { allowPrivateDomains: true }).domain || host; }
+    catch { return host; }
+}
+
+// Returns a cleaned URL string if any tracking params were removed, else null.
+function stripTrackingParams(urlStr) {
+    try {
+        const u = new URL(urlStr);
+        if (![...u.searchParams.keys()].length) return null;
+        let changed = false;
+        for (const key of [...u.searchParams.keys()]) {
+            if (TRACKING_PARAMS.has(key)) { u.searchParams.delete(key); changed = true; }
+        }
+        return changed ? u.toString() : null;
+    } catch { return null; }
+}
+
+function setConfig(key, value) {
+    if (key in config) config[key] = !!value;
+    if (key === 'adBlockEnabled') adBlocker.setEnabled(!!value);
+}
+function getConfig() { return { ...config }; }
+
+function getStats() {
+    const s = adBlocker.getStats();
+    return { ...s, config: { ...config } };
+}
+
+/**
+ * Register the composed handlers on a session. Call once for the default
+ * session INSTEAD OF UserAgent.setupSession + adBlocker.enableBlockingInSession.
+ */
+function setup(sess) {
+    sess.setUserAgent(UserAgent.generate());
+
+    // ── onBeforeRequest: block → upgrade → strip params ───────────────────────
+    sess.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, cb) => {
+        const { url, resourceType } = details;
+
+        // 1. Ad / tracker network blocking.
+        if (config.adBlockEnabled && adBlocker.shouldBlock(url, resourceType)) {
+            adBlocker.recordBlock();
+            return cb({ cancel: true });
+        }
+
+        // Redirect-based rewrites are only safe on GET — redirecting a POST can
+        // drop the request body and break form submissions.
+        const isGet = !details.method || details.method === 'GET';
+
+        // 2. HTTPS upgrade — only for page/frame navigations. Sub-resource http
+        //    on an https page is already stopped by Chromium's mixed-content
+        //    policy, and rewriting every asset risks breaking odd endpoints.
+        if (isGet && config.httpsUpgrade &&
+            url.startsWith('http://') &&
+            (resourceType === 'mainFrame' || resourceType === 'subFrame')) {
+            try {
+                if (!isLocalHost(new URL(url).hostname)) {
+                    return cb({ redirectURL: 'https://' + url.slice(7) });
+                }
+            } catch {}
+        }
+
+        // 3. Strip tracking params from top-level navigations.
+        if (isGet && config.stripTrackingParams && resourceType === 'mainFrame') {
+            const cleaned = stripTrackingParams(url);
+            if (cleaned && cleaned !== url) return cb({ redirectURL: cleaned });
+        }
+
+        cb({});
+    });
+
+    // ── onBeforeSendHeaders: UA hints + signals + referer/cookie hygiene ──────
+    sess.webRequest.onBeforeSendHeaders((details, cb) => {
+        const headers = { ...details.requestHeaders };
+
+        // Keep client-hints consistent with the Chrome UA (see user-agent.js).
+        UserAgent.applyClientHintHeaders(headers);
+        if (details.resourceType === 'mainFrame') {
+            headers['Accept-Language'] = 'en-US,en;q=0.9';
+        }
+
+        // Privacy signals — Global Privacy Control (legally meaningful in several
+        // US states) plus legacy Do Not Track.
+        if (config.privacySignals) {
+            headers['Sec-GPC'] = '1';
+            headers['DNT']     = '1';
+        }
+
+        // Cross-site request hygiene: work out whether this sub-resource is going
+        // to a different site than the document that triggered it.
+        if (details.resourceType !== 'mainFrame') {
+            const referer = headers['Referer'] || headers['referer'] || '';
+            const origin  = headers['Origin']  || headers['origin']  || '';
+            const context = referer || origin;
+            if (context) {
+                let crossSite = false;
+                try {
+                    crossSite = etld1(new URL(context).hostname) !==
+                                etld1(new URL(details.url).hostname);
+                } catch { crossSite = false; }
+
+                if (crossSite) {
+                    if (config.trimReferrer) {
+                        delete headers['Referer']; delete headers['referer'];
+                    }
+                    if (config.blockThirdPartyCookies) {
+                        delete headers['Cookie']; delete headers['cookie'];
+                    }
+                }
+            }
+        }
+
+        cb({ requestHeaders: headers });
+    });
+
+    // ── onHeadersReceived: tighten referrer policy + kill DNS prefetch ────────
+    // Setting Referer directly in onBeforeSendHeaders is ignored since Electron 7;
+    // injecting a strict Referrer-Policy response header is the supported path.
+    sess.webRequest.onHeadersReceived((details, cb) => {
+        if (!config.trimReferrer) return cb({});
+        const headers = { ...details.responseHeaders };
+        headers['Referrer-Policy']        = ['strict-origin-when-cross-origin'];
+        headers['X-DNS-Prefetch-Control'] = ['off'];
+        cb({ responseHeaders: headers });
+    });
+}
+
+module.exports = { setup, setConfig, getConfig, getStats };

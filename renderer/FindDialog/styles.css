@@ -18,49 +18,50 @@ body {
   display: flex; flex-direction: column;
   background: var(--surface);
   border: 1px solid var(--border-2);
-  border-radius: 0; padding: 10px;
+  border-radius: 12px; padding: 10px;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.42), 0 2px 10px rgba(0,0,0,0.24);
   width: 100%; max-width: 264px; gap: 8px;
 }
 
 #find-input {
-  width: 100%; border: 1px solid rgba(255,255,255,0.08); outline: none;
-  font-size: 12.5px; font-family: inherit; padding: 7px 10px;
-  background: rgba(255,255,255,0.05); color: #f0f0f0;
-  border-radius: 0; transition: border-color 0.12s;
+  width: 100%; border: 1px solid var(--border-2); outline: none;
+  font-size: 12.5px; font-family: inherit; padding: 8px 11px;
+  background: var(--bg); color: var(--text);
+  border-radius: 8px; transition: border-color 0.14s, box-shadow 0.14s;
 }
-#find-input::placeholder { color: #444; }
-#find-input:focus { border-color: rgba(255,255,255,0.18); background: rgba(255,255,255,0.07); }
+#find-input::placeholder { color: var(--text-3); }
+#find-input:focus { border-color: var(--text-3); }
 
 .find-controls {
   display: flex; align-items: center; justify-content: space-between; gap: 6px;
 }
 
-.find-nav { display: flex; gap: 1px; }
+.find-nav { display: flex; gap: 2px; }
 
 .find-btn {
-  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
-  color: #888; cursor: pointer; padding: 5px 8px; border-radius: 0;
+  background: transparent; border: 1px solid var(--border-2);
+  color: var(--text-2); cursor: pointer; padding: 5px 8px; border-radius: 7px;
   font-size: 11px; font-family: inherit;
   display: flex; align-items: center; justify-content: center;
-  min-width: 26px; height: 26px; transition: color 0.1s, border-color 0.1s;
+  min-width: 26px; height: 26px; transition: color 0.1s, background 0.1s, border-color 0.1s;
 }
-.find-btn:hover { color: #f0f0f0; border-color: rgba(255,255,255,0.18); }
-.find-btn:active { background: rgba(255,255,255,0.1); }
-.find-btn:disabled { opacity: 0.25; cursor: not-allowed; }
-.find-btn:disabled:hover { color: #888; border-color: rgba(255,255,255,0.08); }
+.find-btn:hover { color: var(--text); background: var(--active-bg); border-color: var(--border-2); }
+.find-btn:active { background: var(--hover); }
+.find-btn:disabled { opacity: 0.28; cursor: not-allowed; }
+.find-btn:disabled:hover { color: var(--text-2); background: transparent; }
 
 .close-btn {
-  color: #555; font-size: 13px; background: transparent; border: none;
-  cursor: pointer; padding: 3px; border-radius: 0; transition: color 0.1s;
+  color: var(--text-3); font-size: 13px; background: transparent; border: none;
+  cursor: pointer; padding: 4px 6px; border-radius: 7px; transition: color 0.1s, background 0.1s;
   font-family: inherit;
 }
-.close-btn:hover { color: #f0f0f0; }
+.close-btn:hover { color: var(--text); background: var(--active-bg); }
 
 .match-counter {
-  font-size: 11px; color: #555; margin: 0 4px; min-width: 46px;
+  font-size: 11px; color: var(--text-3); margin: 0 4px; min-width: 46px;
   text-align: center; font-weight: 500;
-  font-family: 'Menlo', monospace; letter-spacing: 0.04em;
+  font-family: var(--mono, 'Menlo', monospace); letter-spacing: 0.04em;
 }
 
-.find-highlight { background: rgba(245,196,50,0.35); color: #f0f0f0; }
+.find-highlight { background: rgba(245,196,50,0.35); color: inherit; }
 .find-highlight.current { background: #f5c842; color: #000; }

@@ -29,6 +29,7 @@ app.userAgentFallback = UserAgent.generate();
 const WindowManager      = require('./Features/window-manager');
 const focusMode          = require('./Features/focus-mode');
 const adBlocker          = require('./Features/ad-blocker');
+const privacy            = require('./Features/privacy');
 const privateSessionSetup = require('./Features/private-session');
 const downloadManager    = require('./Features/download-manager');
 const extensionManager   = require('./Features/extensions');
@@ -83,8 +84,6 @@ class Ink {
 
             app.dock?.setIcon(path.join(__dirname, 'logo.png')); // macOS only
 
-            // Apply the Chrome UA + header normalization to the default session
-            UserAgent.setupSession(session.defaultSession);
             Menu.setApplicationMenu(null);
 
             // Spellchecker — enable and set languages (OS locale + English fallback).
@@ -101,7 +100,11 @@ class Ink {
             // Ad blocking — network-level (cancel requests) + cosmetic (hide elements).
             // init() loads the cached filter list synchronously then refreshes in background.
             await adBlocker.init();
-            adBlocker.enableBlockingInSession(session.defaultSession);
+            // The privacy orchestrator owns the default session's request pipeline:
+            // ad/tracker blocking + HTTPS upgrade + tracking-param stripping +
+            // GPC/DNT signals + referer / third-party-cookie hygiene. Each layer is
+            // toggled live from Settings → Privacy; ipc/settings.js seeds it from disk.
+            privacy.setup(session.defaultSession);
 
             // Extensions — enable Chrome Web Store install + reload persisted
             // extensions into the default session, and set up the chrome.* API

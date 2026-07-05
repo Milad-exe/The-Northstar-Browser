@@ -115,15 +115,13 @@ class Shortcuts {
             if (this.windowManager) this.windowManager.createWindow();
         });
 
-        // New private window
-        this.registerShortcut('CmdOrCtrl+Shift+N', () => {
+        // New private window — Cmd/Ctrl+Shift+N (Chrome) and Cmd/Ctrl+Shift+P
+        // (Firefox) both open one. Private browsing is window-scoped, not per-tab.
+        const openPrivateWindow = () => {
             if (this.windowManager) this.windowManager.createWindow(800, 600, { private: true });
-        });
-
-        // New private tab
-        this.registerShortcut('CmdOrCtrl+Shift+P', () => {
-            this.tabManager.createTab(null, true, true);
-        });
+        };
+        this.registerShortcut('CmdOrCtrl+Shift+N', openPrivateWindow);
+        this.registerShortcut('CmdOrCtrl+Shift+P', openPrivateWindow);
 
         // Close tab
         this.registerShortcut('CmdOrCtrl+W', () => {
@@ -195,7 +193,7 @@ class Shortcuts {
             if (tabIndexes.length > 0) this.tabManager.showTab(tabIndexes[tabIndexes.length - 1]);
         });
 
-        // Pin / unpin active tab — Ctrl+Shift+L (moved to free up Shift+P for private tab)
+        // Pin / unpin active tab — Ctrl+Shift+L
         this.registerShortcut('CmdOrCtrl+Shift+L', () => {
             this.tabManager.pinTab(this.tabManager.activeTabIndex);
         });

@@ -9,8 +9,8 @@ const path = require('path');
 const { WebContentsView } = require('electron');
 const { closeWindowMenu, closeFolderDropdown } = require('./utils');
 
-const MENU_WIDTH  = 220;
-const MENU_HEIGHT = 224;
+const MENU_WIDTH  = 268;
+const MENU_HEIGHT = 452;
 
 function register(ipcMain, { wm }) {
 

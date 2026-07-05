@@ -11,8 +11,9 @@
 const path = require('path');
 const { WebContentsView } = require('electron');
 
-const ITEM_HEIGHT = 35;
-const MAX_HEIGHT  = 280;
+const ITEM_HEIGHT = 44;   // roomier Firefox-style rows (min-height 40 + margin)
+const LIST_CHROME = 16;   // list padding + border + slack
+const MAX_HEIGHT  = 400;
 
 /** Create (once) and load the overlay view for a window. Resolves when loaded. */
 async function ensureView(wd) {
@@ -70,7 +71,7 @@ function register(ipcMain, { wm }) {
         const wd = wm.getWindowByWebContents(_e.sender);
         if (!wd) return false;
 
-        const { bounds, items = [], activeIndex = -1 } = payload || {};
+        const { bounds, items = [], activeIndex = -1, query = '', engine = '' } = payload || {};
         try {
             const view = await ensureView(wd);
             view.setBounds(itemBounds(bounds, items.length));
@@ -82,7 +83,7 @@ function register(ipcMain, { wm }) {
                 wd.window.contentView.addChildView(view);
             } catch {}
             view.setVisible(true);
-            view.webContents.send('suggestions-data', { items, activeIndex });
+            view.webContents.send('suggestions-data', { items, activeIndex, query, engine });
             return true;
         } catch (err) {
             console.error('suggestions-open:', err);
@@ -94,12 +95,12 @@ function register(ipcMain, { wm }) {
         const wd = wm.getWindowByWebContents(_e.sender);
         if (!wd || !wd.suggestions) return false;
 
-        const { bounds, items = [], activeIndex = -1 } = payload || {};
+        const { bounds, items = [], activeIndex = -1, query = '', engine = '' } = payload || {};
         try {
             if (bounds && typeof bounds.left === 'number') {
                 wd.suggestions.setBounds(itemBounds(bounds, items.length));
             }
-            wd.suggestions.webContents.send('suggestions-data', { items, activeIndex });
+            wd.suggestions.webContents.send('suggestions-data', { items, activeIndex, query, engine });
             return true;
         } catch (err) {
             console.error('suggestions-update:', err);
@@ -146,7 +147,7 @@ function itemBounds(bounds, count) {
         x:      Math.max(0, Math.floor(bounds.left)),
         y:      Math.max(0, Math.floor(bounds.top)),
         width:  Math.floor(bounds.width),
-        height: Math.min(MAX_HEIGHT, Math.max(1, count) * ITEM_HEIGHT + 2),
+        height: Math.min(MAX_HEIGHT, Math.max(1, count) * ITEM_HEIGHT + LIST_CHROME),
     };
 }
 
