@@ -43,9 +43,9 @@ Legacy stub — no longer loaded by any window or `WebContentsView`. The Bruno p
 
 ### Purpose
 
-A session-level preload script injected into every web page by `session.defaultSession.registerPreloadScript`. Its sole purpose is to remove `navigator.webdriver = true`, which would otherwise expose Ink as an automated browser and trigger Google's "unsupported browser" redirect.
+A session-level preload script injected into every web page by `session.defaultSession.registerPreloadScript`. Its sole purpose is to remove `navigator.webdriver = true`, which would otherwise expose Northstar as an automated browser and trigger Google's "unsupported browser" redirect.
 
-Note: This script intentionally does **not** inject `window.chrome` or other Chrome-specific navigator properties. Since Ink spoofs a Firefox user-agent globally, injecting Chrome objects would create a detectable mismatch.
+Note: This script intentionally does **not** inject `window.chrome` or other Chrome-specific navigator properties. Since Northstar spoofs a Firefox user-agent globally, injecting Chrome objects would create a detectable mismatch.
 
 ### How It Works
 
@@ -293,7 +293,7 @@ Fires on every left-button mousedown in the renderer. Sends `'content-view-click
 | `isMaximized()` | Returns whether the window is currently maximised | — | Promise — boolean |
 | `onMaximizeChanged(fn)` | Listens for maximise state changes | `fn` — function receiving `(v)` | void |
 
-### `window.inkSettings`
+### `window.northstarSettings`
 
 | Method | Purpose | Inputs | Output |
 |---|---|---|---|
@@ -340,7 +340,7 @@ Fires on every left-button mousedown in the renderer. Sends `'content-view-click
 
 Preload script for the settings page. Exposes a focused set of IPC-backed APIs for reading and writing application settings, clearing history, toggling the bookmark bar, and navigating to special built-in tabs. Also sends a `'content-view-click'` notification to the main process on every primary mousedown.
 
-### `window.inkSettings`
+### `window.northstarSettings`
 
 | Method | Purpose | Inputs | Output |
 |---|---|---|---|

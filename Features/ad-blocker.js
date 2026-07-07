@@ -139,7 +139,7 @@ class AdBlocker {
      * refresh if the cache is stale.  Call once after app.whenReady().
      */
     async init() {
-        this._cacheDir = path.join(app.getPath('userData'), 'ink', 'adblock');
+        this._cacheDir = path.join(app.getPath('userData'), 'northstar', 'adblock');
         try { fs.mkdirSync(this._cacheDir, { recursive: true }); } catch {}
 
         const hostsFile       = path.join(this._cacheDir, 'hosts.txt');

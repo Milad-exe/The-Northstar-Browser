@@ -223,7 +223,7 @@ Recursively finds an item by ID in the bookmark tree, returning `{ node, parentA
 
 ### Purpose
 
-Provides AES-256-GCM symmetric encryption for all persistent user data. A 256-bit master key is generated once with a CSPRNG and stored at `userData/ink/.key` (mode 0600 on Unix). Every encrypted value is a JSON blob containing a 96-bit IV, a 128-bit GCM authentication tag, and the ciphertext — all base64-encoded. The auth tag provides tamper detection equivalent to an HMAC.
+Provides AES-256-GCM symmetric encryption for all persistent user data. A 256-bit master key is generated once with a CSPRNG and stored at `userData/northstar/.key` (mode 0600 on Unix). Every encrypted value is a JSON blob containing a 96-bit IV, a 128-bit GCM authentication tag, and the ciphertext — all base64-encoded. The auth tag provides tamper detection equivalent to an HMAC.
 
 ### Module-level Variables
 
@@ -523,7 +523,7 @@ Replaces the URL stored at the current history position without changing the pos
 
 ### Purpose
 
-Manages two categories of persistent data in the `userData/ink/` directory: **settings** (theme, search engine, bookmark bar visibility, Pomodoro times, tab persistence mode) and **tab state** (the list of open tabs and the active tab index, saved on close and restored on next launch). Both are stored as AES-256-GCM encrypted JSON files.
+Manages two categories of persistent data in the `userData/northstar/` directory: **settings** (theme, search engine, bookmark bar visibility, Pomodoro times, tab persistence mode) and **tab state** (the list of open tabs and the active tab index, saved on close and restored on next launch). Both are stored as AES-256-GCM encrypted JSON files.
 
 ### Module-level Variables
 
@@ -550,15 +550,15 @@ Default settings:
 
 | Property | Type | Purpose |
 |---|---|---|
-| `dir` | `string` | Path to `userData/ink/` — the storage directory |
-| `statePath` | `string` | Path to `userData/ink/tabs-state.json` |
-| `settingsPath` | `string` | Path to `userData/ink/settings.json` |
+| `dir` | `string` | Path to `userData/northstar/` — the storage directory |
+| `statePath` | `string` | Path to `userData/northstar/tabs-state.json` |
+| `settingsPath` | `string` | Path to `userData/northstar/settings.json` |
 | `settings` | `object` | In-memory settings merged from file + `DEFAULTS` |
 
 ### Methods
 
 #### `ensureDir()`
-Creates the `userData/ink/` directory synchronously if it does not exist.
+Creates the `userData/northstar/` directory synchronously if it does not exist.
 
 #### `readEncrypted(filePath)`
 Reads and decrypts a file synchronously. Falls back to returning the raw string for legacy plaintext files.

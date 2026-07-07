@@ -1,6 +1,6 @@
-# Ink Browser
+# Northstar
 
-A productivity-focused web browser built with Electron. Ink wraps Chromium via Electron's `WebContentsView` API to give you multi-tab browsing, a hierarchical bookmark bar, built-in focus mode, an API client (Bruno), and encrypted local storage — all in a single native window.
+A productivity-focused web browser built with Electron. Northstar wraps Chromium via Electron's `WebContentsView` API to give you multi-tab browsing, a hierarchical bookmark bar, built-in focus mode, an API client (Bruno), and encrypted local storage — all in a single native window.
 
 ---
 
@@ -186,8 +186,8 @@ Manages two encrypted JSON files:
 
 | File | Contents |
 |---|---|
-| `ink/settings.json` | Theme, search engine, bookmark bar visibility, Pomodoro timers, persist mode |
-| `ink/tabs-state.json` | Serialized tab list `{ tabs: [{url, title, pinned}], activeIndex }` |
+| `northstar/settings.json` | Theme, search engine, bookmark bar visibility, Pomodoro timers, persist mode |
+| `northstar/tabs-state.json` | Serialized tab list `{ tabs: [{url, title, pinned}], activeIndex }` |
 
 Settings defaults are defined in `DEFAULTS` and merged on load, so new settings keys are backward-compatible.
 
@@ -252,7 +252,7 @@ Floating `BrowserWindow` (frameless, transparent, `alwaysOnTop`) positioned at t
 
 AES-256-GCM at-rest encryption for all user data files.
 
-- Master key: 32 random bytes, generated once, stored at `userData/ink/.key` (mode 0600).
+- Master key: 32 random bytes, generated once, stored at `userData/northstar/.key` (mode 0600).
 - Each encrypted value is a JSON object: `{ v: 1, iv: <base64>, tag: <base64>, data: <base64> }`.
 - The GCM auth tag provides tamper detection.
 - `isEncrypted(str)` detects legacy plaintext files for seamless migration.
@@ -394,11 +394,11 @@ Legacy plaintext files are read correctly and re-encrypted on the next write (se
 
 ### Purpose
 
-`main.js` is the Electron main-process entry point for the Ink browser. It bootstraps the application by applying pre-ready Chromium flags (disabling `AutomationControlled` to avoid Google's unsupported-browser block), setting a spoofed Firefox user-agent fallback, and then wiring everything together inside the `Ink` class. On startup it creates a `WindowManager` instance, registers every IPC feature module, and — once Electron is ready — configures the default session (user-agent headers, permission handler, chrome spoof preload script), sets the dock icon on macOS, creates the first browser window, and instantiates the Bruno panel. It also handles app lifecycle events: `activate` (re-open on macOS dock click), `before-quit` (persist primary window state and unlock tab close guards), and `window-all-closed` (quit on non-macOS).
+`main.js` is the Electron main-process entry point for the Northstar browser. It bootstraps the application by applying pre-ready Chromium flags (disabling `AutomationControlled` to avoid Google's unsupported-browser block), setting a spoofed Firefox user-agent fallback, and then wiring everything together inside the `Northstar` class. On startup it creates a `WindowManager` instance, registers every IPC feature module, and — once Electron is ready — configures the default session (user-agent headers, permission handler, chrome spoof preload script), sets the dock icon on macOS, creates the first browser window, and instantiates the Bruno panel. It also handles app lifecycle events: `activate` (re-open on macOS dock click), `before-quit` (persist primary window state and unlock tab close guards), and `window-all-closed` (quit on non-macOS).
 
 ### Functions / Methods
 
-#### `Ink` (class)
+#### `Northstar` (class)
 
 ##### `constructor()`
 Creates the single application object. Instantiates `WindowManager`, calls `registerIpc()` to attach all IPC handlers, then calls `initApp()` to hook Electron lifecycle events.
@@ -413,5 +413,5 @@ Hooks `app.whenReady()` to perform all post-ready initialisation: restores the p
 
 | Name | Type | Purpose |
 |---|---|---|
-| `inkInstance` | `Ink` | The single application instance. Assigned to `global.inkInstance` so the Bruno feature can reach it from anywhere in the main process. |
+| `northstarInstance` | `Northstar` | The single application instance. Assigned to `global.northstarInstance` so the Bruno feature can reach it from anywhere in the main process. |
 | `deps` | `Object` | Dependency bundle assembled in `registerIpc()` and forwarded to every IPC module's `register()` call. Contains `wm`, `webContents`, `BrowserWindow`, `screen`, `nativeTheme`, `app`, and `focusMode`. |

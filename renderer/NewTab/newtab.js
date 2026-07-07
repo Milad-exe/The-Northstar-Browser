@@ -1,4 +1,4 @@
-// Ink — home / new-tab page.
+// Northstar — home / new-tab page.
 // Deliberately makes zero network requests of its own (no weather, no
 // geolocation, no external fonts) — the home page never phones home.
 

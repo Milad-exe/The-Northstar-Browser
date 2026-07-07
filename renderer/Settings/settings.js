@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
     // ── Load settings ──────────────────────────────────────────────────────
     let settings = {};
-    try { settings = await window.inkSettings.get(); } catch {}
+    try { settings = await window.northstarSettings.get(); } catch {}
 
     // ── Sidebar navigation ─────────────────────────────────────────────────
     const navItems = document.querySelectorAll('.nav-item');
@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function save(key, value) {
-        try { await window.inkSettings.set(key, value); } catch {}
+        try { await window.northstarSettings.set(key, value); } catch {}
     }
 
     // ── General: On startup ────────────────────────────────────────────────
@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     bookmarkBarToggle.addEventListener('change', async () => {
         await save('bookmarkBarVisible', bookmarkBarToggle.checked);
-        try { window.inkSettings.toggleBookmarkBar(); } catch {}
+        try { window.northstarSettings.toggleBookmarkBar(); } catch {}
     });
 
     // ── Focus: Distraction blocking ───────────────────────────────────────
@@ -137,7 +137,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const privacyCount = document.getElementById('privacy-count');
     async function refreshPrivacyStats() {
         try {
-            const s = await window.inkSettings.privacyStats();
+            const s = await window.northstarSettings.privacyStats();
             if (privacyCount && s && typeof s.blocked === 'number') {
                 privacyCount.textContent = s.blocked.toLocaleString();
             }
@@ -159,7 +159,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const rangeLabel = document.querySelector('#cbd-range option:checked')?.textContent || '';
         if (!confirm(`Clear the selected data (${rangeLabel})? This cannot be undone.`)) return;
         try {
-            const res = await window.inkSettings.clearBrowsingData({ range, types });
+            const res = await window.northstarSettings.clearBrowsingData({ range, types });
             showToast(res?.ok ? 'Browsing data cleared' : 'Failed to clear data');
         } catch {
             showToast('Failed to clear data');
@@ -172,7 +172,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function refreshPasswords() {
         let items = [];
-        try { items = await window.inkPasswords.list(); } catch {}
+        try { items = await window.northstarPasswords.list(); } catch {}
         pwList.innerHTML = '';
         if (pwEmpty) pwEmpty.style.display = items.length ? 'none' : 'block';
 
@@ -200,7 +200,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             reveal.addEventListener('click', async () => {
                 shown = !shown;
                 if (shown) {
-                    const pw = await window.inkPasswords.reveal(entry.id);
+                    const pw = await window.northstarPasswords.reveal(entry.id);
                     secret.type = 'text'; secret.value = pw || ''; reveal.textContent = 'Hide';
                 } else {
                     secret.type = 'password'; secret.value = '••••••••'; reveal.textContent = 'Show';
@@ -211,7 +211,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             del.className = 'btn-danger btn-sm'; del.textContent = 'Remove';
             del.addEventListener('click', async () => {
                 if (!confirm(`Remove the saved password for ${host}?`)) return;
-                await window.inkPasswords.remove(entry.id);
+                await window.northstarPasswords.remove(entry.id);
             });
 
             const controls = document.createElement('div');
@@ -221,7 +221,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             pwList.appendChild(row);
         }
     }
-    window.inkPasswords?.onChanged(() => refreshPasswords());
+    window.northstarPasswords?.onChanged(() => refreshPasswords());
     refreshPasswords();
 
     // ── Extensions ─────────────────────────────────────────────────────────
@@ -238,7 +238,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function refreshExtensions() {
         let items = [];
-        try { items = await window.inkExtensions.list(); } catch {}
+        try { items = await window.northstarExtensions.list(); } catch {}
         extList.innerHTML = '';
         extEmpty.style.display = items.length ? 'none' : 'block';
         if (extCount) extCount.textContent = items.length ? `(${items.length})` : '';
@@ -283,7 +283,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 optBtn.className = 'btn btn-sm';
                 optBtn.textContent = 'Options';
                 optBtn.disabled = !ext.enabled;
-                optBtn.addEventListener('click', () => window.inkExtensions.openOptions(ext.id));
+                optBtn.addEventListener('click', () => window.northstarExtensions.openOptions(ext.id));
                 controls.appendChild(optBtn);
             }
 
@@ -292,7 +292,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             toggle.title = ext.enabled ? 'Disable' : 'Enable';
             toggle.innerHTML = `<input type="checkbox" ${ext.enabled ? 'checked' : ''}><span class="track"></span>`;
             toggle.querySelector('input').addEventListener('change', (e) => {
-                window.inkExtensions.setEnabled(ext.id, e.target.checked);
+                window.northstarExtensions.setEnabled(ext.id, e.target.checked);
             });
             controls.appendChild(toggle);
 
@@ -301,7 +301,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             removeBtn.textContent = 'Remove';
             removeBtn.addEventListener('click', async () => {
                 if (!confirm(`Remove "${ext.name}"?`)) return;
-                await window.inkExtensions.remove(ext.id);
+                await window.northstarExtensions.remove(ext.id);
             });
             controls.appendChild(removeBtn);
 
@@ -320,7 +320,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         extShowError('');
         setExtBusy(true);
         try {
-            const res = await window.inkExtensions.add(mode);
+            const res = await window.northstarExtensions.add(mode);
             if (res?.canceled) return;
             if (res?.ok) showToast(`Added "${res.name}"`);
             else extShowError(res?.error || 'Failed to add extension');
@@ -329,7 +329,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } finally { setExtBusy(false); }
     }
 
-    document.getElementById('btn-ext-store')?.addEventListener('click', () => window.inkExtensions.openStore());
+    document.getElementById('btn-ext-store')?.addEventListener('click', () => window.northstarExtensions.openStore());
     document.getElementById('btn-ext-unpacked')?.addEventListener('click', () => addExtension('unpacked'));
     document.getElementById('btn-ext-crx')?.addEventListener('click', () => addExtension('crx'));
 
@@ -343,7 +343,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const label = installIdBtn.textContent;
         installIdBtn.textContent = 'Installing…';
         try {
-            const res = await window.inkExtensions.installId(val);
+            const res = await window.northstarExtensions.installId(val);
             if (res?.ok) { showToast(`Installed "${res.name}"`); idInput.value = ''; }
             else extShowError(res?.error || 'Install failed');
         } catch (err) { extShowError(err.message || 'Install failed'); }
@@ -351,7 +351,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     idInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') installIdBtn.click(); });
 
-    window.inkExtensions?.onChanged(() => refreshExtensions());
+    window.northstarExtensions?.onChanged(() => refreshExtensions());
     refreshExtensions();
 
     // ── About: version ────────────────────────────────────────────────────

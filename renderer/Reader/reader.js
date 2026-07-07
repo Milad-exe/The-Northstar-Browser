@@ -48,13 +48,13 @@
     document.querySelectorAll('#rd-theme .rd-seg').forEach(b =>
         b.addEventListener('click', () => { prefs.theme = b.dataset.theme; applyPrefs(); savePrefs(); }));
 
-    document.getElementById('rd-close').addEventListener('click', () => window.inkReader.exit());
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.inkReader.exit(); });
+    document.getElementById('rd-close').addEventListener('click', () => window.northstarReader.exit());
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.northstarReader.exit(); });
 
     // ── Load the article ──────────────────────────────────────────────────────
     applyPrefs();
 
-    window.inkReader.getArticle().then((article) => {
+    window.northstarReader.getArticle().then((article) => {
         if (!article || !article.ok) {
             document.getElementById('reader-content').classList.add('hidden');
             document.getElementById('rd-error').classList.remove('hidden');

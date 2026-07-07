@@ -28,7 +28,7 @@ const DEFAULTS = {
 class Persistence {
     constructor() {
         const userDir     = app.getPath('userData');
-        this.dir          = path.join(userDir, 'ink');
+        this.dir          = path.join(userDir, 'northstar');
         this.statePath    = path.join(this.dir, 'tabs-state.json');
         this.settingsPath = path.join(this.dir, 'settings.json');
         this.ensureDir();

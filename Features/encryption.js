@@ -1,9 +1,9 @@
 /**
- * Ink Browser — At-rest encryption
+ * Northstar — At-rest encryption
  *
  * Uses AES-256-GCM — the symmetric cipher mandated by OpenPGP (RFC 4880bis §9.3)
  * for modern PGP symmetric encryption.  The master key is generated once with a
- * CSPRNG and stored in userData/ink/.key (mode 0600 on Unix).
+ * CSPRNG and stored in userData/northstar/.key (mode 0600 on Unix).
  *
  * Every encrypted blob is a JSON object:
  *   { v: 1, iv: <base64-12B>, tag: <base64-16B>, data: <base64-ciphertext> }
@@ -29,7 +29,7 @@ function resolveKeyPath() {
     if (cachedKeyPath) return cachedKeyPath;
     try {
         const { app } = require('electron');
-        cachedKeyPath = path.join(app.getPath('userData'), 'ink', '.key');
+        cachedKeyPath = path.join(app.getPath('userData'), 'northstar', '.key');
     } catch {
         cachedKeyPath = path.join(process.cwd(), '.ink-key');
     }

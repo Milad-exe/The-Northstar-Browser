@@ -260,7 +260,7 @@ Wires the Bruno toggle button (`#bruno-btn`) to `window.bruno.open()` / `window.
 
 | Name | Type | Purpose |
 |---|---|---|
-| `_settings` | `object` | Loaded at startup from `window.inkSettings.get()`; holds all persisted user preferences used by the renderer. |
+| `_settings` | `object` | Loaded at startup from `window.northstarSettings.get()`; holds all persisted user preferences used by the renderer. |
 | `tabs` | `Map<number, HTMLElement>` | Maps tab index → the `.tab-button` div element for that tab. |
 | `tabUrls` | `Map<number, string>` | Maps tab index → the current URL of that tab. |
 | `activeTabIndex` | `number` | The index of the currently visible/active tab. |
@@ -272,7 +272,7 @@ Wires the Bruno toggle button (`#bruno-btn`) to `window.bruno.open()` / `window.
 | `menuBtn` / `addBtn` | `HTMLButtonElement` | The hamburger menu and new-tab + buttons. |
 | `tabBar` / `tabsContainer` | `HTMLElement` | The tab bar wrapper and the scrollable tabs inner container. |
 | `bookmarkBtn` / `bookmarkBar` / `bookmarkBarItems` | `HTMLElement` | The ★ button, the bookmark bar strip, and the container for rendered bar items. |
-| `bookmarkBarVisible` | `boolean` | Whether the bookmark bar is currently shown; persisted to `inkSettings`. |
+| `bookmarkBarVisible` | `boolean` | Whether the bookmark bar is currently shown; persisted to `northstarSettings`. |
 | `hasBookmarks` | `boolean` | True when the bookmark list is non-empty; determines whether the bar renders at all. |
 | `_renamingFolderId` | `string\|null` | The id of the folder currently being renamed inline in the bar; blocks `refreshBookmarkBar` during a rename. |
 | `_refreshSeq` | `number` | Monotonically-increasing counter; used to discard stale `refreshBookmarkBar` responses. |

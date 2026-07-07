@@ -179,7 +179,7 @@ contextBridge.exposeInMainWorld(
     }
 );
 
-contextBridge.exposeInMainWorld('inkPrivate', {
+contextBridge.exposeInMainWorld('northstarPrivate', {
     newPrivateWindow: () => ipcRenderer.invoke('newPrivateWindow'),
     isPrivateWindow:  () => ipcRenderer.invoke('isPrivateWindow'),
     // Synchronous variant — lets the renderer finish setup in one tick so tab
@@ -208,7 +208,7 @@ contextBridge.exposeInMainWorld('pip', {
 // Exposed to the Reader view (which loads inside a tab). getArticle() returns
 // null unless the tab is actually in reader mode, and exit() is a guarded no-op
 // otherwise — safe to expose to ordinary pages.
-contextBridge.exposeInMainWorld('inkReader', {
+contextBridge.exposeInMainWorld('northstarReader', {
     getArticle: () => ipcRenderer.invoke('reader-get-article'),
     exit:       () => ipcRenderer.invoke('reader-exit'),
 });
@@ -325,7 +325,7 @@ contextBridge.exposeInMainWorld('windowControls', {
   onMaximizeChanged:(fn) => ipcRenderer.on('window-maximize-changed', (_e, v) => fn(v)),
 });
 
-contextBridge.exposeInMainWorld('inkSettings', {
+contextBridge.exposeInMainWorld('northstarSettings', {
   get:               ()         => ipcRenderer.invoke('settings-get'),
   getSync:           ()         => { try { return ipcRenderer.sendSync('settings-get-sync') || {}; } catch { return {}; } },
   set:               (key, val) => ipcRenderer.invoke('settings-set', key, val),

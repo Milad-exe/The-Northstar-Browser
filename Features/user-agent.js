@@ -3,7 +3,7 @@ const os = require('os');
 /**
  * User agent strategy.
  *
- * Ink runs on Chromium (Electron), so we present as Chrome — matching the
+ * Northstar runs on Chromium (Electron), so we present as Chrome — matching the
  * engine that sites actually observe. Spoofing Firefox here breaks Cloudflare
  * Turnstile, Google sign-in and YouTube playback: those services compare the
  * UA string against JS/TLS/client-hint fingerprints and a "Firefox" UA on a

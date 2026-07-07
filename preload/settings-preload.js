@@ -26,7 +26,7 @@ ipcRenderer.on('theme-changed', (_e, theme) => {
     }
 });
 
-contextBridge.exposeInMainWorld('inkSettings', {
+contextBridge.exposeInMainWorld('northstarSettings', {
   get:          ()          => ipcRenderer.invoke('settings-get'),
   set:          (key, val)  => ipcRenderer.invoke('settings-set', key, val),
   clearHistory: ()          => ipcRenderer.invoke('settings-clear-history'),
@@ -37,14 +37,14 @@ contextBridge.exposeInMainWorld('inkSettings', {
   openBookmarksTab: ()      => ipcRenderer.invoke('open-bookmarks-tab'),
 });
 
-contextBridge.exposeInMainWorld('inkPasswords', {
+contextBridge.exposeInMainWorld('northstarPasswords', {
   list:      ()   => ipcRenderer.invoke('passwords-list'),
   reveal:    (id) => ipcRenderer.invoke('passwords-reveal', id),
   remove:    (id) => ipcRenderer.invoke('passwords-delete', id),
   onChanged: (cb) => ipcRenderer.on('passwords-changed', () => cb()),
 });
 
-contextBridge.exposeInMainWorld('inkExtensions', {
+contextBridge.exposeInMainWorld('northstarExtensions', {
   list:       ()            => ipcRenderer.invoke('extensions-list'),
   add:        (mode)        => ipcRenderer.invoke('extensions-add', mode),
   installId:  (idOrUrl)     => ipcRenderer.invoke('extensions-install-id', idOrUrl),

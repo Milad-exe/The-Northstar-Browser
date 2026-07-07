@@ -1,14 +1,14 @@
 {
-  "name": "the-ink-browser",
+  "name": "northstar-browser",
   "version": "1.0.0",
   "description": "productivity web browser",
-  "homepage": "https://github.com/Milad-exe/The-Ink-Browser#readme",
+  "homepage": "https://github.com/Milad-exe/Northstar#readme",
   "bugs": {
-    "url": "https://github.com/Milad-exe/The-Ink-Browser/issues"
+    "url": "https://github.com/Milad-exe/Northstar/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Milad-exe/The-Ink-Browser.git"
+    "url": "git+https://github.com/Milad-exe/Northstar.git"
   },
   "license": "ISC",
   "author": "Milad Rakhshbahar",
@@ -24,8 +24,8 @@
     "test": "jest"
   },
   "build": {
-    "appId": "com.inkbrowser.app",
-    "productName": "The Ink Browser",
+    "appId": "com.northstar.browser",
+    "productName": "Northstar",
     "copyright": "Copyright © 2025 Milad Rakhshbahar",
     "directories": {
       "output": "dist"

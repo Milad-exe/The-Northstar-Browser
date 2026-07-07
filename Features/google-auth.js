@@ -47,7 +47,7 @@ function loginWithGoogle(clientId, clientSecret, scope = 'email profile') {
                 res.writeHead(200, { 'Content-Type': 'text/html' });
                 res.end(`<html>
                     <head><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;background:#141414;color:#fff;}</style></head>
-                    <body><div style="text-align:center;"><h1>Authentication Successful!</h1><p>You can now close this tab and return to Ink.</p></div></body>
+                    <body><div style="text-align:center;"><h1>Authentication Successful!</h1><p>You can now close this tab and return to Northstar.</p></div></body>
                 </html>`);
 
                 const port = server.address().port;

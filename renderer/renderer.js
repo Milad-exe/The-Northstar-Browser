@@ -66,18 +66,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── Settings (synchronous) ────────────────────────────────────────────────
     let settings = {};
-    try { settings = window.inkSettings.getSync() || {}; } catch {}
+    try { settings = window.northstarSettings.getSync() || {}; } catch {}
 
     const getSearchEngine  = () => settings.searchEngine || 'google';
     const getPomSetting    = (key, def) => (typeof settings[key] === 'number' ? settings[key] : def);
 
     // ── Private window detection (synchronous) ────────────────────────────────
     let isPrivateWindow = false;
-    try { isPrivateWindow = window.inkPrivate?.isPrivateWindowSync?.() ?? false; } catch {}
+    try { isPrivateWindow = window.northstarPrivate?.isPrivateWindowSync?.() ?? false; } catch {}
     if (isPrivateWindow) {
         document.documentElement.setAttribute('data-private-window', 'true');
     }
-    window.inkPrivate?.onSetPrivateWindow?.((v) => {
+    window.northstarPrivate?.onSetPrivateWindow?.((v) => {
         if (v) document.documentElement.setAttribute('data-private-window', 'true');
         else document.documentElement.removeAttribute('data-private-window');
     });
@@ -1483,7 +1483,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         window.electronAPI.onToggleBookmarkBar(() => {
             bookmarkBarVisible = !bookmarkBarVisible;
-            window.inkSettings.set('bookmarkBarVisible', bookmarkBarVisible);
+            window.northstarSettings.set('bookmarkBarVisible', bookmarkBarVisible);
             refreshBookmarkBar();
         });
 

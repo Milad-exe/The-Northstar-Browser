@@ -1,5 +1,5 @@
 /**
- * Ink Browser — main process entry point.
+ * Northstar — main process entry point.
  *
  * Responsibilities:
  *  - Bootstrap Electron (flags, UA fallback, session setup)
@@ -48,7 +48,7 @@ const passwordsIpc     = require('./ipc/passwords');
 
 // ── App ──────────────────────────────────────────────────────────────────────
 
-class Ink {
+class Northstar {
     constructor() {
         this.windowManager = new WindowManager();
         this.registerIpc();
@@ -204,4 +204,4 @@ class Ink {
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
-new Ink();
+new Northstar();
