@@ -206,7 +206,7 @@ class Extensions {
         const url = ext ? this._optionsUrl(ext) : null;
         if (!url) return false;
         const wd = this._activeWindow();
-        if (wd?.tabs) wd.tabs.createLazyTab(url, ext.name, false);
+        if (wd?.tabs) wd.tabs.createLazyTab(url, ext.name, false, false, true);
         return true;
     }
 

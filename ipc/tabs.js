@@ -41,7 +41,7 @@ function register(ipcMain, { wm, BrowserWindow }) {
         const safe = sanitizeUrl(url);
         let title = safe;
         try { title = new URL(safe).hostname; } catch {}
-        wd.tabs.createLazyTab(safe, title, false);
+        wd.tabs.createLazyTab(safe, title, false, false, true);
     });
 
     ipcMain.handle('removeTab', (_e, index) => {

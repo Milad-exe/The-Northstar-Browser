@@ -56,7 +56,7 @@ function register(ipcMain, { wm }) {
     // Open the Chrome Web Store in a new tab (its "Add to Chrome" button works).
     ipcMain.handle('extensions-open-store', (_e) => {
         const wd = wm.getWindowByWebContents(_e.sender);
-        if (wd?.tabs) wd.tabs.createLazyTab(WEB_STORE_URL, 'Chrome Web Store', false);
+        if (wd?.tabs) wd.tabs.createLazyTab(WEB_STORE_URL, 'Chrome Web Store', false, false, true);
         return true;
     });
 }

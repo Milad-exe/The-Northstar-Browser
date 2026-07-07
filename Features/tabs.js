@@ -220,7 +220,7 @@ class Tabs {
         } catch {}
     }
 
-    createLazyTab(url, title, isPinned, isPrivate = false) {
+    createLazyTab(url, title, isPinned, isPrivate = false, insertAfterActive = false) {
         const tabIndex = this.nextTabIndex;
         this.nextTabIndex++;
         const makePrivate = isPrivate || this.isPrivateWindow;
@@ -273,7 +273,14 @@ class Tabs {
 
         this.tabMap.set(tabIndex, tab);
         this.tabUrls.set(tabIndex, url || 'newtab');
-        this.tabOrder.push(tabIndex);
+        // Placement: user "open in new tab" actions drop the tab right after the
+        // current one (Chrome/Firefox style); everything else (session restore,
+        // etc.) appends to the end so restored order is preserved.
+        const afterIdx = (insertAfterActive && this.tabOrder.includes(this.activeTabIndex))
+            ? this.activeTabIndex : null;
+        const afterPos = afterIdx !== null ? this.tabOrder.indexOf(afterIdx) : -1;
+        if (afterPos !== -1) this.tabOrder.splice(afterPos + 1, 0, tabIndex);
+        else                 this.tabOrder.push(tabIndex);
 
         if (isPinned) {
             this.pinnedTabs.add(tabIndex);
@@ -311,6 +318,7 @@ class Tabs {
             index: tabIndex,
             title: tab.lazyTitle,
             totalTabs: this.tabMap.size,
+            afterIndex: afterPos !== -1 ? afterIdx : null,
             active: false,
             private: makePrivate,
         });
@@ -644,8 +652,8 @@ class Tabs {
             } catch {
                 return { action: 'deny' };
             }
-            // Open safe URLs as a new tab in the same window.
-            setImmediate(() => this.createLazyTab(url, url, false));
+            // Open safe URLs as a new tab in the same window, right after this one.
+            setImmediate(() => this.createLazyTab(url, url, false, false, true));
             return { action: 'deny' };
         });
 
@@ -1027,8 +1035,22 @@ class Tabs {
         }
     }
 
+    // The tab to activate after `index` is closed: the visually-adjacent tab in
+    // tab-bar order (right neighbour, else left). Call BEFORE removing `index`.
+    // Chrome/Firefox behaviour; keyed off tabOrder so it respects drag-reorder.
+    _neighborInOrder(index) {
+        const order = this.tabOrder;
+        const pos = order.indexOf(index);
+        if (pos === -1) return null;
+        for (let i = pos + 1; i < order.length; i++) if (this.tabMap.has(order[i])) return order[i];
+        for (let i = pos - 1; i >= 0; i--)          if (this.tabMap.has(order[i])) return order[i];
+        return null;
+    }
+
     removeTab(index) {
         if (this.tabMap.has(index)) {
+            const wasActive  = this.activeTabIndex === index;
+            const nextActive = wasActive ? this._neighborInOrder(index) : null;
             const tab = this.tabMap.get(index)
             this.recordClosed(index)
             this.destroyTab(tab)
@@ -1040,17 +1062,18 @@ class Tabs {
             this.tabOrder = this.tabOrder.filter(i => i !== index)
 
             this.navigationHistory.removeTab(index)
-            
+
             this.mainWindow.webContents.send('tab-removed', {
                 index: index,
                 totalTabs: this.tabMap.size
             })
-            
-            if (this.activeTabIndex === index && this.tabMap.size > 0) {
-                const remainingTabs = Array.from(this.tabMap.keys())
-                this.showTab(remainingTabs[0])
+
+            if (wasActive && this.tabMap.size > 0) {
+                const target = (nextActive !== null && this.tabMap.has(nextActive))
+                    ? nextActive : this.tabOrder[0];
+                this.showTab(target)
             }
-            
+
             if (this.tabMap.size === 0) {
                 this.allowClose = true;
                 this.mainWindow.close();
@@ -1059,8 +1082,13 @@ class Tabs {
         }
     }
     
-    removeTabWithTargetFocus(index, targetTabIndex) {
+    removeTabWithTargetFocus(index, targetTabIndex = null) {
         if (this.tabMap.has(index)) {
+            const wasActive = this.activeTabIndex === index;
+            // Prefer an explicit valid target; otherwise fall back to the
+            // visually-adjacent tab (right, else left) in tab-bar order.
+            const nextActive = (targetTabIndex !== null && this.tabMap.has(targetTabIndex))
+                ? targetTabIndex : this._neighborInOrder(index);
             const tab = this.tabMap.get(index);
             this.recordClosed(index)
             this.destroyTab(tab);
@@ -1082,13 +1110,12 @@ class Tabs {
                 this.allowClose = true;
                 this.mainWindow.close();
             } else {
-                if (targetTabIndex !== null && this.tabMap.has(targetTabIndex)) {
-                    this.showTab(targetTabIndex);
-                } else {
-                    const remainingTabs = Array.from(this.tabMap.keys());
-                    this.showTab(remainingTabs[0]);
+                if (wasActive) {
+                    const target = (nextActive !== null && this.tabMap.has(nextActive))
+                        ? nextActive : this.tabOrder[0];
+                    this.showTab(target);
                 }
-                
+
                 setTimeout(() => {
                     if (!this.mainWindow.isDestroyed()) {
                         this.mainWindow.focus();

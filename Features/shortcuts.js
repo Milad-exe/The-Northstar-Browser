@@ -126,25 +126,9 @@ class Shortcuts {
         // Close tab
         this.registerShortcut('CmdOrCtrl+W', () => {
             const currentTabIndex = this.tabManager.activeTabIndex;
-            const totalTabs = this.tabManager.tabMap.size;
-
-            if (totalTabs > 1) {
-                const allTabIndexes = Array.from(this.tabManager.tabMap.keys()).sort((a, b) => a - b);
-                const currentPosition = allTabIndexes.indexOf(currentTabIndex);
-                let targetTabIndex = null;
-
-                if (currentPosition !== -1) {
-                    if (currentPosition < allTabIndexes.length - 1) {
-                        targetTabIndex = allTabIndexes[currentPosition + 1];
-                    } else if (currentPosition > 0) {
-                        targetTabIndex = allTabIndexes[currentPosition - 1];
-                    }
-                }
-
-                this.tabManager.removeTabWithTargetFocus(currentTabIndex, targetTabIndex);
-            } else {
-                this.tabManager.removeTab(currentTabIndex);
-            }
+            // Let the tab manager pick the next tab (visually-adjacent, via
+            // tabOrder) — same logic the close button uses, so they're consistent.
+            this.tabManager.removeTabWithTargetFocus(currentTabIndex, null);
 
             setTimeout(() => {
                 if (!this.mainWindow.isDestroyed() && this.mainWindow.isVisible()) {
@@ -167,7 +151,7 @@ class Shortcuts {
             if (url && url !== 'newtab' && !url.startsWith('file://')) {
                 let title = url;
                 try { title = new URL(url).hostname; } catch {}
-                this.tabManager.createLazyTab(url, title, false);
+                this.tabManager.createLazyTab(url, title, false, false, true);
             } else {
                 this.tabManager.createTab();
             }
@@ -189,7 +173,7 @@ class Shortcuts {
             this.registerShortcut(`CmdOrCtrl+${n}`, () => this.switchToTabByNumber(n));
         }
         this.registerShortcut('CmdOrCtrl+9', () => {
-            const tabIndexes = Array.from(this.tabManager.tabMap.keys()).sort((a, b) => a - b);
+            const tabIndexes = this._orderedTabIndexes();
             if (tabIndexes.length > 0) this.tabManager.showTab(tabIndexes[tabIndexes.length - 1]);
         });
 
@@ -523,8 +507,9 @@ class Shortcuts {
     }
 
     _orderedTabIndexes() {
-        return Array.from(this.tabManager.tabMap.keys()).sort((a, b) => a - b)
-            .filter(i => this.tabManager.tabUrls.has(i));
+        // Visual (tab-bar) order, restricted to live tabs — so cycling and
+        // number-switching follow the on-screen order, not creation order.
+        return this.tabManager.tabOrder.filter(i => this.tabManager.tabMap.has(i));
     }
 
     // ── Zoom helpers ───────────────────────────────────────────────────────────

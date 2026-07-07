@@ -40,7 +40,7 @@ class TabContextMenu {
         const safe = sanitizeUrl(url);
         let title = safe;
         try { title = new URL(safe).hostname; } catch {}
-        this.tabManager.createLazyTab(safe, title, false);
+        this.tabManager.createLazyTab(safe, title, false, false, true);
     }
 
     addPageItems(params) {
