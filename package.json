@@ -21,10 +21,15 @@
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
     "build:linux": "electron-builder --linux",
+    "vmp-sign": "python3 -m castlabs_evs.vmp sign-pkg node_modules/electron/dist",
     "test": "jest"
   },
   "build": {
     "appId": "com.northstar.browser",
+    "afterPack": "./scripts/vmp-sign.js",
+    "electronDownload": {
+      "mirror": "https://github.com/castlabs/electron-releases/releases/download/"
+    },
     "productName": "Northstar",
     "copyright": "Copyright © 2025 Milad Rakhshbahar",
     "directories": {
@@ -75,7 +80,7 @@
     "tldts": "^7.4.2"
   },
   "devDependencies": {
-    "electron": "^38.1.2",
+    "electron": "github:castlabs/electron-releases#v38.8.6+wvcus",
     "electron-builder": "^26.15.3"
   }
 }

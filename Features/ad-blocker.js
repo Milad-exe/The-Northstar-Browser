@@ -100,6 +100,10 @@ const NEVER_BLOCK = new Set([
     'challenges.cloudflare.com',
     'hcaptcha.com',
     'recaptcha.net',
+    // Video-player licensing — filter lists block the whole host, but this one
+    // also serves the Bitmovin player's license endpoint (/licensing). Blocking
+    // it stops playback on Crunchyroll and other Bitmovin-based players.
+    'licensing.bitmovin.com',
 ]);
 
 // ── URL substring patterns ────────────────────────────────────────────────────
@@ -182,7 +186,12 @@ class AdBlocker {
      * Call once, after init().
      */
     enableBlockingInSession(sess) {
+        // Lazy require to avoid a load-order cycle (site-permissions ⇄ features).
+        const sitePermissions = require('./site-permissions');
         sess.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, cb) => {
+            // Per-site protections shield (lock-icon panel).
+            const src = details.resourceType === 'mainFrame' ? details.url : (details.referrer || details.url);
+            if (sitePermissions.isProtectionOff(sitePermissions.siteOf(src))) return cb({});
             if (this.enabled && this._shouldBlock(details.url, details.resourceType)) {
                 this.blockedCount++;
                 cb({ cancel: true });
@@ -302,12 +311,14 @@ class AdBlocker {
         catch { return true; }
     }
 
-    // Parse ABP/EasyList network rules.  Only extracts pure domain-level blocks:
-    //   ||domain^           →  block entire domain
-    //   ||domain^$options   →  block entire domain (options ignored for simplicity)
+    // Parse ABP/EasyList network rules. Only extracts PURE whole-host blocks:
+    //   ||domain^            →  block the whole host
+    //   ||domain^$third-party →  block the whole host (generic options kept)
     //
-    // Path-specific rules like ||youtube.com/api/stats/ads^ are intentionally
-    // skipped — extracting the domain from them would block the whole site.
+    // Rules with a path/wildcard after the host (||host^*/x.js) or a site scope
+    // (||host^...$domain=other.com) are NOT whole-host blocks and are skipped —
+    // otherwise a rule that only targets one script on one site would blanket-
+    // block a shared CDN everywhere (this is what was hiding Shopify images).
     _parseEasyList(text) {
         for (const line of text.split('\n')) {
             const trimmed = line.trim();
@@ -320,15 +331,18 @@ class AdBlocker {
 
             const afterPipes = trimmed.slice(2);
 
-            // Skip path-specific rules: a '/' before (or without) the '^' anchor
-            // means the rule targets a URL path, not just the hostname.
-            const slashIdx = afterPipes.indexOf('/');
-            const caretIdx = afterPipes.indexOf('^');
-            if (slashIdx !== -1 && (caretIdx === -1 || slashIdx < caretIdx)) continue;
+            // Split off ABP options ($...). A site-scoped rule ($domain=...) is
+            // not a global block, so skip it entirely.
+            const dollarIdx = afterPipes.indexOf('$');
+            const pattern = dollarIdx === -1 ? afterPipes : afterPipes.slice(0, dollarIdx);
+            const options = dollarIdx === -1 ? ''         : afterPipes.slice(dollarIdx + 1);
+            if (/(^|,)domain=/.test(options)) continue;
 
-            // Extract domain: everything up to the first ^, *, or $ (no / possible here).
-            const endIdx = afterPipes.search(/[\^\*\$]/);
-            const domain = (endIdx === -1 ? afterPipes : afterPipes.slice(0, endIdx)).toLowerCase();
+            // Accept only "domain" or "domain^" with nothing after it. Any path
+            // or wildcard means the rule targets a specific URL, not the host.
+            const m = pattern.match(/^([a-z0-9][a-z0-9.-]*\.[a-z0-9.-]+)\^?$/i);
+            if (!m) continue;
+            const domain = m[1].toLowerCase();
             if (this._isValidDomain(domain)) this.blockedDomains.add(domain);
         }
     }

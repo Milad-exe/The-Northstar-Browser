@@ -26,15 +26,16 @@ function setup(sess) {
         headers['Sec-GPC']         = '1'; // Global Privacy Control (legally significant in CA, CO, etc.)
         headers['Accept-Language'] = 'en-US,en;q=0.9';
 
-        // Strip cross-origin Referer on sub-resources
+        // Downgrade cross-origin Referer to origin-only on sub-resources (rather
+        // than deleting it — hotlink-protected image/video CDNs need the host).
         if (details.resourceType !== 'mainFrame') {
             const referer = headers['Referer'] || '';
             if (referer) {
                 try {
                     const reqOrigin = new URL(details.url).origin;
                     const refOrigin = new URL(referer).origin;
-                    if (refOrigin !== reqOrigin) delete headers['Referer'];
-                } catch { delete headers['Referer']; }
+                    if (refOrigin !== reqOrigin) headers['Referer'] = refOrigin + '/';
+                } catch {}
             }
         }
 

@@ -1,9 +1,10 @@
 /**
- * Password store — credentials encrypted at rest with Electron's safeStorage
- * (OS keychain: macOS Keychain, Windows DPAPI, Linux libsecret). The plaintext
- * password never touches disk unencrypted and is only handed to the page that
- * owns the matching origin (for autofill) or to the passwords settings page on
- * an explicit reveal.
+ * Password store — credentials encrypted at rest with the app's own AES-256-GCM
+ * encryption (Features/encryption.js, key at userData/.key), the same scheme used
+ * for settings/bookmarks/tabs. This avoids the OS keychain (macOS Keychain etc.),
+ * which prompts for access on every launch of an unsigned dev build. The plaintext
+ * password never touches disk unencrypted and is only handed to the page that owns
+ * the matching origin (for autofill) or to the passwords settings page on reveal.
  */
 
 'use strict';
@@ -11,7 +12,8 @@
 const fs   = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { app, safeStorage } = require('electron');
+const { app } = require('electron');
+const { encrypt, decrypt, isEncrypted } = require('./encryption');
 
 class PasswordStore {
     constructor() {
@@ -30,10 +32,8 @@ class PasswordStore {
         this.file = path.join(app.getPath('userData'), 'passwords.dat');
         try {
             if (fs.existsSync(this.file)) {
-                const raw  = fs.readFileSync(this.file);
-                const json = safeStorage.isEncryptionAvailable()
-                    ? safeStorage.decryptString(raw)
-                    : raw.toString('utf-8');
+                const raw  = fs.readFileSync(this.file, 'utf-8');
+                const json = isEncrypted(raw) ? decrypt(raw) : raw;
                 const obj = JSON.parse(json);
                 this.records = Array.isArray(obj.records) ? obj.records : [];
                 this.never   = Array.isArray(obj.never)   ? obj.never   : [];
@@ -45,10 +45,7 @@ class PasswordStore {
     _save() {
         try {
             const json = JSON.stringify({ records: this.records, never: this.never });
-            const buf = safeStorage.isEncryptionAvailable()
-                ? safeStorage.encryptString(json)
-                : Buffer.from(json, 'utf-8');
-            fs.writeFileSync(this.file, buf, { mode: 0o600 });
+            fs.writeFileSync(this.file, encrypt(json), { mode: 0o600 });
         } catch {}
     }
 

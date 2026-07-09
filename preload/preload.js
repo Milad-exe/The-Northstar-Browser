@@ -316,6 +316,10 @@ contextBridge.exposeInMainWorld('contentInteraction', {
     onClicked: (fn) => ipcRenderer.on('content-clicked', () => fn())
 });
 
+contextBridge.exposeInMainWorld('siteInfo', {
+    open: (anchor) => ipcRenderer.invoke('open-site-info', anchor),
+});
+
 contextBridge.exposeInMainWorld('windowControls', {
   platform:         process.platform,
   minimize:         ()  => ipcRenderer.invoke('window-minimize'),

@@ -42,6 +42,11 @@ try {
     const settings = ipcRenderer.sendSync('settings-get-sync');
     enabled = settings?.adBlockEnabled !== false;
 
+    // Per-site protections shield (lock-icon panel) — skip cosmetic hiding too.
+    if (enabled && ipcRenderer.sendSync('site-protection-off-sync', location.hostname) === true) {
+        enabled = false;
+    }
+
     // Live toggle — main process broadcasts when the setting changes.
     ipcRenderer.on('adblock-set-enabled', (_e, value) => {
         if (value) inject();

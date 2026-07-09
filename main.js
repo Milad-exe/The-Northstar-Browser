@@ -23,6 +23,12 @@ const path          = require('path');
 const UserAgent     = require('./Features/user-agent');
 
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
+// Use Chromium's built-in (mock) storage for its cookie/password encryption key
+// instead of the OS keychain. The keychain path makes macOS pop a "wants to use
+// your confidential information in <app> Safe Storage" prompt on every launch of
+// an unsigned dev build; this suppresses it. (Our own password store encrypts
+// via Features/encryption.js, so nothing depends on the keychain.)
+app.commandLine.appendSwitch('use-mock-keychain');
 app.userAgentFallback = UserAgent.generate();
 
 // ── Imports ──────────────────────────────────────────────────────────────────
@@ -30,6 +36,7 @@ const WindowManager      = require('./Features/window-manager');
 const focusMode          = require('./Features/focus-mode');
 const adBlocker          = require('./Features/ad-blocker');
 const privacy            = require('./Features/privacy');
+const sitePermissions    = require('./Features/site-permissions');
 const privateSessionSetup = require('./Features/private-session');
 const downloadManager    = require('./Features/download-manager');
 const extensionManager   = require('./Features/extensions');
@@ -45,6 +52,7 @@ const settingsIpc      = require('./ipc/settings');
 const downloadsIpc     = require('./ipc/downloads');
 const extensionsIpc    = require('./ipc/extensions');
 const passwordsIpc     = require('./ipc/passwords');
+const siteInfoIpc      = require('./ipc/site-info');
 
 // ── App ──────────────────────────────────────────────────────────────────────
 
@@ -75,10 +83,19 @@ class Northstar {
         downloadsIpc.register(ipcMain, deps);
         extensionsIpc.register(ipcMain, deps);
         passwordsIpc.register(ipcMain, deps);
+        siteInfoIpc.register(ipcMain, deps);
     }
 
     initApp() {
         app.whenReady().then(async () => {
+            // Widevine CDM (castlabs Electron build) — required to decrypt DRM
+            // video such as Crunchyroll / Netflix / Spotify. Must finish loading
+            // before any window is created. No-op on a vanilla Electron binary.
+            try {
+                const { components } = require('electron');
+                if (components && components.whenReady) await components.whenReady();
+            } catch (e) { console.error('Widevine components load failed:', e && e.message); }
+
             const savedTheme = this.windowManager.persistence.get('theme');
             nativeTheme.themeSource = (savedTheme === 'chalk' || savedTheme === 'mist') ? 'light' : 'dark';
 
@@ -111,15 +128,14 @@ class Northstar {
             // implementation. Non-fatal if it fails.
             await extensionManager.setup(session.defaultSession, this.windowManager).catch(() => {});
 
-            // DNS-over-HTTPS — prefer Cloudflare's DoH but fall back to the system
-            // resolver. 'secure' (DoH-only) stalls every page load on networks
-            // that block or throttle 1.1.1.1, which made URLs slow or entirely
-            // unreachable. Must be called after app.whenReady().
+            // DNS — respect the OS / VPN resolver instead of forcing a specific
+            // DoH provider. Forcing Cloudflare (1.1.1.1) bypasses a VPN's own DNS,
+            // so geo-routed CDNs (video / streaming) resolve to an edge that isn't
+            // reachable through the tunnel and the connection is reset during the
+            // TLS handshake (ERR_CONNECTION_RESET). 'automatic' still upgrades to
+            // DoH when the system resolver advertises it. Must run after ready.
             try {
-                app.configureHostResolver({
-                    secureDnsMode:    'automatic',
-                    secureDnsServers: ['https://1.1.1.1/dns-query', 'https://1.0.0.1/dns-query'],
-                });
+                app.configureHostResolver({ secureDnsMode: 'automatic' });
             } catch {}
 
             // Private session — in-memory only, nothing persisted to disk.
@@ -165,8 +181,28 @@ class Northstar {
                 filePath: path.join(__dirname, 'preload/ad-block-cosmetic.js'),
             });
 
-            // Allow all permission requests (camera, mic, notifications, etc.)
-            session.defaultSession.setPermissionRequestHandler((_wc, _permission, cb) => cb(true));
+            // Permissions: allow by default, but honour any per-site "Block" set
+            // from the lock-icon site-info panel. Maps Electron permission names
+            // to the ones the panel manages.
+            const permAllowed = (origin, permission, details) => {
+                if (!origin) return true;
+                if (permission === 'geolocation')   return sitePermissions.decide(origin, 'location');
+                if (permission === 'notifications')  return sitePermissions.decide(origin, 'notifications');
+                if (permission === 'media') {
+                    const types = (details && details.mediaTypes) || [];
+                    if (types.includes('video') && !sitePermissions.decide(origin, 'camera'))     return false;
+                    if (types.includes('audio') && !sitePermissions.decide(origin, 'microphone')) return false;
+                    return true;
+                }
+                return true; // everything else keeps the allow-all behaviour
+            };
+            session.defaultSession.setPermissionRequestHandler((wc, permission, cb, details) => {
+                const origin = sitePermissions.originOf((details && details.requestingUrl) || wc?.getURL?.() || '');
+                cb(permAllowed(origin, permission, details));
+            });
+            session.defaultSession.setPermissionCheckHandler((_wc, permission, requestingOrigin, details) => {
+                return permAllowed(sitePermissions.originOf(requestingOrigin || ''), permission, details);
+            });
 
             this.windowManager.createWindow();
 

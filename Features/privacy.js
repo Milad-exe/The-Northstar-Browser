@@ -19,6 +19,7 @@
 
 const UserAgent = require('./user-agent');
 const adBlocker = require('./ad-blocker');
+const sitePermissions = require('./site-permissions');
 const { parse: parseTld } = require('tldts');
 
 // Live configuration — mirrors the persisted privacy settings. Defaults to the
@@ -43,6 +44,12 @@ const TRACKING_PARAMS = new Set([
     '_openstat', 'oly_anon_id', 'oly_enc_id', 'mkt_tok', 'hsa_cam', 'hsa_grp',
     'ref_src', 'ref_url', 'spm', 'wickedid',
 ]);
+
+// Request types where stripping a third-party cookie is safe — pure tracking
+// beacons. XHR/fetch is deliberately NOT included: video APIs and the Widevine
+// DRM license request go over cross-site fetch with credentials, and Chromium
+// has already applied SameSite (so anything sent cross-site is intentional).
+const BEACON_TYPES = new Set(['ping', 'cspReport']);
 
 // Hosts that must never be force-upgraded to HTTPS (local / dev / non-web).
 function isLocalHost(host) {
@@ -87,6 +94,16 @@ function getStats() {
  * Register the composed handlers on a session. Call once for the default
  * session INSTEAD OF UserAgent.setupSession + adBlocker.enableBlockingInSession.
  */
+// The eTLD+1 site of the page a request belongs to: the URL itself for
+// top-level navigations, else the referring document. Used for the per-site
+// protections shield (lock-icon panel).
+function pageSiteOf(details) {
+    const src = details.resourceType === 'mainFrame'
+        ? details.url
+        : (details.referrer || details.url);
+    try { return etld1(new URL(src).hostname); } catch { return null; }
+}
+
 function setup(sess) {
     sess.setUserAgent(UserAgent.generate());
 
@@ -94,11 +111,15 @@ function setup(sess) {
     sess.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, cb) => {
         const { url, resourceType } = details;
 
+        // Per-site shield: user turned protections off for this site.
+        const shieldOff = sitePermissions.isProtectionOff(pageSiteOf(details));
+
         // 1. Ad / tracker network blocking.
-        if (config.adBlockEnabled && adBlocker.shouldBlock(url, resourceType)) {
+        if (!shieldOff && config.adBlockEnabled && adBlocker.shouldBlock(url, resourceType)) {
             adBlocker.recordBlock();
             return cb({ cancel: true });
         }
+        if (shieldOff) return cb({});
 
         // Redirect-based rewrites are only safe on GET — redirecting a POST can
         // drop the request body and break form submissions.
@@ -136,6 +157,11 @@ function setup(sess) {
             headers['Accept-Language'] = 'en-US,en;q=0.9';
         }
 
+        // Per-site shield: skip signals and cross-site hygiene entirely.
+        if (sitePermissions.isProtectionOff(pageSiteOf(details))) {
+            return cb({ requestHeaders: headers });
+        }
+
         // Privacy signals — Global Privacy Control (legally meaningful in several
         // US states) plus legacy Do Not Track.
         if (config.privacySignals) {
@@ -157,10 +183,22 @@ function setup(sess) {
                 } catch { crossSite = false; }
 
                 if (crossSite) {
-                    if (config.trimReferrer) {
-                        delete headers['Referer']; delete headers['referer'];
+                    // Referer: downgrade to origin-only (scheme://host/) rather than
+                    // deleting it. Many image/video CDNs use Referer-based hotlink
+                    // protection and reject requests that carry no Referer at all;
+                    // origin-only still hides the path and matches the
+                    // strict-origin-when-cross-origin policy we set on responses.
+                    if (config.trimReferrer && referer) {
+                        try {
+                            const originOnly = new URL(referer).origin + '/';
+                            if ('Referer' in headers) headers['Referer'] = originOnly;
+                            if ('referer' in headers) headers['referer'] = originOnly;
+                        } catch {}
                     }
-                    if (config.blockThirdPartyCookies) {
+                    // Third-party cookies: strip only on pure tracking beacons.
+                    // Never touch XHR/fetch/media/etc. — doing so breaks cross-site
+                    // authenticated APIs, CDN assets and DRM license requests.
+                    if (config.blockThirdPartyCookies && BEACON_TYPES.has(details.resourceType)) {
                         delete headers['Cookie']; delete headers['cookie'];
                     }
                 }

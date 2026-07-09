@@ -103,6 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const forwardBtn       = document.getElementById('forward-btn');
     const reloadBtn        = document.getElementById('reload-btn');
     const omnibox          = document.querySelector('.omnibox');
+    const omniIcon         = document.getElementById('omni-icon');
     const menuBtn          = document.getElementById('menu-btn');
     const addBtn           = document.getElementById('new-tab-btn');
     const bookmarkBtn      = document.getElementById('bookmark-btn');
@@ -257,6 +258,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 400);
         });
         searchBar.addEventListener('keydown', onSearchKeyDown);
+
+        // Lock / security icon → Firefox-style site-info panel (connection,
+        // permissions, clear data). Only meaningful on real http(s) pages.
+        omniIcon?.addEventListener('mousedown', (e) => {
+            const kind = omnibox?.dataset.omni;
+            if (kind !== 'secure' && kind !== 'insecure') return;
+            e.preventDefault();
+            e.stopPropagation();
+            const r = omniIcon.getBoundingClientRect();
+            try { window.siteInfo.open({ x: Math.round(r.left), y: Math.round(r.bottom) }); } catch {}
+        });
 
         // Overlay view was (re)created — restore focus to the address bar, but
         // only if the user was actually typing (the overlay is also pre-warmed
