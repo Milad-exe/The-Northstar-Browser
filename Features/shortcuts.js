@@ -151,7 +151,7 @@ class Shortcuts {
             if (url && url !== 'newtab' && !url.startsWith('file://')) {
                 let title = url;
                 try { title = new URL(url).hostname; } catch {}
-                this.tabManager.createLazyTab(url, title, false, false, true);
+                this.tabManager.createLazyTab(url, title, false, false, true, true);
             } else {
                 this.tabManager.createTab();
             }

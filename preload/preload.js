@@ -407,3 +407,33 @@ contextBridge.exposeInMainWorld('urlUtils', {
         } catch { return ''; }
     }
 });
+
+// ── Hover preconnect ──────────────────────────────────────────────────────────
+// Warm DNS + TCP + TLS to a link's origin the moment the user hovers it
+// (instant.page / Chrome-predictor style) so the eventual click starts on a hot
+// connection. Origin-level only, deduped, capped per page — no request bodies,
+// no prefetching of content.
+(() => {
+    if (location.protocol !== 'http:' && location.protocol !== 'https:' &&
+        location.protocol !== 'file:') return;
+    const seen = new Set();
+    let lastSent = 0;
+    document.addEventListener('mouseover', (e) => {
+        const t = e.target;
+        const a = t && t.closest ? t.closest('a[href]') : null;
+        if (!a) return;
+        let origin;
+        try {
+            const u = new URL(a.href, location.href);
+            if (u.protocol !== 'http:' && u.protocol !== 'https:') return;
+            origin = u.origin;
+        } catch { return; }
+        if (origin === location.origin && location.protocol !== 'file:') return; // already connected
+        if (seen.has(origin) || seen.size >= 40) return;
+        const now = Date.now();
+        if (now - lastSent < 100) return; // rate-limit sweep-over bursts
+        lastSent = now;
+        seen.add(origin);
+        try { ipcRenderer.send('link-preconnect', origin); } catch {}
+    }, { passive: true, capture: true });
+})();

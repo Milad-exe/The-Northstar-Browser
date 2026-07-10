@@ -41,7 +41,7 @@ function register(ipcMain, { wm, BrowserWindow }) {
         const safe = sanitizeUrl(url);
         let title = safe;
         try { title = new URL(safe).hostname; } catch {}
-        wd.tabs.createLazyTab(safe, title, false, false, true);
+        wd.tabs.createLazyTab(safe, title, false, false, true, true);
     });
 
     ipcMain.handle('removeTab', (_e, index) => {
@@ -232,6 +232,23 @@ function register(ipcMain, { wm, BrowserWindow }) {
         if (!wd) return false;
         wd.tabs.goBack(wd.tabs.activeTabIndex);
         return true;
+    });
+
+    // ── Hover preconnect ──────────────────────────────────────────────────────
+    // The web preload reports link hovers; warm DNS + TCP + TLS to that origin
+    // so the click starts on a hot connection (~100–300 ms saved per cross-site
+    // navigation). Uses the sender's own session, so private tabs warm the
+    // private session and leave no trace in the default one.
+    const preconnectCounts = new Map(); // webContents.id → count (per page lifetime budget)
+    ipcMain.on('link-preconnect', (e, origin) => {
+        try {
+            if (typeof origin !== 'string' || !/^https?:\/\/[a-z0-9.-]+(:\d+)?$/i.test(origin)) return;
+            const n = (preconnectCounts.get(e.sender.id) || 0) + 1;
+            if (n > 60) return;
+            if (n === 1) e.sender.once('destroyed', () => preconnectCounts.delete(e.sender.id));
+            preconnectCounts.set(e.sender.id, n);
+            e.sender.session.preconnect({ url: origin, numSockets: 1 });
+        } catch {}
     });
 
     // ── Persistence mode ─────────────────────────────────────────────────────

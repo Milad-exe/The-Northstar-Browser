@@ -225,7 +225,7 @@ class Tabs {
         } catch {}
     }
 
-    createLazyTab(url, title, isPinned, isPrivate = false, insertAfterActive = false) {
+    createLazyTab(url, title, isPinned, isPrivate = false, insertAfterActive = false, eager = false) {
         const tabIndex = this.nextTabIndex;
         this.nextTabIndex++;
         const makePrivate = isPrivate || this.isPrivateWindow;
@@ -329,6 +329,21 @@ class Tabs {
             private: makePrivate,
         });
         this.sendTabUpdate(tabIndex, tab, url || 'newtab', tab.lazyTitle);
+
+        // Eager background load (user-initiated "open in new tab"): start loading
+        // immediately while the view is hidden so the page is ready when the user
+        // switches over — but muted until first shown, so background video/audio
+        // can't blast. Because the page loads with visibilityState "hidden", sites
+        // like YouTube hold their autoplay until the tab is actually viewed,
+        // instead of racing it against the tab becoming visible mid-load.
+        // Session restore keeps eager=false (loading 20 tabs at startup would
+        // wreck launch time and memory).
+        if (eager && /^https?:/i.test(url || '')) {
+            tab.lazyLoaded = true;
+            tab.mutedUntilShown = true;
+            try { tab.webContents.audioMuted = true; } catch {}
+            try { tab.webContents.loadURL(url); } catch {}
+        }
 
         return tabIndex;
     }
@@ -660,7 +675,7 @@ class Tabs {
                 return { action: 'deny' };
             }
             // Open safe URLs as a new tab in the same window, right after this one.
-            setImmediate(() => this.createLazyTab(url, url, false, false, true));
+            setImmediate(() => this.createLazyTab(url, url, false, false, true, true));
             return { action: 'deny' };
         });
 
@@ -984,6 +999,11 @@ class Tabs {
             if (tab.slept) {
                 tab.slept = false;
                 try { tab.webContents.reload(); } catch {}
+            }
+            // Eager background tabs load muted; restore sound on first view.
+            if (tab.mutedUntilShown) {
+                tab.mutedUntilShown = false;
+                try { tab.webContents.audioMuted = false; } catch {}
             }
             this.activeTabIndex = index
 
