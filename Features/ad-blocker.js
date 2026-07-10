@@ -125,6 +125,9 @@ const URL_SUBSTRINGS = [
     '/hotjar.com/c/hotjar-',
 ];
 
+// Host → eTLD+1 memo. Bounded; cleared wholesale when full (simple + cheap).
+const ETLD_CACHE = new Map();
+
 // ── AdBlocker class ───────────────────────────────────────────────────────────
 
 class AdBlocker {
@@ -150,26 +153,26 @@ class AdBlocker {
         const easylistFile    = path.join(this._cacheDir, 'easylist.txt');
         const easyprivacyFile = path.join(this._cacheDir, 'easyprivacy.txt');
 
-        // Load caches synchronously — fast, available for first requests.
-        let hostsCached = false, easylistCached = false, easyprivacyCached = false;
-        try {
-            if (fs.existsSync(hostsFile)) {
-                this._parseHosts(fs.readFileSync(hostsFile, 'utf-8'));
-                hostsCached = true;
-            }
-        } catch {}
-        try {
-            if (fs.existsSync(easylistFile)) {
-                this._parseEasyList(fs.readFileSync(easylistFile, 'utf-8'));
-                easylistCached = true;
-            }
-        } catch {}
-        try {
-            if (fs.existsSync(easyprivacyFile)) {
-                this._parseEasyList(fs.readFileSync(easyprivacyFile, 'utf-8'));
-                easyprivacyCached = true;
-            }
-        } catch {}
+        // Load caches asynchronously and yield between files so the ~250k-rule
+        // parse never blocks the event loop during startup. init() is no longer
+        // awaited before window creation — until it finishes, shouldBlock()
+        // simply returns false (a few hundred ms of unfiltered requests).
+        const readIf = async (f) => { try { return await fs.promises.readFile(f, 'utf-8'); } catch { return null; } };
+        const breathe = () => new Promise(r => setImmediate(r));
+
+        const hostsTxt = await readIf(hostsFile);
+        const hostsCached = !!hostsTxt;
+        if (hostsTxt) { try { this._parseHosts(hostsTxt); } catch {} }
+        await breathe();
+
+        const easylistTxt = await readIf(easylistFile);
+        const easylistCached = !!easylistTxt;
+        if (easylistTxt) { try { this._parseEasyList(easylistTxt); } catch {} }
+        await breathe();
+
+        const easyprivacyTxt = await readIf(easyprivacyFile);
+        const easyprivacyCached = !!easyprivacyTxt;
+        if (easyprivacyTxt) { try { this._parseEasyList(easyprivacyTxt); } catch {} }
 
         this.initialized = true;
 
@@ -189,9 +192,12 @@ class AdBlocker {
         // Lazy require to avoid a load-order cycle (site-permissions ⇄ features).
         const sitePermissions = require('./site-permissions');
         sess.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, cb) => {
-            // Per-site protections shield (lock-icon panel).
-            const src = details.resourceType === 'mainFrame' ? details.url : (details.referrer || details.url);
-            if (sitePermissions.isProtectionOff(sitePermissions.siteOf(src))) return cb({});
+            // Per-site protections shield (lock-icon panel). Fast path: skip the
+            // URL/eTLD parsing entirely while no site has protections disabled.
+            if (sitePermissions.hasAnyProtectionOff()) {
+                const src = details.resourceType === 'mainFrame' ? details.url : (details.referrer || details.url);
+                if (sitePermissions.isProtectionOff(sitePermissions.siteOf(src))) return cb({});
+            }
             if (this.enabled && this._shouldBlock(details.url, details.resourceType)) {
                 this.blockedCount++;
                 cb({ cancel: true });
@@ -241,7 +247,13 @@ class AdBlocker {
 
             // eTLD+1 check via tldts — correctly handles compound public suffixes
             // (.co.uk, .com.au, etc.) that naive dot-splitting gets wrong.
-            const { domain: etld1 } = parseTld(host, { allowPrivateDomains: true });
+            // Memoized: pages fire dozens of requests to the same few hosts.
+            let etld1 = ETLD_CACHE.get(host);
+            if (etld1 === undefined) {
+                etld1 = parseTld(host, { allowPrivateDomains: true }).domain || null;
+                if (ETLD_CACHE.size > 2000) ETLD_CACHE.clear();
+                ETLD_CACHE.set(host, etld1);
+            }
             if (etld1 && etld1 !== host && this.blockedDomains.has(etld1)) return true;
 
             // URL substring patterns.

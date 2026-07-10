@@ -62,6 +62,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         showToast('Search engine updated');
     });
 
+    // ── General: Performance (tab sleeping) ────────────────────────────────
+    const tabSleepToggle = document.getElementById('tabsleep-toggle');
+    const tabSleepMins   = document.getElementById('tabsleep-mins');
+    if (tabSleepToggle) {
+        tabSleepToggle.checked = settings.tabSleepEnabled !== false;
+        tabSleepToggle.addEventListener('change', async () => {
+            await save('tabSleepEnabled', tabSleepToggle.checked);
+            showToast(tabSleepToggle.checked ? 'Tab sleeping enabled' : 'Tab sleeping disabled');
+        });
+    }
+    if (tabSleepMins) {
+        tabSleepMins.value = Number(settings.tabSleepMinutes) || 30;
+        tabSleepMins.addEventListener('change', async () => {
+            const v = Math.max(5, Math.min(480, parseInt(tabSleepMins.value, 10) || 30));
+            tabSleepMins.value = v;
+            await save('tabSleepMinutes', v);
+        });
+    }
+
     // ── Appearance: Theme ──────────────────────────────────────────────────
     const themeSelect = document.getElementById('theme-select');
     themeSelect.value = settings.theme || 'default';

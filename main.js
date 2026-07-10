@@ -115,18 +115,14 @@ class Northstar {
             } catch {}
 
             // Ad blocking — network-level (cancel requests) + cosmetic (hide elements).
-            // init() loads the cached filter list synchronously then refreshes in background.
-            await adBlocker.init();
+            // NOT awaited: parsing ~250k filter rules must not delay the first
+            // window. Until it finishes, shouldBlock() just returns false.
+            adBlocker.init().catch(() => {});
             // The privacy orchestrator owns the default session's request pipeline:
             // ad/tracker blocking + HTTPS upgrade + tracking-param stripping +
             // GPC/DNT signals + referer / third-party-cookie hygiene. Each layer is
             // toggled live from Settings → Privacy; ipc/settings.js seeds it from disk.
             privacy.setup(session.defaultSession);
-
-            // Extensions — enable Chrome Web Store install + reload persisted
-            // extensions into the default session, and set up the chrome.* API
-            // implementation. Non-fatal if it fails.
-            await extensionManager.setup(session.defaultSession, this.windowManager).catch(() => {});
 
             // DNS — respect the OS / VPN resolver instead of forcing a specific
             // DoH provider. Forcing Cloudflare (1.1.1.1) bypasses a VPN's own DNS,
@@ -205,6 +201,20 @@ class Northstar {
             });
 
             this.windowManager.createWindow();
+
+            // Extensions — enable Chrome Web Store install + reload persisted
+            // extensions and set up the chrome.* APIs. Runs AFTER the first
+            // window so extension loading never delays startup; any tabs created
+            // in the meantime are registered with the extension system once ready.
+            extensionManager.setup(session.defaultSession, this.windowManager)
+                .then(() => {
+                    for (const wd of this.windowManager.getAllWindows()) {
+                        try {
+                            wd.tabs?.tabMap.forEach(tab => extensionManager.addTab(tab.webContents, wd.window));
+                        } catch {}
+                    }
+                })
+                .catch(() => {});
 
             app.on('activate', () => {
                 if (BrowserWindow.getAllWindows().length === 0) {

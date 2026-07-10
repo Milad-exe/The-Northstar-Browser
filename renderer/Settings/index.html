@@ -79,6 +79,27 @@
             </select>
           </div>
         </div>
+
+        <div class="card">
+          <div class="card-title">Performance</div>
+          <div class="toggle-row">
+            <div>
+              <div class="row-label">Sleep inactive tabs</div>
+              <div class="row-desc">Frees the memory of background tabs you haven't used for a while. They reload instantly when you switch back. Pinned tabs and tabs playing audio never sleep.</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="tabsleep-toggle">
+              <span class="track"></span>
+            </label>
+          </div>
+          <div class="cbd-range-row" style="margin-top:14px">
+            <span class="row-label">Sleep tabs after</span>
+            <div class="num-input-wrap">
+              <input type="number" id="tabsleep-mins" min="5" max="480" step="5">
+              <span class="unit">min</span>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- Appearance -->

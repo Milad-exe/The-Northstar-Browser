@@ -113,6 +113,11 @@ class Tabs {
         this.shortcuts = null
         this.tabMap = new Map()
         this.tabUrls = new Map()
+        // Tab sleeping: free the renderer process of long-inactive background
+        // tabs (Chrome's "memory saver"). tabLastActive tracks when a tab was
+        // last the active tab; the scan puts stale ones to sleep.
+        this.tabLastActive = new Map()
+        this._sleepTimer = setInterval(() => { try { this._sleepScan(); } catch {} }, 60_000)
         this.activeTabIndex = 0
         this.nextTabIndex = 0
         this.allowClose = false
@@ -273,6 +278,7 @@ class Tabs {
 
         this.tabMap.set(tabIndex, tab);
         this.tabUrls.set(tabIndex, url || 'newtab');
+        this.tabLastActive.set(tabIndex, Date.now());
         // Placement: user "open in new tab" actions drop the tab right after the
         // current one (Chrome/Firefox style); everything else (session restore,
         // etc.) appends to the end so restored order is preserved.
@@ -440,6 +446,7 @@ class Tabs {
 
         this.tabMap.set(tabIndex, tab)
         this.tabUrls.set(tabIndex, 'newtab')
+        this.tabLastActive.set(tabIndex, Date.now())
         if (makePrivate) {
             this.privateTabs.add(tabIndex);
         }
@@ -898,6 +905,40 @@ class Tabs {
         }
     }
     
+    // ── Tab sleeping ──────────────────────────────────────────────────────────
+    // Free the renderer process of long-inactive background tabs (like Chrome's
+    // memory saver). The WebContentsView and its navigation history survive;
+    // showTab()/loadUrl() transparently revive the tab with a reload. Never
+    // sleeps: the active tab, pinned tabs, tabs playing audio/media, internal
+    // pages, unloaded lazy tabs, or tabs with DevTools open.
+    _sleepScan() {
+        if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+            clearInterval(this._sleepTimer);
+            return;
+        }
+        const p = this.persistence;
+        if (p && p.get('tabSleepEnabled') === false) return;
+        const mins   = Math.max(1, Number(p?.get('tabSleepMinutes')) || 30);
+        const cutoff = Date.now() - mins * 60_000;
+
+        this.tabMap.forEach((tab, i) => {
+            if (i === this.activeTabIndex || tab.slept) return;
+            if (tab.lazyLoaded === false) return;          // not loaded — nothing to free
+            if (this.pinnedTabs.has(i)) return;
+            const url = this.tabUrls.get(i) || '';
+            if (!/^https?:/i.test(url)) return;            // only real web pages
+            if ((this.tabLastActive.get(i) || 0) > cutoff) return;
+            try {
+                const wc = tab.webContents;
+                if (!wc || wc.isDestroyed() || wc.isCrashed()) return;
+                if (tab.hasPlayingMedia || wc.isCurrentlyAudible()) return;
+                if (wc.isDevToolsOpened()) return;
+                tab.slept = true;
+                wc.forcefullyCrashRenderer();              // frees the whole renderer process
+            } catch {}
+        });
+    }
+
     // Tell the chrome a tab started/stopped loading so it can show a tab
     // spinner and flip the reload button to a stop button (and back).
     sendLoadingState(tabIndex, loading) {
@@ -932,12 +973,20 @@ class Tabs {
         this.tabMap.forEach((tab, i) => {
             tab.setVisible(false)
         })
-        
+
         if (this.tabMap.has(index)) {
             const tab = this.tabMap.get(index);
             tab.setVisible(true)
+            // Sleep bookkeeping: the outgoing tab starts ageing now; the incoming
+            // tab is fresh. Wake it if the sleep scan discarded its renderer.
+            this.tabLastActive.set(this.activeTabIndex, Date.now())
+            this.tabLastActive.set(index, Date.now())
+            if (tab.slept) {
+                tab.slept = false;
+                try { tab.webContents.reload(); } catch {}
+            }
             this.activeTabIndex = index
-            
+
             if (tab.lazyLoaded === false) {
                 tab.lazyLoaded = true;
                 const lazyUrl = this.tabUrls.get(index);
@@ -1000,6 +1049,7 @@ class Tabs {
     loadUrl(index, url) {
         if (this.tabMap.has(index)) {
             const tab = this.tabMap.get(index)
+            tab.slept = false; // loading revives a slept (discarded) renderer
             tab.webContents.loadURL(url)
             this.tabUrls.set(index, url)
             
@@ -1060,6 +1110,7 @@ class Tabs {
             const wasPrivate = this.privateTabs.delete(index);
             if (wasPrivate) this._maybeWipePrivateSession();
             this.tabOrder = this.tabOrder.filter(i => i !== index)
+            this.tabLastActive.delete(index)
 
             this.navigationHistory.removeTab(index)
 
@@ -1097,7 +1148,8 @@ class Tabs {
             this.pinnedTabs.delete(index);
             const wasPrivate2 = this.privateTabs.delete(index);
             if (wasPrivate2) this._maybeWipePrivateSession();
-            this.tabOrder = this.tabOrder.filter(i => i !== index);
+            this.tabOrder = this.tabOrder.filter(i => i !== index)
+            this.tabLastActive.delete(index);
 
             this.navigationHistory.removeTab(index);
             

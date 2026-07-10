@@ -61,9 +61,17 @@ function isLocalHost(host) {
            host.endsWith('.onion');
 }
 
+// Memoized host → eTLD+1 — this runs on every network request, and pages fire
+// dozens of requests to the same handful of hosts. Bounded, cleared when full.
+const ETLD_CACHE = new Map();
 function etld1(host) {
-    try { return parseTld(host, { allowPrivateDomains: true }).domain || host; }
-    catch { return host; }
+    let v = ETLD_CACHE.get(host);
+    if (v !== undefined) return v;
+    try { v = parseTld(host, { allowPrivateDomains: true }).domain || host; }
+    catch { v = host; }
+    if (ETLD_CACHE.size > 2000) ETLD_CACHE.clear();
+    ETLD_CACHE.set(host, v);
+    return v;
 }
 
 // Returns a cleaned URL string if any tracking params were removed, else null.
@@ -111,8 +119,10 @@ function setup(sess) {
     sess.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, cb) => {
         const { url, resourceType } = details;
 
-        // Per-site shield: user turned protections off for this site.
-        const shieldOff = sitePermissions.isProtectionOff(pageSiteOf(details));
+        // Per-site shield: user turned protections off for this site. Fast path:
+        // no URL/eTLD parsing at all while the shield list is empty.
+        const shieldOff = sitePermissions.hasAnyProtectionOff() &&
+                          sitePermissions.isProtectionOff(pageSiteOf(details));
 
         // 1. Ad / tracker network blocking.
         if (!shieldOff && config.adBlockEnabled && adBlocker.shouldBlock(url, resourceType)) {
@@ -158,7 +168,8 @@ function setup(sess) {
         }
 
         // Per-site shield: skip signals and cross-site hygiene entirely.
-        if (sitePermissions.isProtectionOff(pageSiteOf(details))) {
+        if (sitePermissions.hasAnyProtectionOff() &&
+            sitePermissions.isProtectionOff(pageSiteOf(details))) {
             return cb({ requestHeaders: headers });
         }
 

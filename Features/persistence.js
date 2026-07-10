@@ -16,6 +16,9 @@ const DEFAULTS = {
     stripTrackingParams:    true,
     privacySignals:         true,
     trimReferrer:           true,
+    // Performance: discard renderer processes of long-inactive background tabs
+    tabSleepEnabled:   true,
+    tabSleepMinutes:   30,
     settingsPage:      'general',
     windowBounds:      null,
     windowState:       null,

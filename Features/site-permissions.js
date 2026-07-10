@@ -84,11 +84,20 @@ class SitePermissions {
     // param stripping, referer trimming and cookie hygiene for pages on it.
     isProtectionOff(site) { this._load(); return !!(site && this.data.sitesOff[site]); }
 
+    // Cheap gate for the per-request hot path: true only if at least one site
+    // has protections disabled (almost always false → zero parsing overhead).
+    hasAnyProtectionOff() {
+        this._load();
+        if (this._anyOff === undefined) this._anyOff = Object.keys(this.data.sitesOff).length > 0;
+        return this._anyOff;
+    }
+
     setProtection(site, off) {
         this._load();
         if (!site) return;
         if (off) this.data.sitesOff[site] = true;
         else     delete this.data.sitesOff[site];
+        this._anyOff = Object.keys(this.data.sitesOff).length > 0;
         this._save();
     }
 }
