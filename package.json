@@ -21,7 +21,7 @@
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
     "build:linux": "electron-builder --linux",
-    "vmp-sign": "python3 -m castlabs_evs.vmp sign-pkg node_modules/electron/dist",
+    "vmp-sign": "node scripts/vmp-sign.js node_modules/electron/dist",
     "test": "jest"
   },
   "build": {
