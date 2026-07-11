@@ -6,7 +6,6 @@ html, body { margin: 0; padding: 0; background: transparent; font-family: var(--
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
 }
 #head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 #title { font-size: 13px; font-weight: 600; color: var(--text); }

@@ -53,6 +53,7 @@ const downloadsIpc     = require('./ipc/downloads');
 const extensionsIpc    = require('./ipc/extensions');
 const passwordsIpc     = require('./ipc/passwords');
 const siteInfoIpc      = require('./ipc/site-info');
+const miniPlayerIpc    = require('./ipc/mini-player');
 
 // ── App ──────────────────────────────────────────────────────────────────────
 
@@ -84,6 +85,7 @@ class Northstar {
         extensionsIpc.register(ipcMain, deps);
         passwordsIpc.register(ipcMain, deps);
         siteInfoIpc.register(ipcMain, deps);
+        miniPlayerIpc.register(ipcMain, deps);
     }
 
     initApp() {

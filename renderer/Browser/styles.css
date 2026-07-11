@@ -289,7 +289,6 @@ browser-action-list::part(badge) {
   min-width: 200px; max-width: 300px;
   padding: 4px;
   border-radius: 12px;
-  box-shadow: 0 16px 40px rgba(0,0,0,0.42), 0 2px 10px rgba(0,0,0,0.24);
   overflow: hidden;
 }
 
@@ -395,11 +394,18 @@ browser-action-list::part(badge) {
 
 #tabs-container {
   display: flex; align-items: center; height: 100%; gap: 3px;
-  flex: 1; overflow-x: auto; scrollbar-width: none;
+  /* Sized to its tabs (not flex:1) so the + button hugs the last tab. When the
+     tabs outgrow the strip it shrinks (min-width:0) and scrolls, and the +
+     lands at the far right. The slack is taken by #tab-drag-spacer. */
+  flex: 0 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none;
 }
 #tabs-container::-webkit-scrollbar { display: none; }
 
 #tab-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; padding-left: 2px; }
+
+/* Fills the gap between the + button and the right edge; draggable (inherits the
+   tab-bar drag region). Collapses to 0 when the tabs fill the strip. */
+#tab-drag-spacer { flex: 1 1 auto; min-width: 0; height: 100%; }
 
 .tab-button {
   display: flex; align-items: center; gap: 8px;

@@ -19,7 +19,6 @@ body {
   background: var(--surface);
   border: 1px solid var(--border-2);
   border-radius: 12px; padding: 10px;
-  box-shadow: 0 16px 40px rgba(0,0,0,0.42), 0 2px 10px rgba(0,0,0,0.24);
   width: 100%; max-width: 264px; gap: 8px;
 }
 

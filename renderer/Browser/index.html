@@ -21,6 +21,10 @@
     <div id="tab-actions">
       <button id="new-tab-btn" class="tab-add" tabindex="-1" aria-label="New tab">+</button>
     </div>
+    <!-- Draggable filler: keeps the + next to the last tab, taking the slack up
+         to the window controls / private badge. Collapses to 0 once tabs fill
+         the strip, so the + falls back to the far right. -->
+    <div id="tab-drag-spacer"></div>
     <div id="private-window-badge" class="private-badge">
       <svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor"><path d="M8 1L2 3.5V8c0 3.3 2.5 5.7 6 7 3.5-1.3 6-3.7 6-7V3.5L8 1zm0 6.5h4c-.3 2.2-1.8 4-4 5.1V7.5H4V5l4-1.7V7.5z"/></svg>
       Private

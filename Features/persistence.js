@@ -19,6 +19,8 @@ const DEFAULTS = {
     // Performance: discard renderer processes of long-inactive background tabs
     tabSleepEnabled:   true,
     tabSleepMinutes:   30,
+    // Mini player overlay for media playing in a background tab
+    miniPlayerEnabled: true,
     settingsPage:      'general',
     windowBounds:      null,
     windowState:       null,

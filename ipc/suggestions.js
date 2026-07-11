@@ -12,8 +12,10 @@ const path = require('path');
 const { WebContentsView } = require('electron');
 
 const ITEM_HEIGHT = 44;   // roomier Firefox-style rows (min-height 40 + margin)
-const LIST_CHROME = 16;   // list padding + border + slack
-const MAX_HEIGHT  = 400;
+const LIST_CHROME = 20;   // body padding (8) + card padding (10) + border (2)
+// Fits the full capped list (≤8 rows: base + ≤4 links + ≤3 search) without
+// scrolling. 8 * 44 + 20 = 372; the caps live in renderer.js updateSuggestions.
+const MAX_HEIGHT  = 380;
 
 /** Create (once) and load the overlay view for a window. Resolves when loaded. */
 async function ensureView(wd) {

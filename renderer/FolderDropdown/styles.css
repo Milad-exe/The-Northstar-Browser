@@ -15,7 +15,6 @@ body {
   background: var(--surface);
   border: 1px solid var(--border-2);
   border-radius: 12px;
-  box-shadow: 0 16px 40px rgba(0,0,0,0.42), 0 2px 10px rgba(0,0,0,0.24);
   overflow: hidden;
   width: 240px;
 }

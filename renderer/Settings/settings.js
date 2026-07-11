@@ -81,6 +81,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    // ── General: Media (mini player) ───────────────────────────────────────
+    const miniPlayerToggle = document.getElementById('miniplayer-toggle');
+    if (miniPlayerToggle) {
+        miniPlayerToggle.checked = settings.miniPlayerEnabled !== false;
+        miniPlayerToggle.addEventListener('change', async () => {
+            await save('miniPlayerEnabled', miniPlayerToggle.checked);
+            showToast(miniPlayerToggle.checked ? 'Mini player enabled' : 'Mini player disabled');
+        });
+    }
+
     // ── Appearance: Theme ──────────────────────────────────────────────────
     const themeSelect = document.getElementById('theme-select');
     themeSelect.value = settings.theme || 'default';

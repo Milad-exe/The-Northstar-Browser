@@ -9,6 +9,7 @@ const focusMode = require("./focus-mode");
 const { isSafeExternal } = require('./url-security');
 const { READERABLE_JS, EXTRACT_JS, PIP_JS } = require('./reader');
 const extensions = require('./extensions');
+const miniPlayer = require('./mini-player');
 
 const YOUTUBE_SPACE_FIX_JS = `
 (() => {
@@ -477,6 +478,10 @@ class Tabs {
         const previousActiveTabIndex = this.activeTabIndex
         if (shouldActivate) {
             this.activeTabIndex = tabIndex
+            // createTab pre-sets activeTabIndex before showTab runs, so showTab
+            // can't derive which tab we came from — carry it across explicitly
+            // (used by the mini player's "walked away from a playing tab" hook).
+            this._pendingPrevActive = previousActiveTabIndex
         }
         this.navigationHistory.initializeTab(tabIndex, 'newtab')
         this.setupTabListeners(tabIndex, tab)
@@ -875,12 +880,15 @@ class Tabs {
             if (tabIndex === this.activeTabIndex) {
                 try { this.mainWindow.webContents.send('media-state', { index: tabIndex, playing: true }); } catch {}
             }
+            // Mini player: media playing in a background tab shows the overlay.
+            try { miniPlayer.onMediaState(this.getWindowData(), tabIndex, true); } catch {}
         });
         tab.webContents.on('media-paused', () => {
             tab.hasPlayingMedia = false;
             if (tabIndex === this.activeTabIndex) {
                 try { this.mainWindow.webContents.send('media-state', { index: tabIndex, playing: false }); } catch {}
             }
+            try { miniPlayer.onMediaState(this.getWindowData(), tabIndex, false); } catch {}
         });
     }
 
@@ -1005,7 +1013,14 @@ class Tabs {
                 tab.mutedUntilShown = false;
                 try { tab.webContents.audioMuted = false; } catch {}
             }
+            // Mini player: hide when arriving at the media tab; show when
+            // walking away from a tab that is still playing. createTab pre-sets
+            // activeTabIndex, so prefer the explicit previous index it stashes.
+            const prevActiveIndex = (this._pendingPrevActive !== undefined)
+                ? this._pendingPrevActive : this.activeTabIndex;
+            this._pendingPrevActive = undefined;
             this.activeTabIndex = index
+            try { miniPlayer.onTabSwitch(this.getWindowData(), prevActiveIndex, index); } catch {}
 
             if (tab.lazyLoaded === false) {
                 tab.lazyLoaded = true;
@@ -1131,6 +1146,7 @@ class Tabs {
             if (wasPrivate) this._maybeWipePrivateSession();
             this.tabOrder = this.tabOrder.filter(i => i !== index)
             this.tabLastActive.delete(index)
+            try { miniPlayer.onTabClosed(this.getWindowData(), index) } catch {}
 
             this.navigationHistory.removeTab(index)
 
@@ -1170,6 +1186,7 @@ class Tabs {
             if (wasPrivate2) this._maybeWipePrivateSession();
             this.tabOrder = this.tabOrder.filter(i => i !== index)
             this.tabLastActive.delete(index);
+            try { miniPlayer.onTabClosed(this.getWindowData(), index); } catch {}
 
             this.navigationHistory.removeTab(index);
             

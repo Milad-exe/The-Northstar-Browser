@@ -106,6 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const omniIcon         = document.getElementById('omni-icon');
     const menuBtn          = document.getElementById('menu-btn');
     const addBtn           = document.getElementById('new-tab-btn');
+    const tabDragSpacer    = document.getElementById('tab-drag-spacer');
     const bookmarkBtn      = document.getElementById('bookmark-btn');
     const bookmarkBar      = document.getElementById('bookmark-bar');
     const bookmarkBarItems = document.getElementById('bookmark-bar-items');
@@ -596,19 +597,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const merged    = [base];
             const seenQuery = new Set([String(base.query).toLowerCase()]);
 
-            // History / bookmarks / open tabs — tight cap like Firefox (max 5).
+            // History / bookmarks / open tabs — tight cap like Firefox (max 4).
             let linkCount = 0;
             for (const link of rankedLinks) {
                 if (heuristicKey && normalizeUrl(link.url) === heuristicKey) continue;
                 merged.push(link);
-                if (++linkCount >= 5) break;
+                if (++linkCount >= 4) break;
             }
 
-            // Search suggestions at the bottom (max 5); skip base-query dupes.
+            // Search suggestions at the bottom (max 3); skip base-query dupes.
+            // Caps keep the whole list (base + ≤4 links + ≤3 search = ≤8) visible
+            // without scrolling — see MAX_HEIGHT in ipc/suggestions.js.
             let searchCount = 0;
             for (const s of search) {
                 const k = (s.query || '').toLowerCase();
-                if (k && !seenQuery.has(k)) { merged.push(s); seenQuery.add(k); if (++searchCount >= 5) break; }
+                if (k && !seenQuery.has(k)) { merged.push(s); seenQuery.add(k); if (++searchCount >= 3) break; }
             }
 
             renderSuggestions(merged);
@@ -1823,7 +1826,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const count = tabs.size;
         if (!count) return;
         requestAnimationFrame(() => {
-            const barW         = tabsContainer.offsetWidth || tabBar.offsetWidth;
+            // The container is content-sized now, so its own width isn't the
+            // space available for tabs — add the drag spacer's slack to get the
+            // true width the strip can occupy before it has to scroll.
+            const barW         = (tabsContainer.offsetWidth + (tabDragSpacer?.offsetWidth || 0)) || tabBar.offsetWidth;
             const PINNED_W     = 34;
             const MIN_W        = 120;   // comfortable resting minimum
             const COMFY_W      = 200;   // preferred width when there's room to spare
