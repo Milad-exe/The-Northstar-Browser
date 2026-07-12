@@ -1555,6 +1555,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // ─────────────────────────────────────────────────────────────────────────
 
     function initTabBar() {
+        // Another window's torn-off tab is hovering over our strip → light up.
+        window.dragdrop.onMergeHover?.((v) => tabBar.classList.toggle('merge-target', !!v));
         window.pinActiveTab = () => window.tab.pin(activeTabIndex);
 
         // ── IPC events from main process ──────────────────────────────────────
@@ -1707,7 +1709,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const btn = document.createElement('div');
         btn.className      = 'tab-button';
         btn.dataset.index  = index;
-        btn.draggable      = true;
+        btn.draggable      = false;  // pointer-tracked drag below, not HTML5 DnD
         // Not keyboard-focusable: the tab strip should never be a Tab-key stop.
         btn.tabIndex       = -1;
         if (isPrivate) btn.dataset.private = 'true';
@@ -1744,26 +1746,60 @@ document.addEventListener('DOMContentLoaded', () => {
             window.tab.remove(parseInt(index));
         });
 
-        // Drag to reorder or detach to another window
-        btn.addEventListener('dragstart', (e) => {
-            e.dataTransfer.setData('text/plain', String(index));
-            e.dataTransfer.effectAllowed = 'move';
-            btn.classList.add('dragging');
-        });
-        btn.addEventListener('dragend', async (e) => {
-            btn.classList.remove('dragging');
-            const targetWin   = await window.dragdrop.getWindowAtPoint(e.screenX, e.screenY);
-            const thisWinId   = await window.dragdrop.getThisWindowId();
-            if (!targetWin) {
-                const url = await window.tab.getTabUrl(index);
-                await window.dragdrop.detachToNewWindow(index, e.screenX, e.screenY, url);
-            } else if (targetWin.id !== thisWinId) {
-                const url = await window.tab.getTabUrl(index);
-                await window.dragdrop.moveTabToWindow(thisWinId, index, targetWin.id, url);
-            } else {
-                const ordered = [...tabsContainer.querySelectorAll('.tab-button')].map(el => parseInt(el.dataset.index));
-                if (ordered.length) window.tab.reorder(ordered);
-            }
+        // Chrome-style tab drag: pointer-tracked, not HTML5 DnD (which only
+        // resolves at drop time and gives bogus coords outside the window).
+        //  - horizontal drag inside the strip → live reorder
+        //  - escape the strip vertically → tear off into a window that follows
+        //    the cursor (main-process session); release over another window's
+        //    tab strip merges the tab there, anywhere else it stays a window.
+        const TEAR_MARGIN = 34;
+        btn.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0 || e.target.closest('.tab-close')) return;
+            const startX = e.clientX, startY = e.clientY;
+            let mode = 'idle';   // idle → reorder → torn
+
+            const onMove = (ev) => {
+                if (mode === 'torn') return;   // main process owns the gesture now
+                if (mode === 'idle' && Math.hypot(ev.clientX - startX, ev.clientY - startY) > 5) {
+                    mode = 'reorder';
+                    btn.classList.add('dragging');
+                    document.documentElement.classList.add('tab-dragging'); // kills text selection
+                }
+                if (mode !== 'reorder') return;
+
+                const barR = tabBar.getBoundingClientRect();
+                if (ev.clientY < barR.top - TEAR_MARGIN || ev.clientY > barR.bottom + TEAR_MARGIN) {
+                    mode = 'torn';
+                    btn.classList.remove('dragging');
+                    window.tab.getTabUrl(index).then((url) =>
+                        window.dragdrop.tearOffStart(index, url));
+                    return;
+                }
+                const after = getDragAfterElement(tabsContainer, ev.clientX);
+                if (after == null) tabsContainer.appendChild(btn);
+                else               tabsContainer.insertBefore(btn, after);
+            };
+
+            const finish = (drop) => {
+                document.removeEventListener('pointermove', onMove);
+                document.removeEventListener('pointerup', onUp);
+                document.removeEventListener('pointercancel', onCancel);
+                document.documentElement.classList.remove('tab-dragging');
+                if (mode === 'reorder') {
+                    btn.classList.remove('dragging');
+                    const ordered = [...tabsContainer.querySelectorAll('.tab-button')].map(el => parseInt(el.dataset.index));
+                    if (ordered.length) window.tab.reorder(ordered);
+                } else if (mode === 'torn') {
+                    if (drop) window.dragdrop.tearOffDrop();
+                    else      window.dragdrop.tearOffCancel();
+                }
+            };
+            const onUp     = () => finish(true);
+            const onCancel = () => finish(false);
+
+            document.addEventListener('pointermove', onMove);
+            document.addEventListener('pointerup', onUp);
+            document.addEventListener('pointercancel', onCancel);
         });
 
         const afterBtn = afterIndex !== null ? tabs.get(afterIndex) : null;
@@ -1827,9 +1863,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!count) return;
         requestAnimationFrame(() => {
             // The container is content-sized now, so its own width isn't the
-            // space available for tabs — add the drag spacer's slack to get the
-            // true width the strip can occupy before it has to scroll.
-            const barW         = (tabsContainer.offsetWidth + (tabDragSpacer?.offsetWidth || 0)) || tabBar.offsetWidth;
+            // space available for tabs. container + spacer is the full slack
+            // (invariant to tab widths); reserve a strip of it for dragging the
+            // window so the tabs never consume every last pixel.
+            const DRAG_RESERVE = 46;
+            const avail        = tabsContainer.offsetWidth + (tabDragSpacer?.offsetWidth || 0);
+            const barW         = Math.max(200, (avail || tabBar.offsetWidth) - DRAG_RESERVE);
             const PINNED_W     = 34;
             const MIN_W        = 120;   // comfortable resting minimum
             const COMFY_W      = 200;   // preferred width when there's room to spare

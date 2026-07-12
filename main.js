@@ -22,6 +22,13 @@ const { app, ipcMain, session, BrowserWindow, Menu, webContents, nativeTheme, sc
 const path          = require('path');
 const UserAgent     = require('./Features/user-agent');
 
+// A browser must not die because one deferred callback touched a destroyed
+// window (e.g. a load callback firing after its window was closed). Log it and
+// keep running — the same resilience Chrome has.
+process.on('uncaughtException', (err) => {
+    console.error('[main] uncaught exception (survived):', (err && err.stack) || err);
+});
+
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
 // Use Chromium's built-in (mock) storage for its cookie/password encryption key
 // instead of the OS keychain. The keychain path makes macOS pop a "wants to use

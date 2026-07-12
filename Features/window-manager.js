@@ -116,6 +116,9 @@ class WindowManager {
             width:  restoredBounds ? restoredBounds.width  : width,
             height: restoredBounds ? restoredBounds.height : height,
             ...(restoredBounds ? { x: restoredBounds.x, y: restoredBounds.y } : {}),
+            // inactive: shown via showInactive() below — used for tab tear-off,
+            // where focusing a new window mid-drag would break mouse capture.
+            ...(options?.inactive ? { show: false } : {}),
             minWidth: 800,
             minHeight: 600,
             icon: path.join(__dirname, '../logo.png'),
@@ -165,6 +168,9 @@ class WindowManager {
         }
 
         window.loadFile('renderer/Browser/index.html');
+        if (options?.inactive) {
+            window.once('ready-to-show', () => { try { window.showInactive(); } catch {} });
+        }
 
         // Save window bounds whenever it moves or resizes (debounced)
         let _saveBoundsTimer = null;

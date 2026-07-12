@@ -168,21 +168,15 @@ class Tabs {
         
         this.mainWindow.on('close', (event) => {
             if (this.tabMap.size > 0 && !this.allowClose) {
+                // A user-initiated OS close (macOS traffic light, Alt-F4, taskbar
+                // menu) arrives here without allowClose set. Honor it: state was
+                // already persisted by window-manager's handler on this same
+                // event, so mark the window closeable and re-issue the close.
                 event.preventDefault();
-                
+                this.allowClose = true;
                 setImmediate(() => {
-                    if (!this.mainWindow.isDestroyed()) {
-                        this.mainWindow.focus();
-                        
-                        if (this.tabMap.has(this.activeTabIndex)) {
-                            const activeTab = this.tabMap.get(this.activeTabIndex);
-                            if (activeTab && activeTab.webContents) {
-                                activeTab.webContents.focus();
-                            }
-                        }
-                    }
+                    try { if (!this.mainWindow.isDestroyed()) this.mainWindow.close(); } catch {}
                 });
-                return;
             }
         });
         

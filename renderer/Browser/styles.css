@@ -367,6 +367,23 @@ browser-action-list::part(badge) {
   position: relative; z-index: 10;
   overflow: hidden; flex-shrink: 0;
   -webkit-app-region: drag;              /* drag the window by the empty tab strip */
+  user-select: none; -webkit-user-select: none;   /* tab titles are UI, not copy */
+}
+/* While a tab drag is in flight nothing anywhere should highlight. */
+html.tab-dragging * { user-select: none !important; -webkit-user-select: none !important; cursor: grabbing !important; }
+
+/* The dragged tab lifts so it reads as "in hand"; the others part around it. */
+.tab-button.dragging {
+  opacity: 0.55;
+  background: var(--active-bg);
+}
+
+/* Another window's tab is hovering over this strip — show it as a live target. */
+#tab-bar.merge-target { background: var(--active-bg); }
+#tab-bar.merge-target::after {
+  content: ''; position: absolute; inset: 2px 4px;
+  border: 1.5px dashed var(--text-3); border-radius: 8px;
+  pointer-events: none;
 }
 /* Interactive bits inside the draggable strip must opt out of the drag region. */
 #tab-bar .tab-button,
@@ -403,9 +420,10 @@ browser-action-list::part(badge) {
 
 #tab-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; padding-left: 2px; }
 
-/* Fills the gap between the + button and the right edge; draggable (inherits the
-   tab-bar drag region). Collapses to 0 when the tabs fill the strip. */
-#tab-drag-spacer { flex: 1 1 auto; min-width: 0; height: 100%; }
+/* Fills the gap between the + button and the right edge and is the handle for
+   dragging the OS window. Keeps a minimum width even when the tabs fill the
+   strip, so there is always somewhere to grab the window. */
+#tab-drag-spacer { flex: 1 1 auto; min-width: 46px; height: 100%; -webkit-app-region: drag; }
 
 .tab-button {
   display: flex; align-items: center; gap: 8px;

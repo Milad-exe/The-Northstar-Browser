@@ -25,7 +25,17 @@ function navEntryLabel(url) {
     }
 }
 
-function register(ipcMain, { wm, BrowserWindow }) {
+function register(ipcMain, { wm, BrowserWindow, screen }) {
+    // Chromium reports screenX/screenY as (0,0) on `dragend` when the drop lands
+    // outside the window — which is exactly the tear-off case. Read the real OS
+    // cursor position in the main process instead; fall back to the passed coords.
+    const dropPoint = (screenX, screenY) => {
+        try {
+            const p = screen && screen.getCursorScreenPoint && screen.getCursorScreenPoint();
+            if (p && Number.isFinite(p.x) && Number.isFinite(p.y) && (p.x || p.y)) return p;
+        } catch {}
+        return { x: screenX || 0, y: screenY || 0 };
+    };
 
     // ── Basic tab operations ──────────────────────────────────────────────────
 
@@ -271,16 +281,150 @@ function register(ipcMain, { wm, BrowserWindow }) {
         return wd ? wd.id : null;
     });
 
+    // ── Live tab tear-off (Chrome-style) ─────────────────────────────────────
+    // Dragging a tab out of the strip immediately turns it into a window that
+    // FOLLOWS the cursor while the button is held. Releasing over another
+    // window's tab strip merges the tab into it; anywhere else it stays a
+    // window. The renderer only reports gesture start/end; the cursor is
+    // tracked here (renderer drag coords are useless outside the window).
+    const MERGE_STRIP_H = 48;        // top region of a window that counts as its tab strip
+    let tear = null;                 // { follower, timer, raisedId }
+    let lastRaisedId = null;         // kept for get-window-at-point fallback
+
+    const windowAtCursor = (p, excludeId) => wm.getAllWindows().find(w => {
+        if (w.id === excludeId || w.window.isDestroyed() || w.window.isMinimized()) return false;
+        const b = w.window.getBounds();
+        return p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height;
+    });
+
+    const setMergeHover = (wd, on) => {
+        try {
+            if (wd && !wd.window.isDestroyed()) wd.window.webContents.send('tab-merge-hover', !!on);
+        } catch {}
+    };
+
+    const endTearSession = () => {
+        if (!tear) return null;
+        clearInterval(tear.timer);
+        if (tear.hoverTarget) setMergeHover(tear.hoverTarget, false);
+        const s = tear; tear = null;
+        return s;
+    };
+
+    ipcMain.handle('tab-tearoff-start', (_e, tabIndex, url) => {
+        const src = wm.getWindowByWebContents(_e.sender);
+        if (!src || tear) return false;
+        const grabX = 140, grabY = 20;   // cursor "holds" the window near its tab strip
+        let follower;
+
+        if (src.tabs.tabMap.size <= 1) {
+            // Only tab: drag the whole window (Chrome does the same).
+            follower = src;
+        } else {
+            // Spawn an inactive window for the torn tab. Not focused: stealing
+            // focus mid-gesture would break the source window's mouse capture.
+            follower = wm.createWindow(900, 640, { inactive: true });
+            const safeUrl = url && url !== 'newtab' ? sanitizeUrl(url) : null;
+            if (safeUrl) {
+                follower.window.webContents.once('did-finish-load', () => {
+                    // The follower may already have been merged away and closed.
+                    try {
+                        if (follower.window.isDestroyed()) return;
+                        const firstIdx = Array.from(follower.tabs.tabMap.keys())[0];
+                        if (firstIdx !== undefined) follower.tabs.loadUrl(firstIdx, safeUrl);
+                    } catch {}
+                });
+            }
+            src.tabs.removeTab(tabIndex);
+        }
+
+        const place = () => {
+            try {
+                if (follower.window.isDestroyed()) { endTearSession(); return; }
+                const p = screen.getCursorScreenPoint();
+                const b = follower.window.getBounds();
+                follower.window.setBounds({ x: Math.round(p.x - grabX), y: Math.round(p.y - grabY), width: b.width, height: b.height });
+                // Raise whichever window we're hovering so the merge target is
+                // visible; keep the follower itself on top of it.
+                const over = windowAtCursor(p, follower.id);
+                const overId = over ? over.id : null;
+                if (overId !== null && overId !== tear.raisedId) {
+                    tear.raisedId = overId;
+                    lastRaisedId = overId;
+                    over.window.moveTop();
+                    follower.window.moveTop();
+                }
+                // Merge-target indicator: light the strip we'd merge into.
+                const overStrip = over && p.y <= over.window.getBounds().y + MERGE_STRIP_H;
+                const hoverTarget = overStrip ? over : null;
+                if (hoverTarget !== tear.hoverTarget) {
+                    if (tear.hoverTarget) setMergeHover(tear.hoverTarget, false);
+                    if (hoverTarget)      setMergeHover(hoverTarget, true);
+                    tear.hoverTarget = hoverTarget;
+                }
+            } catch {}
+        };
+        tear = { follower, raisedId: null, hoverTarget: null, timer: setInterval(place, 16) };
+        try { follower.window.moveTop(); } catch {}
+        place();
+        return true;
+    });
+
+    ipcMain.handle('tab-tearoff-drop', () => {
+        const s = endTearSession();
+        if (!s) return false;
+        const { follower } = s;
+        if (!follower.window || follower.window.isDestroyed()) return false;
+        try {
+            const p = screen.getCursorScreenPoint();
+            const target = windowAtCursor(p, follower.id);
+            const overStrip = target && p.y <= target.window.getBounds().y + MERGE_STRIP_H;
+            if (overStrip) {
+                // Merge the torn tab into the target window's strip.
+                const active = follower.tabs.activeTabIndex;
+                const url = follower.tabs.tabUrls.get(active);
+                if (!url || url === 'newtab') target.tabs.createTab();
+                else {
+                    const idx = target.tabs.createTab();
+                    target.tabs.loadUrl(idx, sanitizeUrl(url));
+                }
+                follower.tabs.allowClose = true;
+                follower.window.close();
+                try { target.window.focus(); target.window.moveTop(); } catch {}
+            } else {
+                try { follower.window.focus(); } catch {}
+            }
+        } catch (err) { console.error('tab-tearoff-drop:', err); }
+        return true;
+    });
+
+    // Gesture aborted (window blur, pointer cancel): keep the follower where it is.
+    ipcMain.on('tab-tearoff-cancel', () => {
+        const s = endTearSession();
+        if (s) { try { s.follower.window.focus(); } catch {} }
+    });
+
     ipcMain.handle('get-window-at-point', (_e, screenX, screenY) => {
+        const { x, y } = dropPoint(screenX, screenY);
         const matches = wm.getAllWindows().filter(w => {
             const b = w.window.getBounds();
-            return screenX >= b.x && screenX <= b.x + b.width &&
-                   screenY >= b.y && screenY <= b.y + b.height;
+            return x >= b.x && x <= b.x + b.width &&
+                   y >= b.y && y <= b.y + b.height;
         });
         if (!matches.length) return null;
         if (matches.length === 1) return { id: matches[0].id };
 
-        // Multiple overlapping windows — return the top-most visible one
+        // Multiple overlapping windows. getAllWindows() is CREATION order, not
+        // z-order, so it can't tell which window is visually on top. But during
+        // a tab drag we raised the window under the cursor (moveTop) — that one
+        // is the topmost and is the drop target the user is looking at.
+        const raised = matches.find(w => w.id === lastRaisedId);
+        if (raised && !raised.window.isDestroyed() && raised.window.isVisible()) {
+            return { id: raised.id };
+        }
+        const focusedBw = BrowserWindow.getFocusedWindow();
+        const focused = focusedBw && matches.find(w => w.window === focusedBw);
+        if (focused) return { id: focused.id };
         for (let i = BrowserWindow.getAllWindows().length - 1; i >= 0; i--) {
             const bw    = BrowserWindow.getAllWindows()[i];
             const match = matches.find(w => w.window === bw);
@@ -301,6 +445,10 @@ function register(ipcMain, { wm, BrowserWindow }) {
                 dst.tabs.loadUrl(idx, sanitizeUrl(url));
             }
             src.tabs.removeTab(tabIndex);
+            // The tab now lives in the destination window — focus follows it
+            // (Chrome does the same), otherwise the move looks like nothing
+            // happened when the destination sits behind the source.
+            try { dst.window.focus(); dst.window.moveTop(); } catch {}
             return true;
         } catch (err) {
             console.error('move-tab-to-window:', err);
@@ -312,17 +460,21 @@ function register(ipcMain, { wm, BrowserWindow }) {
         const src = wm.getWindowByWebContents(_e.sender);
         if (!src) return false;
         try {
+            const { x, y } = dropPoint(screenX, screenY);
             const newWin = wm.createWindow(800, 600);
             newWin.window.setBounds({
-                x: Math.max(0, Math.floor(screenX - 400)),
-                y: Math.max(0, Math.floor(screenY - 300)),
+                x: Math.max(0, Math.floor(x - 400)),
+                y: Math.max(0, Math.floor(y - 300)),
                 width: 800, height: 600,
             });
             if (url && url !== 'newtab') {
                 const safeUrl = sanitizeUrl(url);
                 newWin.window.webContents.once('did-finish-load', () => {
-                    const firstIdx = Array.from(newWin.tabs.tabMap.keys())[0];
-                    if (firstIdx !== undefined) newWin.tabs.loadUrl(firstIdx, safeUrl);
+                    try {
+                        if (newWin.window.isDestroyed()) return;
+                        const firstIdx = Array.from(newWin.tabs.tabMap.keys())[0];
+                        if (firstIdx !== undefined) newWin.tabs.loadUrl(firstIdx, safeUrl);
+                    } catch {}
                 });
             }
             src.tabs.removeTab(tabIndex);

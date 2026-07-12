@@ -224,7 +224,11 @@ contextBridge.exposeInMainWorld(
         getWindowAtPoint: (screenX, screenY) => ipcRenderer.invoke('get-window-at-point', screenX, screenY),
         getThisWindowId: () => ipcRenderer.invoke('get-this-window-id'),
         moveTabToWindow: (fromWindowId, tabIndex, targetWindowId, url) => ipcRenderer.invoke('move-tab-to-window', fromWindowId, tabIndex, targetWindowId, url),
-        detachToNewWindow: (tabIndex, screenX, screenY, url) => ipcRenderer.invoke('detach-to-new-window', tabIndex, screenX, screenY, url)
+        detachToNewWindow: (tabIndex, screenX, screenY, url) => ipcRenderer.invoke('detach-to-new-window', tabIndex, screenX, screenY, url),
+        tearOffStart: (tabIndex, url) => ipcRenderer.invoke('tab-tearoff-start', tabIndex, url),
+        tearOffDrop: () => ipcRenderer.invoke('tab-tearoff-drop'),
+        tearOffCancel: () => ipcRenderer.send('tab-tearoff-cancel'),
+        onMergeHover: (fn) => ipcRenderer.on('tab-merge-hover', (_e, v) => fn(v))
     }
 );
 
