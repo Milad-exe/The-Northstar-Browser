@@ -14,20 +14,18 @@ html[data-vibrancy="true"], html[data-vibrancy="true"] body {
   background: color-mix(in srgb, var(--bg) 72%, transparent);
 }
 
-/* ── ASCII scene (north star over the mountains) — 70% box, bottom-right ── */
+/* ── ASCII scene (Polaris & the Little Dipper over layered mountains) ──
+   Full-bleed, but deliberately quiet: low ink opacity, sparse sky, and the
+   generator keeps an elliptical clearing behind the clock/search. */
 #ascii-bg {
-  position: fixed; right: 0; bottom: 0; z-index: 0;
-  width: 70vw; height: 70vh;
+  position: fixed; inset: 0; z-index: 0;
   margin: 0; padding: 0;
   font-family: var(--mono);
   font-size: 11px; line-height: 12px; letter-spacing: 0;
   white-space: pre; overflow: hidden;
-  color: color-mix(in srgb, var(--text) 42%, transparent);
+  color: color-mix(in srgb, var(--text) 33%, transparent);
   pointer-events: none; user-select: none; -webkit-user-select: none;
   text-shadow: 0 0 1px currentColor;   /* soft bloom so the dots read as points of light */
-  /* Fade the box edges toward the top-left so it blends into the page. */
-  -webkit-mask-image: radial-gradient(150% 135% at 100% 100%, #000 52%, transparent 92%);
-          mask-image: radial-gradient(150% 135% at 100% 100%, #000 52%, transparent 92%);
 }
 
 .home {
