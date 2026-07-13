@@ -1,116 +1,78 @@
-/* renderer/themes.css */
+/* renderer/themes.css
+ *
+ * Four palettes, one soft aesthetic: airy surfaces, generous radii, quiet
+ * borders, mono micro-labels, tight heavy display type.
+ *
+ *   default   — Northstar · ink black, faded silver, blood-wine accent (dark)
+ *   fathom    — Fathom    · abyssal navy, arctic mist (dark)
+ *   porcelain — Porcelain · warm grey-lilac (light)
+ *   dune      — Dune      · cream & silent navy, sandy amber (light)
+ */
+
 :root {
-  /* Northstar (Default — Near-Black Minimal) */
-  --bg:        #0c0c0c;
-  --surface:   #141414;
-  --surface-2: #1c1c1c;
-  --text:      #f0f0f0;
-  --text-2:    #787878;
-  --text-3:    #383838;
-  --border:    rgba(255,255,255,0.07);
-  --border-2:  rgba(255,255,255,0.12);
-  --hover:     rgba(255,255,255,0.05);
-  --active-bg: rgba(255,255,255,0.09);
-  --accent:    #5e81f4;
-  --danger:    #e05252;
+  /* Northstar (default) — ink black; sleek, high-contrast, wine accent */
+  --bg:        #090909;
+  --surface:   #131111;
+  --surface-2: #1c1919;
+  --text:      #e6e4e4;
+  --text-2:    #acacac;
+  --text-3:    #4a4747;
+  --border:    rgba(172,172,172,0.09);
+  --border-2:  rgba(172,172,172,0.16);
+  --hover:     rgba(172,172,172,0.06);
+  --active-bg: rgba(172,172,172,0.11);
+  --accent:    #a63d4a;
+  --danger:    #c94f5c;
   --font:      'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --mono:      'Space Mono', 'SF Mono', monospace;
 }
 
-html[data-theme="chalk"] {
-  /* Chalk — Clean Minimal Light */
-  --bg:        #f5f5f5;
-  --surface:   #ffffff;
-  --surface-2: #ebebeb;
-  --text:      #141414;
-  --text-2:    #646464;
-  --text-3:    #aaaaaa;
-  --border:    rgba(0,0,0,0.08);
-  --border-2:  rgba(0,0,0,0.14);
-  --hover:     rgba(0,0,0,0.05);
-  --active-bg: rgba(0,0,0,0.09);
-  --accent:    #4a6cf7;
-  --danger:    #d94040;
-}
-
-html[data-theme="midnight"] {
-  /* Midnight — Deep Blue Dark */
-  --bg:        #070b14;
-  --surface:   #0d1424;
-  --surface-2: #131d30;
-  --text:      #c8d8f0;
-  --text-2:    #5c7499;
-  --text-3:    #2a3a54;
-  --border:    rgba(80,130,200,0.13);
-  --border-2:  rgba(80,130,200,0.2);
-  --hover:     rgba(80,130,200,0.08);
-  --active-bg: rgba(80,130,200,0.15);
-  --accent:    #4d94ff;
+html[data-theme="fathom"] {
+  /* Fathom — abyssal navy, cold current, arctic mist */
+  --bg:        #01162b;
+  --surface:   #082036;
+  --surface-2: #0e2a44;
+  --text:      #d2dbeb;
+  --text-2:    #94a2bf;
+  --text-3:    #46618a;
+  --border:    rgba(148,162,191,0.10);
+  --border-2:  rgba(148,162,191,0.18);
+  --hover:     rgba(148,162,191,0.07);
+  --active-bg: rgba(148,162,191,0.13);
+  --accent:    #6a90b4;
   --danger:    #e05c6e;
 }
 
-html[data-theme="ember"] {
-  /* Ember — Warm Dark */
-  --bg:        #100e0d;
-  --surface:   #1a1714;
-  --surface-2: #221f1b;
-  --text:      #ece4d8;
-  --text-2:    #7a6e64;
-  --text-3:    #3d3530;
-  --border:    rgba(200,170,140,0.1);
-  --border-2:  rgba(200,170,140,0.17);
-  --hover:     rgba(200,170,140,0.07);
-  --active-bg: rgba(200,170,140,0.13);
-  --accent:    #e0835a;
-  --danger:    #d94848;
+html[data-theme="porcelain"] {
+  /* Porcelain — soft warm grey-lilac light; gentle contrast, paper-like */
+  --bg:        #eceaee;
+  --surface:   #f8f7fa;
+  --surface-2: #e2dfe5;
+  --text:      #1c1b1f;
+  --text-2:    #6d6a75;
+  --text-3:    #a9a6b1;
+  --border:    rgba(28,27,31,0.08);
+  --border-2:  rgba(28,27,31,0.14);
+  --hover:     rgba(28,27,31,0.05);
+  --active-bg: rgba(28,27,31,0.08);
+  --accent:    #3f7ce0;
+  --danger:    #d24d43;
 }
 
-html[data-theme="mist"] {
-  /* Mist — Soft Neutral Light */
-  --bg:        #edf0f3;
-  --surface:   #ffffff;
-  --surface-2: #e2e6ea;
-  --text:      #1a1e24;
-  --text-2:    #636b76;
-  --text-3:    #9ea7b0;
-  --border:    rgba(0,0,0,0.09);
-  --border-2:  rgba(0,0,0,0.15);
-  --hover:     rgba(0,0,0,0.05);
-  --active-bg: rgba(0,0,0,0.09);
-  --accent:    #3b82f6;
-  --danger:    #dc3545;
-}
-
-html[data-theme="dusk"] {
-  /* Dusk — Muted Indigo Dark */
-  --bg:        #0e0d17;
-  --surface:   #16142a;
-  --surface-2: #1e1b36;
-  --text:      #d8d4f0;
-  --text-2:    #6e68a0;
-  --text-3:    #353060;
-  --border:    rgba(160,150,230,0.11);
-  --border-2:  rgba(160,150,230,0.18);
-  --hover:     rgba(160,150,230,0.07);
-  --active-bg: rgba(160,150,230,0.14);
-  --accent:    #9b8ff7;
-  --danger:    #e05c80;
-}
-
-html[data-theme="sage"] {
-  /* Sage — Deep Green Dark */
-  --bg:        #090f0d;
-  --surface:   #0f1a16;
-  --surface-2: #162420;
-  --text:      #cce4d8;
-  --text-2:    #527060;
-  --text-3:    #263830;
-  --border:    rgba(80,180,130,0.11);
-  --border-2:  rgba(80,180,130,0.18);
-  --hover:     rgba(80,180,130,0.07);
-  --active-bg: rgba(80,180,130,0.13);
-  --accent:    #4ab882;
-  --danger:    #e05c5c;
+html[data-theme="dune"] {
+  /* Dune — light cream, silent navy ink, sandy amber warmth */
+  --bg:        #fcedd3;
+  --surface:   #fdf4e2;
+  --surface-2: #f3e2c4;
+  --text:      #102a6b;
+  --text-2:    #4a5c94;
+  --text-3:    #a5987f;
+  --border:    rgba(16,42,107,0.12);
+  --border-2:  rgba(16,42,107,0.20);
+  --hover:     rgba(16,42,107,0.06);
+  --active-bg: rgba(16,42,107,0.10);
+  --accent:    #015185;
+  --danger:    #b8442f;
 }
 
 /* ── Private mode — polar-opposite lavender/violet palette ── */

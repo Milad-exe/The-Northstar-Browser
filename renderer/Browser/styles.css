@@ -55,7 +55,7 @@ html[data-vibrancy="true"] #content-area { background: transparent; }
 
 .wc-win { margin-left: auto; order: 999; }
 .wc-win .wc-btn {
-  width: 46px; height: 38px; border: none;
+  width: 46px; height: 42px; border: none;
   background: transparent; color: var(--text-2); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: background 0.1s; padding: 0; border-radius: 0;
@@ -66,10 +66,10 @@ html[data-vibrancy="true"] #content-area { background: transparent; }
 
 /* ── Utility Bar ─────────────────────────── */
 #utility-bar {
-  display: flex; height: 46px; width: 100%;
+  display: flex; height: 52px; width: 100%;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  align-items: center; padding: 0 12px; gap: 8px;
+  align-items: center; padding: 0 14px; gap: 10px;
   position: relative; z-index: 20; flex-shrink: 0;
   -webkit-app-region: drag;
 }
@@ -84,8 +84,8 @@ html[data-vibrancy="true"] #content-area { background: transparent; }
 .nav-buttons { display: flex; gap: 2px; align-items: center; flex-shrink: 0; }
 
 .nav-btn {
-  width: 28px; height: 28px; border: none; background: transparent;
-  border-radius: 8px; color: var(--text-2); cursor: pointer;
+  width: 30px; height: 30px; border: none; background: transparent;
+  border-radius: 9px; color: var(--text-2); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: color 0.12s, background 0.12s;
 }
@@ -102,15 +102,16 @@ html[data-vibrancy="true"] #content-area { background: transparent; }
 .omnibox-wrapper { flex: 1; min-width: 0; }
 
 .omnibox {
-  display: flex; align-items: center; height: 34px;
+  display: flex; align-items: center; height: 36px;
   background: color-mix(in srgb, var(--bg) 55%, transparent);
   border: 1px solid var(--border);
-  border-radius: 9px; padding: 0 12px; gap: 8px;
+  border-radius: 999px; padding: 0 15px; gap: 9px;   /* soft full pill */
   transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 }
 .omnibox:focus-within {
   border-color: var(--text-3);
   background: color-mix(in srgb, var(--bg) 72%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 /* Context-aware leading icon: search while typing / on new-tab pages,
@@ -135,15 +136,16 @@ html[data-vibrancy="true"] #content-area { background: transparent; }
 
 #searchBar {
   flex: 1; background: transparent; border: none; outline: none;
-  font-family: var(--font); font-size: 13px; letter-spacing: -0.01em; color: var(--text);
+  font-family: var(--font); font-size: 13.5px; font-weight: 500;
+  letter-spacing: -0.015em; color: var(--text);
 }
 #searchBar::placeholder { color: var(--text-3); }
 
 .trailing-icons { display: flex; gap: 2px; align-items: center; flex-shrink: 0; }
 
 .icon-btn {
-  width: 28px; height: 28px; border: none; background: transparent;
-  border-radius: 8px; color: var(--text-2); cursor: pointer;
+  width: 30px; height: 30px; border: none; background: transparent;
+  border-radius: 9px; color: var(--text-2); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: color 0.12s, background 0.12s; position: relative;
 }
@@ -160,7 +162,7 @@ browser-action-list {
   --browser-action-hover-bg: var(--hover);
 }
 browser-action-list::part(action) {
-  width: 28px; height: 28px; border-radius: 8px;
+  width: 30px; height: 30px; border-radius: 9px;
   background-size: 60%;
 }
 browser-action-list::part(badge) {
@@ -192,10 +194,10 @@ browser-action-list::part(badge) {
 
 /* ── Bookmark Bar ─────────────────────────── */
 .bookmark-bar {
-  display: flex; height: 28px; width: 100%;
+  display: flex; height: 30px; width: 100%;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
-  padding: 0 6px; align-items: center;
+  padding: 0 8px; align-items: center;
   overflow: visible; flex-shrink: 0;
   position: relative;
 }
@@ -207,10 +209,10 @@ browser-action-list::part(badge) {
 }
 
 .bookmark-bar-item {
-  display: flex; align-items: center; gap: 5px;
-  padding: 0 8px; height: 22px;
-  border: none; background: transparent; border-radius: 4px;
-  cursor: pointer; font-family: var(--font); font-size: 11.5px;
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 10px; height: 23px;
+  border: none; background: transparent; border-radius: 999px;  /* soft pill */
+  cursor: pointer; font-family: var(--font); font-size: 11.5px; font-weight: 500;
   color: var(--text-2); white-space: nowrap; max-width: 160px;
   overflow: hidden; text-overflow: ellipsis;
   transition: background 0.08s, color 0.08s; flex-shrink: 0;
@@ -361,9 +363,9 @@ browser-action-list::part(badge) {
 
 /* ── Tab Bar (top strip, above the toolbar) ─── */
 #tab-bar {
-  display: flex; height: 40px; width: 100%;
+  display: flex; height: 42px; width: 100%;
   background: var(--bg);
-  align-items: center; padding: 0 6px; gap: 3px;
+  align-items: center; padding: 0 8px; gap: 4px;
   position: relative; z-index: 10;
   overflow: hidden; flex-shrink: 0;
   -webkit-app-region: drag;              /* drag the window by the empty tab strip */
@@ -428,11 +430,11 @@ html.tab-dragging * { user-select: none !important; -webkit-user-select: none !i
 .tab-button {
   display: flex; align-items: center; gap: 8px;
   padding: 0 26px 0 12px;
-  height: 100%;                     /* fill the tab strip's full height */
-  border-radius: 9px 9px 0 0;       /* Chrome-style: rounded top, flush bottom */
+  height: calc(100% - 12px);        /* soft pill floating inside the strip */
+  border-radius: 9px;
   background: transparent; border: none;
   color: var(--text-2);
-  font-family: var(--font); font-size: 12px; font-weight: 450; letter-spacing: -0.01em;
+  font-family: var(--font); font-size: 12.5px; font-weight: 500; letter-spacing: -0.015em;
   cursor: pointer; transition: background 0.12s, color 0.12s;
   white-space: nowrap; flex-shrink: 0;
   position: relative;
@@ -443,12 +445,13 @@ html.tab-dragging * { user-select: none !important; -webkit-user-select: none !i
   outline-offset: -2px;
   z-index: 10;
 }
-/* Active tab: full-height, filled with the toolbar's own colour and flush to the
-   bottom edge, so the selected tab visibly merges into the bar below it.
-   (The frosted-window override lives in the vibrancy block up top.) */
+/* Active tab: a soft raised card — filled with the toolbar's surface colour
+   plus a hairline ring (inset shadow: no layout shift), floating like the
+   reference's segmented pills. */
 .tab-button.active {
   background: var(--surface);
   color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border-2);
 }
 
 .tab-favicon {
@@ -488,7 +491,7 @@ html.tab-dragging * { user-select: none !important; -webkit-user-select: none !i
 .tab-button.pinned .tab-close { display: none; }
 
 #new-tab-btn {
-  width: 28px; height: 28px; border-radius: 8px;
+  width: 30px; height: 30px; border-radius: 9px;
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: none;
   color: var(--text-2); font-size: 18px; font-weight: 300;
@@ -618,17 +621,19 @@ html.tab-dragging * { user-select: none !important; -webkit-user-select: none !i
 .private-badge {
   display: none;
   align-items: center;
-  gap: 4px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  gap: 5px;
+  font-family: var(--mono);           /* mono micro-label, reference-style */
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #7c3aed;
-  padding: 0 8px;
-  border: 1px solid rgba(124,58,237,0.3);
-  border-radius: 3px;
-  height: 20px;
-  margin-right: 4px;
+  padding: 0 10px;
+  background: rgba(124,58,237,0.10);  /* soft pastel pill, no hard border */
+  border: none;
+  border-radius: 999px;
+  height: 21px;
+  margin-right: 6px;
   flex-shrink: 0;
   white-space: nowrap;
 }

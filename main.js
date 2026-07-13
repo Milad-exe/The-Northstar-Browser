@@ -106,7 +106,7 @@ class Northstar {
             } catch (e) { console.error('Widevine components load failed:', e && e.message); }
 
             const savedTheme = this.windowManager.persistence.get('theme');
-            nativeTheme.themeSource = (savedTheme === 'chalk' || savedTheme === 'mist') ? 'light' : 'dark';
+            nativeTheme.themeSource = (savedTheme === 'porcelain' || savedTheme === 'dune') ? 'light' : 'dark';
 
             app.dock?.setIcon(path.join(__dirname, 'logo.png')); // macOS only
 

@@ -153,6 +153,10 @@ document.addEventListener('DOMContentLoaded', () => {
     bgTimer = setTimeout(renderAsciiBackground, 150);
   });
 
+  // Keyboard hint matches the platform's focus-address-bar shortcut.
+  const kbd = document.getElementById('search-kbd');
+  if (kbd && !/mac/i.test(navigator.platform)) kbd.textContent = 'Ctrl L';
+
   const form  = document.getElementById('search-form');
   const input = document.getElementById('search-input');
 

@@ -124,7 +124,7 @@ class WindowManager {
             icon: path.join(__dirname, '../logo.png'),
             frame: process.platform === 'linux' ? true : false,
             titleBarStyle: process.platform === 'win32' || process.platform === 'linux' ? 'default' : 'hiddenInset',
-            trafficLightPosition: { x: 14, y: 13 }, // Vertically center within the 40px top tab strip
+            trafficLightPosition: { x: 14, y: 15 }, // Vertically center within the 42px top tab strip
             // macOS frosted-glass: the window material shows through the
             // translucent chrome (renderer paints the chrome with alpha).
             ...(process.platform === 'darwin'

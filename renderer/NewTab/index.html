@@ -11,22 +11,27 @@
   <pre id="ascii-bg" aria-hidden="true"></pre>
   <main class="home">
     <section class="hero">
-      <div class="clock" id="time-display">00:00</div>
-
       <div class="meta">
         <span id="greeting-text">Good afternoon</span>
         <span class="sep">·</span>
         <span id="date-display">SATURDAY, JULY 5</span>
       </div>
 
+      <div class="clock" id="time-display">00:00</div>
+
       <form class="search" id="search-form" autocomplete="off">
-        <svg class="search-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <svg class="search-icon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
           <circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="21" y2="21"/>
         </svg>
         <input class="search-input" id="search-input" type="text" placeholder="Search or enter a URL" spellcheck="false">
+        <kbd class="search-kbd" id="search-kbd">⌘ L</kbd>
       </form>
     </section>
   </main>
+
+  <footer class="wordmark" aria-hidden="true">
+    <span class="wm-star">✦</span> NORTHSTAR
+  </footer>
 
   <script src="newtab.js"></script>
 </body>

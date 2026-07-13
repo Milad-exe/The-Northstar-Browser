@@ -39,7 +39,7 @@ function register(ipcMain, { wm, webContents, nativeTheme, app, focusMode }) {
         wm.persistence.set(key, value);
 
         if (key === 'theme') {
-            nativeTheme.themeSource = (value === 'chalk' || value === 'mist') ? 'light' : 'dark';
+            nativeTheme.themeSource = (value === 'porcelain' || value === 'dune') ? 'light' : 'dark';
             webContents.getAllWebContents().forEach(wc => {
                 try { wc.send('theme-changed', value); } catch {}
             });

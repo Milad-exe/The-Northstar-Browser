@@ -609,8 +609,8 @@ class Tabs {
             return { x: 0, y: 0, width: contentBounds.width, height: contentBounds.height };
         }
         
-        // utility-bar (50px) + tab-bar (38px) + optional bookmark-bar (28px)
-        const yOffset = 88 + (this.bookmarkBarHeight || 0)
+        // tab-bar (42px) + utility-bar (52px) + optional bookmark-bar (30px)
+        const yOffset = 94 + (this.bookmarkBarHeight || 0)
         let width = contentBounds.width
         let height = contentBounds.height - yOffset
         if (width < 0) width = 0;

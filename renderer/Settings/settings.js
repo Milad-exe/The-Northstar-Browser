@@ -94,6 +94,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ── Appearance: Theme ──────────────────────────────────────────────────
     const themeSelect = document.getElementById('theme-select');
     themeSelect.value = settings.theme || 'default';
+    // Migrate retired theme names (chalk/midnight/ember/mist/dusk/sage) → default.
+    if (![...themeSelect.options].some(o => o.value === themeSelect.value)) {
+        themeSelect.value = 'default';
+        save('theme', 'default');
+    }
 
     themeSelect.addEventListener('change', async () => {
         await save('theme', themeSelect.value);

@@ -1352,7 +1352,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function reportChromeHeight() {
         const showBar = bookmarkBarVisible && hasBookmarks;
         bookmarkBar.classList.toggle('hidden', !showBar);
-        window.electronAPI.reportChromeHeight(showBar ? 28 : 0);
+        window.electronAPI.reportChromeHeight(showBar ? 30 : 0);  /* must match .bookmark-bar height */
     }
     reportChromeHeight();
 
