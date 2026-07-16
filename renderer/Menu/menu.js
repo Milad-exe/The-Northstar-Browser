@@ -12,6 +12,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     const histSc = document.getElementById('sc-history');
     if (histSc) histSc.textContent = mac ? '⌘Y' : 'Ctrl H';
+    const privTabSc = document.getElementById('sc-private-tab');
+    if (privTabSc) privTabSc.textContent = mac ? '⌘⌥T' : 'Ctrl Alt T';
 
     // Reflect the bookmark-bar state as a checkmark.
     try {
@@ -23,6 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // ── Actions ────────────────────────────────────────────────────────────
     document.getElementById('btn-new-tab').addEventListener('click', act(() => api.addTab()));
+    document.getElementById('btn-new-private-tab').addEventListener('click', act(() => api.addPrivateTab()));
     document.getElementById('btn-new-window').addEventListener('click', act(() => api.newWindow()));
     document.getElementById('btn-new-private').addEventListener('click', act(() => api.newPrivateWindow()));
     document.getElementById('btn-find').addEventListener('click', act(() => api.find()));

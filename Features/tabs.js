@@ -10,6 +10,7 @@ const { isSafeExternal } = require('./url-security');
 const { READERABLE_JS, EXTRACT_JS, PIP_JS } = require('./reader');
 const extensions = require('./extensions');
 const miniPlayer = require('./mini-player');
+const privateSessions = require('./private-session');
 
 const YOUTUBE_SPACE_FIX_JS = `
 (() => {
@@ -203,21 +204,10 @@ class Tabs {
     }
 
     _getPrivateSession() {
-        const { session } = require('electron');
-        return session.fromPartition('private', { cache: false });
-    }
-
-    // Called after removing a private tab — wipes the session when no private tabs remain.
-    _maybeWipePrivateSession() {
-        if (this.privateTabs.size > 0) return; // other private tabs still open
-        try {
-            const { session } = require('electron');
-            const priv = session.fromPartition('private', { cache: false });
-            priv.clearStorageData();          // cookies, localStorage, IndexedDB, etc.
-            priv.clearCache();                // in-memory HTTP cache
-            priv.clearHostResolverCache();    // DNS cache
-            priv.clearAuthCache();            // HTTP auth credentials
-        } catch {}
+        // Every private tab gets its OWN isolated in-memory session — cookies,
+        // cache and storage never carry over to any other tab, private or not.
+        // The session is wiped in destroyTab() the moment the tab closes.
+        return privateSessions.createTabSession();
     }
 
     createLazyTab(url, title, isPinned, isPrivate = false, insertAfterActive = false, eager = false) {
@@ -238,8 +228,9 @@ class Tabs {
         const tab = new WebContentsView({ webPreferences: webPrefs });
         if (makePrivate) {
             tab.webContents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
+            tab.privateSession = webPrefs.session; // wiped when the tab closes
         }
-        
+
         this.mainWindow.contentView.addChildView(tab);
         this.raiseFloatingViews();
         tab.setVisible(false); // Do not show initially
@@ -424,6 +415,7 @@ class Tabs {
         const tab = new WebContentsView({ webPreferences: webPrefs })
         if (makePrivate) {
             tab.webContents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
+            tab.privateSession = webPrefs.session; // wiped when the tab closes
         }
         this.mainWindow.contentView.addChildView(tab)
         tab.webContents.loadFile(makePrivate ? 'renderer/NewTab/private.html' : 'renderer/NewTab/index.html')
@@ -461,10 +453,14 @@ class Tabs {
             this.privateTabs.add(tabIndex);
         }
         tab.isPrivate = makePrivate;
-        const afterPos = (insertAfterIndex !== null && insertAfterIndex !== undefined)
+        // insertAfterIndex: existing tab index to insert after, -1 for the
+        // front of the order (cross-window drop before the first tab), else end.
+        const afterPos = (insertAfterIndex !== null && insertAfterIndex !== undefined && insertAfterIndex !== -1)
             ? this.tabOrder.indexOf(insertAfterIndex)
             : -1;
-        if (afterPos !== -1) {
+        if (insertAfterIndex === -1) {
+            this.tabOrder.unshift(tabIndex);
+        } else if (afterPos !== -1) {
             this.tabOrder.splice(afterPos + 1, 0, tabIndex);
         } else {
             this.tabOrder.push(tabIndex);
@@ -484,7 +480,7 @@ class Tabs {
             index: tabIndex,
             title: 'New Tab',
             totalTabs: this.tabMap.size,
-            afterIndex: afterPos !== -1 ? insertAfterIndex : null,
+            afterIndex: insertAfterIndex === -1 ? -1 : (afterPos !== -1 ? insertAfterIndex : null),
             active: shouldActivate,
             private: makePrivate,
         })
@@ -902,7 +898,12 @@ class Tabs {
         
         // Provide a default favicon instantly for http/https URLs to prevent empty gaps
         let resolvedFavicon = favicon;
-        if (!resolvedFavicon && url && url.startsWith('http')) {
+        if (this.privateTabs.has(tabIndex)) {
+            // The chrome renderer loads favicons through the DEFAULT session —
+            // fetching one for a private tab (especially via Google's favicon
+            // service) would leak the hostname outside the private session.
+            resolvedFavicon = null;
+        } else if (!resolvedFavicon && url && url.startsWith('http')) {
             try {
                 resolvedFavicon = `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=32`;
             } catch (e) {}
@@ -1101,9 +1102,18 @@ class Tabs {
         try { tab.webContents.audioMuted = true; } catch {}
         try { this.mainWindow.contentView.removeChildView(tab); } catch {}
         try { tab.webContents.destroy(); } catch {}
+        // Private tab → its isolated session dies with it. Deferred one tick
+        // so the webContents teardown settles before storage is cleared.
+        if (tab.privateSession) {
+            const sess = tab.privateSession;
+            tab.privateSession = null;
+            setImmediate(() => { try { privateSessions.destroyTabSession(sess); } catch {} });
+        }
     }
 
     recordClosed(index) {
+        // Private tabs must not be resurrectable via "reopen closed tab".
+        if (this.privateTabs.has(index)) return;
         const url = this.tabUrls.get(index);
         if (url && url !== 'newtab' && !url.startsWith('file://')) {
             const tab = this.tabMap.get(index);
@@ -1136,8 +1146,7 @@ class Tabs {
             this.tabMap.delete(index)
             this.tabUrls.delete(index)
             this.pinnedTabs.delete(index)
-            const wasPrivate = this.privateTabs.delete(index);
-            if (wasPrivate) this._maybeWipePrivateSession();
+            this.privateTabs.delete(index); // session wipe happens in destroyTab()
             this.tabOrder = this.tabOrder.filter(i => i !== index)
             this.tabLastActive.delete(index)
             try { miniPlayer.onTabClosed(this.getWindowData(), index) } catch {}
@@ -1176,8 +1185,7 @@ class Tabs {
             this.tabMap.delete(index);
             this.tabUrls.delete(index);
             this.pinnedTabs.delete(index);
-            const wasPrivate2 = this.privateTabs.delete(index);
-            if (wasPrivate2) this._maybeWipePrivateSession();
+            this.privateTabs.delete(index); // session wipe happens in destroyTab()
             this.tabOrder = this.tabOrder.filter(i => i !== index)
             this.tabLastActive.delete(index);
             try { miniPlayer.onTabClosed(this.getWindowData(), index); } catch {}

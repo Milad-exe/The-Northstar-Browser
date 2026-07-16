@@ -43,8 +43,9 @@ const WindowManager      = require('./Features/window-manager');
 const focusMode          = require('./Features/focus-mode');
 const adBlocker          = require('./Features/ad-blocker');
 const privacy            = require('./Features/privacy');
-const sitePermissions    = require('./Features/site-permissions');
-const privateSessionSetup = require('./Features/private-session');
+const permissionPrompt   = require('./Features/permission-prompt');
+const permissionUI       = require('./Features/permission-ui');
+const privateSessions    = require('./Features/private-session');
 const downloadManager    = require('./Features/download-manager');
 const extensionManager   = require('./Features/extensions');
 
@@ -93,6 +94,7 @@ class Northstar {
         passwordsIpc.register(ipcMain, deps);
         siteInfoIpc.register(ipcMain, deps);
         miniPlayerIpc.register(ipcMain, deps);
+        permissionUI.register(ipcMain, deps); // doorhanger controller: init(wm) + IPC
     }
 
     initApp() {
@@ -143,32 +145,15 @@ class Northstar {
                 app.configureHostResolver({ secureDnsMode: 'automatic' });
             } catch {}
 
-            // Private session — in-memory only, nothing persisted to disk.
-            // partition without 'persist:' prefix = no disk writes.
-            const privateSession = session.fromPartition('private', { cache: false });
-            // privateSessionSetup replaces UserAgent.setupSession — Electron only allows ONE
-            // onBeforeSendHeaders listener per session; the combined handler covers UA spoof,
-            // Sec-GPC, Accept-Language normalization, cross-origin Referer stripping, and
-            // response-side Referrer-Policy / X-DNS-Prefetch-Control injection.
-            privateSessionSetup.setup(privateSession);
-            adBlocker.enableBlockingInSession(privateSession);
+            // Private sessions are created PER TAB (Features/private-session.js
+            // createTabSession) — each private tab gets its own in-memory
+            // partition with the full hardening stack, so no cookies/cache/
+            // storage ever carry over between tabs, private or not.
 
             // Download manager — Firefox-style auto-save to the Downloads folder
-            // with progress in the toolbar panel. Both sessions share one list.
+            // with progress in the toolbar panel. Private tab sessions attach
+            // their own handler at creation; all sessions share one list.
             downloadManager.attach(session.defaultSession);
-            downloadManager.attach(privateSession, { private: true });
-            privateSession.registerPreloadScript({
-                type: 'frame', id: 'chrome-spoof-private',
-                filePath: path.join(__dirname, 'preload/chrome-spoof.js'),
-            });
-            privateSession.registerPreloadScript({
-                type: 'frame', id: 'adblock-cosmetic-private',
-                filePath: path.join(__dirname, 'preload/ad-block-cosmetic.js'),
-            });
-            privateSession.registerPreloadScript({
-                type: 'frame', id: 'private-hardening',
-                filePath: path.join(__dirname, 'preload/private-hardening.js'),
-            });
 
             // Align the JS environment with the Chrome UA (userAgentData brands,
             // window.chrome surface) so Google/Cloudflare consistency checks pass.
@@ -186,28 +171,12 @@ class Northstar {
                 filePath: path.join(__dirname, 'preload/ad-block-cosmetic.js'),
             });
 
-            // Permissions: allow by default, but honour any per-site "Block" set
-            // from the lock-icon site-info panel. Maps Electron permission names
-            // to the ones the panel manages.
-            const permAllowed = (origin, permission, details) => {
-                if (!origin) return true;
-                if (permission === 'geolocation')   return sitePermissions.decide(origin, 'location');
-                if (permission === 'notifications')  return sitePermissions.decide(origin, 'notifications');
-                if (permission === 'media') {
-                    const types = (details && details.mediaTypes) || [];
-                    if (types.includes('video') && !sitePermissions.decide(origin, 'camera'))     return false;
-                    if (types.includes('audio') && !sitePermissions.decide(origin, 'microphone')) return false;
-                    return true;
-                }
-                return true; // everything else keeps the allow-all behaviour
-            };
-            session.defaultSession.setPermissionRequestHandler((wc, permission, cb, details) => {
-                const origin = sitePermissions.originOf((details && details.requestingUrl) || wc?.getURL?.() || '');
-                cb(permAllowed(origin, permission, details));
-            });
-            session.defaultSession.setPermissionCheckHandler((_wc, permission, requestingOrigin, details) => {
-                return permAllowed(sitePermissions.originOf(requestingOrigin || ''), permission, details);
-            });
+            // Permissions: Firefox-style — device/resource access (camera, mic,
+            // location, notifications) is blocked by default and pops a prompt;
+            // "Remember this decision" persists per-origin and shows in the
+            // lock-icon site-info panel. Sensitive unprompted permissions
+            // (USB/serial/HID/bluetooth, storage-access, …) are denied outright.
+            permissionPrompt.attach(session.defaultSession);
 
             this.windowManager.createWindow();
 
@@ -240,15 +209,9 @@ class Northstar {
                     if (w?.tabs) w.tabs.allowClose = true;
                 });
             } catch {}
-            // Wipe the private session unconditionally on quit — covers the case
-            // where private tabs/windows are still open when the user quits.
-            try {
-                const priv = session.fromPartition('private', { cache: false });
-                priv.clearStorageData();
-                priv.clearCache();
-                priv.clearHostResolverCache();
-                priv.clearAuthCache();
-            } catch {}
+            // Wipe every per-tab private session unconditionally on quit —
+            // covers private tabs/windows still open when the user quits.
+            try { privateSessions.wipeAll(); } catch {}
         });
 
         app.on('window-all-closed', () => {

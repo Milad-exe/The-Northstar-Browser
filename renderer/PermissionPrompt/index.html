@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; img-src data:;" />
+  <title>Permission</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="head">
+      <span class="icon" id="icon"></span>
+      <div class="head-text">
+        <div class="q" id="q">Allow access?</div>
+        <div class="host" id="host"></div>
+      </div>
+    </div>
+    <label class="remember" id="remember-row">
+      <input type="checkbox" id="remember" checked>
+      <span>Remember this decision</span>
+    </label>
+    <div class="actions">
+      <button class="btn block" id="block">Block</button>
+      <button class="btn allow" id="allow">Allow</button>
+    </div>
+  </div>
+  <script src="prompt.js"></script>
+</body>
+</html>

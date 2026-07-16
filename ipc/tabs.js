@@ -44,6 +44,12 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
         if (wd) wd.tabs.createTab();
     });
 
+    // Private tab: fully isolated in-memory session, wiped when the tab closes.
+    ipcMain.handle('addPrivateTab', (_e) => {
+        const wd = wm.getWindowByWebContents(_e.sender);
+        if (wd) wd.tabs.createTab(null, true, true);
+    });
+
     // Open a URL in a new background tab without loading it until the user switches to it
     ipcMain.handle('addTabLazy', (_e, url) => {
         const wd = wm.getWindowByWebContents(_e.sender);
@@ -281,21 +287,25 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
         return wd ? wd.id : null;
     });
 
-    // ── Live tab tear-off (Chrome-style) ─────────────────────────────────────
-    // Dragging a tab out of the strip immediately turns it into a window that
-    // FOLLOWS the cursor while the button is held. Releasing over another
-    // window's tab strip merges the tab into it; anywhere else it stays a
-    // window. The renderer only reports gesture start/end; the cursor is
-    // tracked here (renderer drag coords are useless outside the window).
+    // ── Tab drag (Firefox model: nothing moves until RELEASE) ────────────────
+    // While a tab is dragged outside its strip, the main process only tracks
+    // the cursor: it raises the window under the pointer (so the user can see
+    // the drop target) and highlights that window's strip. The actual move /
+    // detach happens on drop. Escape in the renderer aborts everything.
     const MERGE_STRIP_H = 48;        // top region of a window that counts as its tab strip
-    let tear = null;                 // { follower, timer, raisedId }
-    let lastRaisedId = null;         // kept for get-window-at-point fallback
+    let dragTrack = null;            // { timer, raisedId, hoverTarget }
+    let lastRaisedId = null;         // kept for get-window-at-point tie-breaking
 
-    const windowAtCursor = (p, excludeId) => wm.getAllWindows().find(w => {
-        if (w.id === excludeId || w.window.isDestroyed() || w.window.isMinimized()) return false;
-        const b = w.window.getBounds();
-        return p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height;
-    });
+    const windowAtCursor = (p, excludeId) => {
+        const matches = wm.getAllWindows().filter(w => {
+            if (w.id === excludeId || w.window.isDestroyed() || w.window.isMinimized()) return false;
+            const b = w.window.getBounds();
+            return p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height;
+        });
+        // getAllWindows() is creation order, not z-order. When windows overlap,
+        // prefer the one we raised under the cursor — it's the one the user sees.
+        return matches.find(w => w.id === lastRaisedId) || matches[0] || null;
+    };
 
     const setMergeHover = (wd, on) => {
         try {
@@ -303,105 +313,102 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
         } catch {}
     };
 
-    const endTearSession = () => {
-        if (!tear) return null;
-        clearInterval(tear.timer);
-        if (tear.hoverTarget) setMergeHover(tear.hoverTarget, false);
-        const s = tear; tear = null;
-        return s;
+    const stopDragTrack = () => {
+        if (!dragTrack) return;
+        clearInterval(dragTrack.timer);
+        if (dragTrack.hoverTarget) setMergeHover(dragTrack.hoverTarget, false);
+        dragTrack = null;
     };
 
-    ipcMain.handle('tab-tearoff-start', (_e, tabIndex, url) => {
-        const src = wm.getWindowByWebContents(_e.sender);
-        if (!src || tear) return false;
-        const grabX = 140, grabY = 20;   // cursor "holds" the window near its tab strip
-        let follower;
+    ipcMain.on('tab-drag-track', (_e, on) => {
+        if (!on) { stopDragTrack(); return; }
+        if (dragTrack) return;
+        const srcWd = wm.getWindowByWebContents(_e.sender);
+        dragTrack = { raisedId: null, hoverTarget: null, timer: setInterval(() => {
+            try {
+                const p = screen.getCursorScreenPoint();
+                const over = windowAtCursor(p);
+                const overId = over ? over.id : null;
+                if (overId !== null && overId !== dragTrack.raisedId) {
+                    dragTrack.raisedId = overId;
+                    lastRaisedId = overId;
+                    over.window.moveTop();
+                    // Source window stays on top so its dragged-tab ghost is visible.
+                    try { if (srcWd && !srcWd.window.isDestroyed()) srcWd.window.moveTop(); } catch {}
+                }
+                // Highlight the strip we'd drop into (other windows only).
+                const overStrip = over && over !== srcWd && p.y <= over.window.getBounds().y + MERGE_STRIP_H;
+                const hoverTarget = overStrip ? over : null;
+                if (hoverTarget !== dragTrack.hoverTarget) {
+                    if (dragTrack.hoverTarget) setMergeHover(dragTrack.hoverTarget, false);
+                    if (hoverTarget)           setMergeHover(hoverTarget, true);
+                    dragTrack.hoverTarget = hoverTarget;
+                }
+            } catch {}
+        }, 60) };
+    });
 
-        if (src.tabs.tabMap.size <= 1) {
-            // Only tab: drag the whole window (Chrome does the same).
-            follower = src;
-        } else {
-            // Spawn an inactive window for the torn tab. Not focused: stealing
-            // focus mid-gesture would break the source window's mouse capture.
-            follower = wm.createWindow(900, 640, { inactive: true });
+    // Resolve a drop that ended OUTSIDE the source strip. Returns what happened.
+    ipcMain.handle('tab-drag-drop', async (_e, tabIndex, url) => {
+        // The strip highlighted during the drag is the drop target the user
+        // saw — prefer it over recomputing from scratch (which can pick a
+        // different window when several overlap).
+        const hovered = (dragTrack && dragTrack.hoverTarget && !dragTrack.hoverTarget.window.isDestroyed())
+            ? dragTrack.hoverTarget : null;
+        stopDragTrack();
+        const src = wm.getWindowByWebContents(_e.sender);
+        if (!src) return 'none';
+        try {
+            const p = screen.getCursorScreenPoint();
+            const target = hovered || windowAtCursor(p);
             const safeUrl = url && url !== 'newtab' ? sanitizeUrl(url) : null;
+
+            // ── Drop on ANOTHER window's tab strip → move the tab there ──────
+            const onStrip = hovered ? true
+                : (target && p.y <= target.window.getBounds().y + MERGE_STRIP_H);
+            if (target && target.id !== src.id && onStrip) {
+                // Ask the target chrome where the cursor lands in its strip so
+                // the tab is inserted AT the drop position (Firefox behaviour).
+                let insertAfter = null;
+                try {
+                    const tb = target.window.getBounds();
+                    insertAfter = await target.window.webContents.executeJavaScript(
+                        `window.__tabDropIndex ? window.__tabDropIndex(${Math.round(p.x - tb.x)}) : null`, true);
+                } catch {}
+                const idx = target.tabs.createTab(Number.isInteger(insertAfter) ? insertAfter : null, true);
+                if (safeUrl) target.tabs.loadUrl(idx, safeUrl);
+                src.tabs.removeTab(tabIndex);   // closes the source window if it was the last tab
+                setMergeHover(target, false);
+                try { target.window.focus(); target.window.moveTop(); } catch {}
+                return 'moved';
+            }
+
+            // ── Drop anywhere else → detach into its own window ──────────────
+            if (src.tabs.tabMap.size <= 1) {
+                // Only tab: the "detached window" is just the source window moved.
+                const b = src.window.getBounds();
+                src.window.setBounds({ x: Math.round(p.x - 140), y: Math.round(p.y - 20), width: b.width, height: b.height });
+                try { src.window.focus(); } catch {}
+                return 'window-moved';
+            }
+            const newWin = wm.createWindow(900, 640);
+            newWin.window.setBounds({ x: Math.round(p.x - 140), y: Math.round(p.y - 20), width: 900, height: 640 });
             if (safeUrl) {
-                follower.window.webContents.once('did-finish-load', () => {
-                    // The follower may already have been merged away and closed.
+                newWin.window.webContents.once('did-finish-load', () => {
                     try {
-                        if (follower.window.isDestroyed()) return;
-                        const firstIdx = Array.from(follower.tabs.tabMap.keys())[0];
-                        if (firstIdx !== undefined) follower.tabs.loadUrl(firstIdx, safeUrl);
+                        if (newWin.window.isDestroyed()) return;
+                        const firstIdx = Array.from(newWin.tabs.tabMap.keys())[0];
+                        if (firstIdx !== undefined) newWin.tabs.loadUrl(firstIdx, safeUrl);
                     } catch {}
                 });
             }
             src.tabs.removeTab(tabIndex);
+            try { newWin.window.focus(); } catch {}
+            return 'detached';
+        } catch (err) {
+            console.error('tab-drag-drop:', err);
+            return 'none';
         }
-
-        const place = () => {
-            try {
-                if (follower.window.isDestroyed()) { endTearSession(); return; }
-                const p = screen.getCursorScreenPoint();
-                const b = follower.window.getBounds();
-                follower.window.setBounds({ x: Math.round(p.x - grabX), y: Math.round(p.y - grabY), width: b.width, height: b.height });
-                // Raise whichever window we're hovering so the merge target is
-                // visible; keep the follower itself on top of it.
-                const over = windowAtCursor(p, follower.id);
-                const overId = over ? over.id : null;
-                if (overId !== null && overId !== tear.raisedId) {
-                    tear.raisedId = overId;
-                    lastRaisedId = overId;
-                    over.window.moveTop();
-                    follower.window.moveTop();
-                }
-                // Merge-target indicator: light the strip we'd merge into.
-                const overStrip = over && p.y <= over.window.getBounds().y + MERGE_STRIP_H;
-                const hoverTarget = overStrip ? over : null;
-                if (hoverTarget !== tear.hoverTarget) {
-                    if (tear.hoverTarget) setMergeHover(tear.hoverTarget, false);
-                    if (hoverTarget)      setMergeHover(hoverTarget, true);
-                    tear.hoverTarget = hoverTarget;
-                }
-            } catch {}
-        };
-        tear = { follower, raisedId: null, hoverTarget: null, timer: setInterval(place, 16) };
-        try { follower.window.moveTop(); } catch {}
-        place();
-        return true;
-    });
-
-    ipcMain.handle('tab-tearoff-drop', () => {
-        const s = endTearSession();
-        if (!s) return false;
-        const { follower } = s;
-        if (!follower.window || follower.window.isDestroyed()) return false;
-        try {
-            const p = screen.getCursorScreenPoint();
-            const target = windowAtCursor(p, follower.id);
-            const overStrip = target && p.y <= target.window.getBounds().y + MERGE_STRIP_H;
-            if (overStrip) {
-                // Merge the torn tab into the target window's strip.
-                const active = follower.tabs.activeTabIndex;
-                const url = follower.tabs.tabUrls.get(active);
-                if (!url || url === 'newtab') target.tabs.createTab();
-                else {
-                    const idx = target.tabs.createTab();
-                    target.tabs.loadUrl(idx, sanitizeUrl(url));
-                }
-                follower.tabs.allowClose = true;
-                follower.window.close();
-                try { target.window.focus(); target.window.moveTop(); } catch {}
-            } else {
-                try { follower.window.focus(); } catch {}
-            }
-        } catch (err) { console.error('tab-tearoff-drop:', err); }
-        return true;
-    });
-
-    // Gesture aborted (window blur, pointer cancel): keep the follower where it is.
-    ipcMain.on('tab-tearoff-cancel', () => {
-        const s = endTearSession();
-        if (s) { try { s.follower.window.focus(); } catch {} }
     });
 
     ipcMain.handle('get-window-at-point', (_e, screenX, screenY) => {

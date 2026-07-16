@@ -60,7 +60,23 @@ const PATCH = `(function () {
     } catch (e) {}
 })();`;
 
-const s = document.createElement('script');
-s.textContent = PATCH;
-(document.documentElement || document.head || document.body).appendChild(s);
-s.remove();
+function injectNow() {
+    const root = document.documentElement || document.head || document.body;
+    if (!root) return false;
+    const s = document.createElement('script');
+    s.textContent = PATCH;
+    root.appendChild(s);
+    s.remove();
+    return true;
+}
+
+// The preload can run before the document has a root element (initial
+// about:blank, some subframes). Waiting for DOMContentLoaded would be too
+// late — page scripts would already have run unpatched — so watch for the
+// root to appear; it's inserted before any page script can execute.
+if (!injectNow()) {
+    try {
+        new MutationObserver((_m, obs) => { if (injectNow()) obs.disconnect(); })
+            .observe(document, { childList: true });
+    } catch {}
+}

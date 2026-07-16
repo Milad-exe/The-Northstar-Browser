@@ -234,6 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         searchBar.addEventListener('input', (e) => {
             userTyping = true;
+            barEdited  = true;
             // Only autocomplete on insertions — autofilling right after the user
             // deletes text would "bring back" the URL they just erased.
             lastInputWasInsert = !!(e.inputType && e.inputType.startsWith('insert'));
@@ -241,16 +242,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         searchBar.addEventListener('focus', () => {
             updateOmniboxIcon();
-            if (!userTyping) {
+            if (userTyping) {
+                if (searchBar.value.trim()) updateSuggestions();
+            } else if (barEdited) {
+                // Refocusing with an uncommitted edit — keep the typed text
+                // (Firefox preserves it until you actually navigate).
+                searchBar.select();
+            } else {
                 if (currentTabUrl && searchBar.value !== currentTabUrl) searchBar.value = currentTabUrl;
                 searchBar.select();
-            } else if (searchBar.value.trim()) {
-                updateSuggestions();
             }
         });
         searchBar.addEventListener('blur', () => {
-            const domain = getDomainDisplay(currentTabUrl);
-            if (domain) searchBar.value = domain;
+            // Uncommitted typed text stays in the bar (Firefox); otherwise fall
+            // back to the resting domain display.
+            if (!barEdited) {
+                const domain = getDomainDisplay(currentTabUrl);
+                if (domain) searchBar.value = domain;
+            }
             updateOmniboxIcon();
             setTimeout(() => {
                 if (overlayPointerDown) return;
@@ -286,8 +295,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // New blank tab (main process) → focus + select the address bar so the
-        // user can immediately type a URL.
+        // user can immediately type a URL. This fires more than once per new
+        // tab (the page load can steal focus back) — don't clobber text the
+        // user already started typing.
         window.electronAPI.onFocusAddressBar?.(() => {
+            if (userTyping && document.activeElement === searchBar) return;
             try { searchBar.focus(); searchBar.select(); } catch {}
         });
 
@@ -303,6 +315,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let userTyping           = false;
     let lastInputWasInsert   = false;
     let currentQuery         = '';   // the user's typed text, for match highlighting
+    let barEdited            = false; // uncommitted typed text in the bar (survives blur)
 
     function getSuggestionsBounds() {
         const r = searchBar.getBoundingClientRect();
@@ -340,36 +353,70 @@ document.addEventListener('DOMContentLoaded', () => {
         window.suggestions.update(getSuggestionsBounds(), currentSuggestions, activeSuggestionIndex, currentQuery, getSearchEngine());
     }
 
+    /**
+     * Commit an address-bar navigation: load the URL, close the popup, and
+     * move focus off the bar so it falls back to its resting display —
+     * exactly what Firefox does on Enter / suggestion click.
+     */
+    function commitNavigation(value) {
+        barEdited  = false;
+        userTyping = false;
+        const formatted = loadUrlInActiveTab(value);
+        if (formatted) currentTabUrl = formatted; // optimistic; url-updated confirms
+        hideSuggestions();
+        searchBar.blur();
+        updateOmniboxIcon();
+    }
+
     function handleSuggestionSelect(index) {
         const item = currentSuggestions[index];
         if (!item) return;
         if (item.type === 'switch-tab') {
-            window.tab.switch(item.tabIndex);
             hideSuggestions(); searchBar.blur();
+            window.tab.switch(item.tabIndex);
         } else if ((item.type === 'history' || item.type === 'bookmark') && item.url) {
             searchBar.value = item.url;
-            loadUrlInActiveTab(item.url); hideSuggestions();
+            commitNavigation(item.url);
         } else if (item.query) {
             searchBar.value = item.query;
-            loadUrlInActiveTab(item.query); hideSuggestions();
+            commitNavigation(item.query);
         }
     }
 
     function onSuggestionSelected(item) {
         if (!item) return;
-        if ((item.type === 'history' || item.type === 'bookmark') && item.url) {
-            searchBar.value = item.url; loadUrlInActiveTab(item.url);
-        } else if (item.query) {
-            searchBar.value = item.query; loadUrlInActiveTab(item.query);
-        }
-        hideSuggestions();
+        // The click landed in the overlay view — reclaim OS focus for the
+        // chrome view first so the blur below lands on a focused bar.
         try { searchBar.focus(); } catch {}
+        if (item.type === 'switch-tab') {
+            hideSuggestions(); searchBar.blur();
+            window.tab.switch(item.tabIndex);
+            return;
+        }
+        if ((item.type === 'history' || item.type === 'bookmark') && item.url) {
+            searchBar.value = item.url; commitNavigation(item.url);
+        } else if (item.query) {
+            searchBar.value = item.query; commitNavigation(item.query);
+        } else {
+            hideSuggestions();
+        }
     }
 
     function onSearchKeyDown(e) {
+        // Firefox: Ctrl/Cmd+Enter wraps a bare term in www. … .com; anything
+        // that already looks like a URL just navigates normally.
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            const v = searchBar.value.trim();
+            if (!v) return;
+            searchBar.value = /[\s./:]/.test(v) ? v : `www.${v}.com`;
+            commitNavigation(searchBar.value);
+            return;
+        }
         if (currentSuggestions.length) {
             if (e.key === 'ArrowDown')  { e.preventDefault(); setActiveSuggestion(activeSuggestionIndex + 1); return; }
             if (e.key === 'ArrowUp')    { e.preventDefault(); setActiveSuggestion(activeSuggestionIndex - 1); return; }
+            if (e.key === 'Tab')        { e.preventDefault(); setActiveSuggestion(activeSuggestionIndex + (e.shiftKey ? -1 : 1)); return; }
             if (e.key === 'Escape')     { e.preventDefault(); hideSuggestions(); return; }
             if (e.key === 'Enter' && activeSuggestionIndex >= 0) {
                 e.preventDefault();
@@ -378,15 +425,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 // the live bar value so inline domain autofill is what loads.
                 if (item?.type === 'action' || item?.type === 'navigate') {
                     const url = searchBar.value.trim();
-                    if (url) { loadUrlInActiveTab(url); hideSuggestions(); }
+                    if (url) commitNavigation(url);
                     return;
                 }
                 handleSuggestionSelect(activeSuggestionIndex); return;
             }
+        } else if (e.key === 'Escape') {
+            // Popup already closed: a second Escape reverts the bar to the
+            // page URL, keeping focus (Firefox behaviour).
+            e.preventDefault();
+            barEdited = false; userTyping = false;
+            searchBar.value = currentTabUrl || '';
+            searchBar.select();
+            updateOmniboxIcon();
+            return;
         }
         if (e.key === 'Enter') {
             const url = searchBar.value.trim();
-            if (url) loadUrlInActiveTab(url);
+            if (url) commitNavigation(url);
         }
     }
 
@@ -444,6 +500,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function getSearchSuggestions(q, limit = 6) {
         if (!q) return [];
+        // Firefox disables remote search suggestions in private browsing —
+        // never leak keystrokes for a private window or private tab.
+        if (isPrivateWindow || tabPrivate.get(activeTabIndex)) return [];
         const engine     = getSearchEngine();
         const suggestMap = {
             google:     `https://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(q)}`,
@@ -597,21 +656,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const merged    = [base];
             const seenQuery = new Set([String(base.query).toLowerCase()]);
 
+            // Search suggestions right under the heuristic row (max 3); skip
+            // base-query dupes. Firefox's default order shows suggestions
+            // ahead of history/bookmarks.
+            let searchCount = 0;
+            for (const s of search) {
+                const k = (s.query || '').toLowerCase();
+                if (k && !seenQuery.has(k)) { merged.push(s); seenQuery.add(k); if (++searchCount >= 3) break; }
+            }
+
             // History / bookmarks / open tabs — tight cap like Firefox (max 4).
+            // Caps keep the whole list (base + ≤3 search + ≤4 links = ≤8) visible
+            // without scrolling — see MAX_HEIGHT in ipc/suggestions.js.
             let linkCount = 0;
             for (const link of rankedLinks) {
                 if (heuristicKey && normalizeUrl(link.url) === heuristicKey) continue;
                 merged.push(link);
                 if (++linkCount >= 4) break;
-            }
-
-            // Search suggestions at the bottom (max 3); skip base-query dupes.
-            // Caps keep the whole list (base + ≤4 links + ≤3 search = ≤8) visible
-            // without scrolling — see MAX_HEIGHT in ipc/suggestions.js.
-            let searchCount = 0;
-            for (const s of search) {
-                const k = (s.query || '').toLowerCase();
-                if (k && !seenQuery.has(k)) { merged.push(s); seenQuery.add(k); if (++searchCount >= 3) break; }
             }
 
             renderSuggestions(merged);
@@ -643,6 +704,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         window.tab.loadUrl(activeTabIndex, formatted);
+        return formatted;
     }
 
     function getDomainDisplay(url) {
@@ -655,6 +717,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // events (redirects, title/favicon updates) kept re-inserting the old
         // URL over freshly typed text.
         if (document.activeElement === searchBar && userTyping) return;
+        // Uncommitted typed text survives same-page updates (title / favicon
+        // refreshes); only a real navigation replaces it, like Firefox.
+        if (barEdited && url === currentTabUrl) return;
+        barEdited = false;
         if (document.activeElement !== searchBar) {
             searchBar.value = getDomainDisplay(url);
         } else {
@@ -1629,20 +1695,37 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!btn) return;
             const isPinned    = btn.classList.toggle('pinned');
             btn.dataset.pinned = isPinned ? '1' : '';
+            // Firefox keeps pinned tabs in a block at the start of the strip:
+            // pinning moves the tab to the end of that block, unpinning drops
+            // it right after the block.
+            const firstUnpinned = [...tabsContainer.querySelectorAll('.tab-button')]
+                .find(b => b !== btn && !b.classList.contains('pinned'));
+            tabsContainer.insertBefore(btn, firstUnpinned || null);
+            const ordered = [...tabsContainer.querySelectorAll('.tab-button')].map(el => parseInt(el.dataset.index));
+            if (ordered.length) window.tab.reorder(ordered);
             updateTabWidths(tabs.size);
             updateScrollShadows();
         });
 
-        // ── In-window tab reorder (dragover + insert visual) ──────────────────
-
-        tabsContainer.addEventListener('dragover', (e) => {
-            e.preventDefault(); e.dataTransfer.dropEffect = 'move';
-            const dragging = document.querySelector('.dragging');
-            if (!dragging) return;
-            const after = getDragAfterElement(tabsContainer, e.clientX);
-            if (after == null) tabsContainer.appendChild(dragging);
-            else               tabsContainer.insertBefore(dragging, after);
-        });
+        // Called by the main process (executeJavaScript) when a tab dragged
+        // from ANOTHER window drops on our strip: x (px from our left edge) →
+        // where to insert it. Returns the data-index of the tab to insert
+        // after, -1 for "at the front", or null to append at the end.
+        window.__tabDropIndex = (x) => {
+            const btns = [...tabsContainer.querySelectorAll('.tab-button')];
+            if (!btns.length) return null;
+            let after = null; // null → before the first tab
+            for (const b of btns) {
+                const r = b.getBoundingClientRect();
+                if (x >= r.left + r.width / 2) after = b;
+                else break;
+            }
+            // Incoming tabs are unpinned — clamp them past the pinned block.
+            const lastPinned = btns.filter(b => b.classList.contains('pinned')).pop();
+            if (lastPinned && (!after || after.classList.contains('pinned'))) after = lastPinned;
+            if (!after) return -1;
+            return parseInt(after.dataset.index);
+        };
 
         // ── Drop text / URLs onto the tab bar to open a new tab ──────────────
 
@@ -1734,7 +1817,6 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.appendChild(titleSpan);
         btn.appendChild(closeBtn);
 
-        btn.addEventListener('click', () => window.tab.switch(parseInt(index)));
         btn.addEventListener('mousedown', (e) => {
             if (e.button !== 1) return;
             e.preventDefault();
@@ -1746,67 +1828,98 @@ document.addEventListener('DOMContentLoaded', () => {
             window.tab.remove(parseInt(index));
         });
 
-        // Chrome-style tab drag: pointer-tracked, not HTML5 DnD (which only
-        // resolves at drop time and gives bogus coords outside the window).
-        //  - horizontal drag inside the strip → live reorder
-        //  - escape the strip vertically → tear off into a window that follows
-        //    the cursor (main-process session); release over another window's
-        //    tab strip merges the tab there, anywhere else it stays a window.
+        // Firefox-style tab drag: pointer-tracked, and NOTHING moves until the
+        // button is released.
+        //  - inside the strip → live reorder preview
+        //  - outside the strip → the tab ghosts; on RELEASE it either moves
+        //    into the window under the cursor (dropped on its tab strip, at
+        //    the drop position) or detaches into a new window there
+        //  - Escape aborts the whole gesture and restores the original order
         const TEAR_MARGIN = 34;
         btn.addEventListener('pointerdown', (e) => {
             if (e.button !== 0 || e.target.closest('.tab-close')) return;
+            // Firefox selects a tab on mousedown, not on click-release — so a
+            // drag always moves the tab you're looking at.
+            if (parseInt(index) !== activeTabIndex) window.tab.switch(parseInt(index));
             const startX = e.clientX, startY = e.clientY;
-            let mode = 'idle';   // idle → reorder → torn
+            let mode = 'idle';           // idle → drag
+            let outside = false;         // pointer currently beyond the strip
+            let savedOrder = null;       // DOM order at drag start, for cancel
 
-            const onMove = (ev) => {
-                if (mode === 'torn') return;   // main process owns the gesture now
-                if (mode === 'idle' && Math.hypot(ev.clientX - startX, ev.clientY - startY) > 5) {
-                    mode = 'reorder';
-                    btn.classList.add('dragging');
-                    document.documentElement.classList.add('tab-dragging'); // kills text selection
-                }
-                if (mode !== 'reorder') return;
-
-                const barR = tabBar.getBoundingClientRect();
-                if (ev.clientY < barR.top - TEAR_MARGIN || ev.clientY > barR.bottom + TEAR_MARGIN) {
-                    mode = 'torn';
-                    btn.classList.remove('dragging');
-                    window.tab.getTabUrl(index).then((url) =>
-                        window.dragdrop.tearOffStart(index, url));
-                    return;
-                }
-                const after = getDragAfterElement(tabsContainer, ev.clientX);
-                if (after == null) tabsContainer.appendChild(btn);
-                else               tabsContainer.insertBefore(btn, after);
+            const restoreOrder = () => {
+                if (!savedOrder) return;
+                // Skip buttons whose tab was closed mid-drag — re-appending a
+                // detached node would resurrect a dead tab in the strip.
+                for (const el of savedOrder) if (el.isConnected) tabsContainer.appendChild(el);
             };
 
-            const finish = (drop) => {
+            const onMove = (ev) => {
+                if (mode === 'idle' && Math.hypot(ev.clientX - startX, ev.clientY - startY) > 5) {
+                    mode = 'drag';
+                    savedOrder = [...tabsContainer.querySelectorAll('.tab-button')];
+                    btn.classList.add('dragging');
+                    document.documentElement.classList.add('tab-dragging'); // kills text selection
+                    window.dragdrop.dragTrack?.(true);   // main raises windows under the cursor
+                }
+                if (mode !== 'drag') return;
+
+                // Leaving the strip vertically OR the window horizontally both
+                // count as "outside" (Firefox tears off / merges either way).
+                const barR = tabBar.getBoundingClientRect();
+                const out = ev.clientY < barR.top - TEAR_MARGIN || ev.clientY > barR.bottom + TEAR_MARGIN
+                         || ev.clientX < -TEAR_MARGIN || ev.clientX > window.innerWidth + TEAR_MARGIN;
+                if (out !== outside) {
+                    outside = out;
+                    btn.classList.toggle('drag-outside', out);
+                }
+                if (out) { stopEdgeScroll(); return; }
+                edgeAutoScroll(ev.clientX);
+                placeDraggedTab(btn, ev.clientX);
+            };
+
+            const cleanup = () => {
                 document.removeEventListener('pointermove', onMove);
                 document.removeEventListener('pointerup', onUp);
                 document.removeEventListener('pointercancel', onCancel);
+                document.removeEventListener('keydown', onKey, true);
                 document.documentElement.classList.remove('tab-dragging');
-                if (mode === 'reorder') {
-                    btn.classList.remove('dragging');
+                btn.classList.remove('dragging', 'drag-outside');
+                stopEdgeScroll();
+                window.dragdrop.dragTrack?.(false);
+            };
+
+            const finish = async (drop) => {
+                const wasMode = mode, wasOutside = outside;
+                cleanup();
+                if (wasMode !== 'drag') return;
+                if (!drop) { restoreOrder(); return; }                    // aborted
+                if (!wasOutside) {                                        // reorder commit
                     const ordered = [...tabsContainer.querySelectorAll('.tab-button')].map(el => parseInt(el.dataset.index));
                     if (ordered.length) window.tab.reorder(ordered);
-                } else if (mode === 'torn') {
-                    if (drop) window.dragdrop.tearOffDrop();
-                    else      window.dragdrop.tearOffCancel();
+                    return;
                 }
+                // Released outside the strip → main decides: move into the
+                // window under the cursor, or detach into a new one.
+                const url = await window.tab.getTabUrl(index);
+                const res = await window.dragdrop.drop(index, url);
+                if (res === 'none' || res === 'window-moved') restoreOrder();
             };
             const onUp     = () => finish(true);
             const onCancel = () => finish(false);
+            const onKey    = (ev) => { if (ev.key === 'Escape') { ev.stopPropagation(); finish(false); } };
 
             document.addEventListener('pointermove', onMove);
             document.addEventListener('pointerup', onUp);
             document.addEventListener('pointercancel', onCancel);
+            document.addEventListener('keydown', onKey, true);
         });
 
-        const afterBtn = afterIndex !== null ? tabs.get(afterIndex) : null;
-        if (afterBtn && afterBtn.nextSibling) {
-            tabsContainer.insertBefore(btn, afterBtn.nextSibling);
+        // afterIndex: tab index to insert after, -1 for the front, null → end
+        const afterBtn = (afterIndex !== null && afterIndex !== -1) ? tabs.get(afterIndex) : null;
+        if (afterIndex === -1) {
+            tabsContainer.insertBefore(btn, tabsContainer.firstChild);
         } else if (afterBtn) {
-            tabsContainer.appendChild(btn);
+            tabsContainer.insertBefore(btn, afterBtn.nextSibling);
         } else {
             tabsContainer.appendChild(btn);
         }
@@ -1906,11 +2019,49 @@ document.addEventListener('DOMContentLoaded', () => {
         tabBar.classList.toggle('scrollable-right', max - left > 2);
     }
 
-    function getDragAfterElement(container, x) {
-        return [...container.querySelectorAll('.tab-button:not(.dragging)')].reduce((closest, child) => {
+    function getDragAfterElement(container, x, pinned = false) {
+        // Only consider tabs in the dragged tab's own group — pinned tabs
+        // reorder within the pinned block, unpinned within the rest.
+        const sel = pinned ? '.tab-button.pinned:not(.dragging)'
+                           : '.tab-button:not(.pinned):not(.dragging)';
+        return [...container.querySelectorAll(sel)].reduce((closest, child) => {
             const offset = x - child.getBoundingClientRect().left - child.getBoundingClientRect().width / 2;
             return (offset < 0 && offset > closest.offset) ? { offset, element: child } : closest;
         }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+
+    /** Reorder preview: place the dragged tab under the cursor, keeping the
+     *  pinned block intact at the start of the strip (Firefox behaviour). */
+    function placeDraggedTab(btn, x) {
+        const pinned = btn.classList.contains('pinned');
+        const after  = getDragAfterElement(tabsContainer, x, pinned);
+        if (pinned) {
+            const firstUnpinned = [...tabsContainer.querySelectorAll('.tab-button')]
+                .find(b => b !== btn && !b.classList.contains('pinned'));
+            tabsContainer.insertBefore(btn, after ?? firstUnpinned ?? null);
+        } else if (after == null) {
+            tabsContainer.appendChild(btn);
+        } else {
+            tabsContainer.insertBefore(btn, after);
+        }
+    }
+
+    // Auto-scroll the strip while a tab is dragged near its edges — without
+    // this a tab can't be moved from one end of an overflowing strip to the
+    // other in a single gesture.
+    let edgeScrollDir   = 0;
+    let edgeScrollTimer = null;
+    function edgeAutoScroll(x) {
+        const r   = tabsContainer.getBoundingClientRect();
+        const dir = x < r.left + 24 ? -1 : (x > r.right - 24 ? 1 : 0);
+        if (dir === edgeScrollDir) return;
+        edgeScrollDir = dir;
+        clearInterval(edgeScrollTimer); edgeScrollTimer = null;
+        if (dir) edgeScrollTimer = setInterval(() => { tabsContainer.scrollLeft += dir * 12; }, 16);
+    }
+    function stopEdgeScroll() {
+        edgeScrollDir = 0;
+        clearInterval(edgeScrollTimer); edgeScrollTimer = null;
     }
 
     // ─────────────────────────────────────────────────────────────────────────

@@ -110,13 +110,19 @@ class Shortcuts {
             this.tabManager.createTab();
         });
 
+        // New private tab — fully isolated session, wiped when the tab closes
+        this.registerShortcut('CmdOrCtrl+Alt+T', () => {
+            this.tabManager.createTab(null, true, true);
+        });
+
         // New window
         this.registerShortcut('CmdOrCtrl+N', () => {
             if (this.windowManager) this.windowManager.createWindow();
         });
 
         // New private window — Cmd/Ctrl+Shift+N (Chrome) and Cmd/Ctrl+Shift+P
-        // (Firefox) both open one. Private browsing is window-scoped, not per-tab.
+        // (Firefox) both open one. Every tab inside is private, each with its
+        // own isolated session (see Features/private-session.js).
         const openPrivateWindow = () => {
             if (this.windowManager) this.windowManager.createWindow(800, 600, { private: true });
         };

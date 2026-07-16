@@ -157,6 +157,7 @@ window.addEventListener('blur', () => {
 contextBridge.exposeInMainWorld(
     "tab", {
         add: () => ipcRenderer.invoke("addTab"),
+        addPrivate: () => ipcRenderer.invoke("addPrivateTab"),
         addLazy: (url) => ipcRenderer.invoke("addTabLazy", url),
         remove: (index) => ipcRenderer.invoke("removeTab", index),
         switch: (index) => ipcRenderer.invoke("switchTab", index),
@@ -225,9 +226,8 @@ contextBridge.exposeInMainWorld(
         getThisWindowId: () => ipcRenderer.invoke('get-this-window-id'),
         moveTabToWindow: (fromWindowId, tabIndex, targetWindowId, url) => ipcRenderer.invoke('move-tab-to-window', fromWindowId, tabIndex, targetWindowId, url),
         detachToNewWindow: (tabIndex, screenX, screenY, url) => ipcRenderer.invoke('detach-to-new-window', tabIndex, screenX, screenY, url),
-        tearOffStart: (tabIndex, url) => ipcRenderer.invoke('tab-tearoff-start', tabIndex, url),
-        tearOffDrop: () => ipcRenderer.invoke('tab-tearoff-drop'),
-        tearOffCancel: () => ipcRenderer.send('tab-tearoff-cancel'),
+        dragTrack: (on) => ipcRenderer.send('tab-drag-track', !!on),
+        drop: (tabIndex, url) => ipcRenderer.invoke('tab-drag-drop', tabIndex, url),
         onMergeHover: (fn) => ipcRenderer.on('tab-merge-hover', (_e, v) => fn(v))
     }
 );

@@ -13,20 +13,28 @@ function permRow(p) {
     label.className = 'perm-label';
     label.textContent = p.label;
 
+    // Three explicit states. The default is "Ask" (block-by-default: the site
+    // must prompt before using the resource) — it must NOT read as "Allow".
     const seg = document.createElement('div');
     seg.className = 'seg';
+    const ask   = document.createElement('button');
+    ask.textContent   = 'Ask';
     const allow = document.createElement('button');
     allow.textContent = 'Allow';
     const block = document.createElement('button');
     block.textContent = 'Block';
     const paint = (state) => {
-        allow.classList.toggle('on', state !== 'block');
-        block.classList.toggle('on', state === 'block');
+        const s = (state === 'allow' || state === 'block') ? state : 'ask';
+        ask.classList.toggle('on',   s === 'ask');
+        allow.classList.toggle('on', s === 'allow');
+        block.classList.toggle('on', s === 'block');
     };
     paint(p.state);
+    // 'ask' clears any stored decision (Features/site-permissions.js#set).
+    ask.addEventListener('click',   () => { paint('ask');   api.setPermission(p.name, 'ask'); });
     allow.addEventListener('click', () => { paint('allow'); api.setPermission(p.name, 'allow'); });
     block.addEventListener('click', () => { paint('block'); api.setPermission(p.name, 'block'); });
-    seg.appendChild(allow); seg.appendChild(block);
+    seg.appendChild(ask); seg.appendChild(allow); seg.appendChild(block);
 
     row.appendChild(label); row.appendChild(seg);
     return row;

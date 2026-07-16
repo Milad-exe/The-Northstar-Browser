@@ -1,15 +1,20 @@
 'use strict';
 /**
- * Per-origin site permissions — backs the lock-icon site-info panel.
+ * Per-origin site permissions — backs the lock-icon site-info panel and the
+ * permission doorhanger (Features/permission-prompt.js).
  *
  * Stores a small map of { origin: { permission: 'allow' | 'block' } }. Anything
- * not explicitly set is treated as the default (allow), preserving the browser's
- * existing allow-by-default behaviour; the panel lets the user Block a site.
- * Persisted encrypted (Features/encryption.js), like the rest of user data.
+ * not explicitly set is 'ask' — the block-by-default state where the site must
+ * prompt before using the resource. Persisted encrypted (Features/encryption.js),
+ * like the rest of user data.
+ *
+ * Emits 'change' (origin, name, value) whenever a stored decision changes so the
+ * permission layer can drop stale in-memory (temporary) grants for that origin.
  */
 
 const fs   = require('fs');
 const path = require('path');
+const { EventEmitter } = require('events');
 const { app } = require('electron');
 const { encrypt, decrypt, isEncrypted } = require('./encryption');
 
@@ -24,8 +29,12 @@ const MANAGED_NAMES = new Set(MANAGED.map(p => p.name));
 
 const { parse: parseTld } = require('tldts');
 
-class SitePermissions {
-    constructor() { this.file = null; this.data = { perms: {}, sitesOff: {} }; this.loaded = false; }
+class SitePermissions extends EventEmitter {
+    constructor() {
+        super();
+        this.file = null; this.data = { perms: {}, sitesOff: {} }; this.loaded = false;
+        this.MANAGED = MANAGED;
+    }
 
     _load() {
         if (this.loaded) return;
@@ -68,6 +77,7 @@ class SitePermissions {
         else delete this.data.perms[origin][name]; // 'ask' / anything else clears it
         if (Object.keys(this.data.perms[origin]).length === 0) delete this.data.perms[origin];
         this._save();
+        this.emit('change', origin, name, value);
     }
 
     // Permission list for the panel.
@@ -75,9 +85,6 @@ class SitePermissions {
         this._load();
         return MANAGED.map(p => ({ name: p.name, label: p.label, state: this.state(origin, p.name) }));
     }
-
-    // Grant decision: allow unless the user explicitly blocked it.
-    decide(origin, name) { return this.state(origin, name) !== 'block'; }
 
     // ── Per-site protections shield (lock-icon panel) ────────────────────────
     // When a site is "off", the request pipeline skips ad/tracker blocking,
