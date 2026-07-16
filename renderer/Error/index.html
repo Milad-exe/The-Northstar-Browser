@@ -26,12 +26,10 @@
       gap: 16px;
       padding: 40px;
       text-align: center;
+      user-select: none; -webkit-user-select: none;   /* UI text, not copy */
     }
-    .icon {
-      font-size: 48px;
-      line-height: 1;
-      opacity: 0.35;
-    }
+    .url { user-select: text; -webkit-user-select: text; }  /* the failed URL is copyable */
+    .icon { color: var(--text-3); line-height: 1; }
     h1 {
       font-size: 22px;
       font-weight: 600;
@@ -56,7 +54,7 @@
     button {
       border: 1px solid var(--border-2);
       background: transparent;
-      border-radius: 9999px;
+      border-radius: 0;
       padding: 8px 20px;
       font-family: var(--font);
       font-size: 13px;
@@ -76,7 +74,12 @@
 </head>
 <body>
   <div class="page">
-    <div class="icon">⚠️</div>
+    <div class="icon">
+      <svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3.5L2.8 19.5h18.4L12 3.5z"/>
+        <path d="M12 9.5v4.5M12 16.8v.1"/>
+      </svg>
+    </div>
     <h1 id="title">Can't reach this page</h1>
     <div class="url" id="url"></div>
     <div class="detail" id="detail"></div>

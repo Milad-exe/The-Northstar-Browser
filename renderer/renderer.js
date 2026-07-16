@@ -104,6 +104,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const reloadBtn        = document.getElementById('reload-btn');
     const omnibox          = document.querySelector('.omnibox');
     const omniIcon         = document.getElementById('omni-icon');
+    const urlDisplay       = document.getElementById('url-display');
     const menuBtn          = document.getElementById('menu-btn');
     const addBtn           = document.getElementById('new-tab-btn');
     const tabDragSpacer    = document.getElementById('tab-drag-spacer');
@@ -241,6 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateSuggestions();
         });
         searchBar.addEventListener('focus', () => {
+            updateUrlDisplay();
             updateOmniboxIcon();
             if (userTyping) {
                 if (searchBar.value.trim()) updateSuggestions();
@@ -254,12 +256,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         searchBar.addEventListener('blur', () => {
-            // Uncommitted typed text stays in the bar (Firefox); otherwise fall
-            // back to the resting domain display.
-            if (!barEdited) {
-                const domain = getDomainDisplay(currentTabUrl);
-                if (domain) searchBar.value = domain;
-            }
+            // Uncommitted typed text stays in the bar (Firefox); otherwise rest
+            // on the full URL with the host emphasised (url-display overlay).
+            if (!barEdited && currentTabUrl) searchBar.value = restingValueFor(currentTabUrl);
+            updateUrlDisplay();
             updateOmniboxIcon();
             setTimeout(() => {
                 if (overlayPointerDown) return;
@@ -712,6 +712,43 @@ document.addEventListener('DOMContentLoaded', () => {
         return window.urlUtils?.getDomain(url) || url;
     }
 
+    // ── Firefox-style resting URL display ─────────────────────────────────────
+    // While the bar is unfocused the full URL stays visible, painted into the
+    // #url-display overlay: host in full text colour, scheme and path dimmed.
+    // The input underneath keeps the complete URL (transparent text) so focus
+    // and select-all behave normally.
+
+    // Parse `url` into [dimmed prefix, host, dimmed rest]; null if it isn't a
+    // plain displayable http(s) URL.
+    function urlDisplayParts(url) {
+        let u;
+        try { u = new URL(url); } catch { return null; }
+        if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+        if (!url.startsWith(u.origin)) return null; // credentials or odd forms: show plain
+        return [u.protocol + '//', u.host, url.slice(u.origin.length)];
+    }
+
+    // Resting input value: the full URL for http(s) pages, the legacy domain
+    // fallback for internal pages (newtab, file://).
+    function restingValueFor(url) {
+        return urlDisplayParts(url) ? url : getDomainDisplay(url);
+    }
+
+    function updateUrlDisplay() {
+        const parts = currentTabUrl ? urlDisplayParts(currentTabUrl) : null;
+        const resting = document.activeElement !== searchBar && !barEdited &&
+                        !!parts && searchBar.value === currentTabUrl;
+        if (resting) {
+            const [pre, host, rest] = parts;
+            urlDisplay.textContent = '';
+            const hostEl = document.createElement('span');
+            hostEl.className = 'host';
+            hostEl.textContent = host;
+            urlDisplay.append(pre, hostEl, rest);
+        }
+        omnibox?.classList.toggle('showing-url', resting);
+    }
+
     function updateSearchBarUrl(url) {
         // Never clobber the address bar while the user is typing in it — page
         // events (redirects, title/favicon updates) kept re-inserting the old
@@ -721,11 +758,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // refreshes); only a real navigation replaces it, like Firefox.
         if (barEdited && url === currentTabUrl) return;
         barEdited = false;
+        currentTabUrl = url || ''; // callers re-assign right after; needed here so the display check is coherent
         if (document.activeElement !== searchBar) {
-            searchBar.value = getDomainDisplay(url);
+            searchBar.value = restingValueFor(url);
         } else {
             searchBar.value = url;
         }
+        updateUrlDisplay();
         updateOmniboxIcon();
         hideSuggestions();
     }
@@ -1633,6 +1672,9 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => { updateTabWidths(data.totalTabs); updateScrollShadows(); }, 10);
         });
 
+        // Speaker on audible tabs; mic/camera in danger colour while recording.
+        window.tab.onMediaIndicator?.((_e, d) => updateTabIndicator(d.index, d));
+
         window.tab.onTabRemoved((_e, data) => {
             tabUrls.delete(data.index);
             tabPrivate.delete(data.index);
@@ -1940,6 +1982,55 @@ document.addEventListener('DOMContentLoaded', () => {
         const active = tabs.get(index);
         if (active) active.classList.add('active');
         activeTabIndex = index;
+    }
+
+    // ── Tab media indicator: audible/muted speaker, recording mic/camera ─────
+    const INDICATOR_SVG = {
+        audio:  '<svg viewBox="0 0 20 20" width="11" height="11" fill="currentColor"><path d="M3.5 7.5v5H7l4 3.5v-12L7 7.5H3.5z"/><path d="M13.5 7a4 4 0 010 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+        muted:  '<svg viewBox="0 0 20 20" width="11" height="11" fill="currentColor"><path d="M3.5 7.5v5H7l4 3.5v-12L7 7.5H3.5z"/><path d="M13 8l4 4M17 8l-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+        mic:    '<svg viewBox="0 0 20 20" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="7.5" y="2.5" width="5" height="9" rx="2.5"/><path d="M4.5 9.5a5.5 5.5 0 0011 0M10 15v2.5"/></svg>',
+        camera: '<svg viewBox="0 0 20 20" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5.5" width="11" height="9" rx="1.5"/><path d="M13 9l5-2.5v7L13 11"/></svg>',
+    };
+    const INDICATOR_TITLE = {
+        audio:  'Playing audio — click to mute',
+        muted:  'Muted — click to unmute',
+        mic:    'Using your microphone',
+        camera: 'Using your camera',
+    };
+
+    function updateTabIndicator(index, d) {
+        const btn = tabs.get(index);
+        if (!btn) return;
+        let el = btn.querySelector('.tab-indicator');
+        // Recording outranks audio: you must always see that a tab has your mic.
+        // A muted tab keeps its (crossed) speaker while media plays, so there's
+        // always something to click to unmute.
+        const kind = d.capture === 'camera' ? 'camera'
+                   : d.capture === 'mic'    ? 'mic'
+                   : d.muted && d.playing   ? 'muted'
+                   : d.audible              ? 'audio'
+                   : null;
+        if (!kind) { el?.remove(); return; }
+        if (!el) {
+            el = document.createElement('span');
+            el.className = 'tab-indicator';
+            // The speaker is a button: click toggles the tab's audio without
+            // switching to it.
+            el.addEventListener('click', (e) => {
+                if (el.dataset.kind !== 'audio' && el.dataset.kind !== 'muted') return;
+                e.stopPropagation();
+                window.tab.toggleMute(index);
+            });
+            el.addEventListener('mousedown', (e) => e.stopPropagation());
+            btn.insertBefore(el, btn.querySelector('.tab-title'));
+        }
+        if (el.dataset.kind !== kind) {
+            el.dataset.kind = kind;
+            el.innerHTML = INDICATOR_SVG[kind];
+            el.classList.toggle('rec', kind === 'mic' || kind === 'camera');
+            el.classList.toggle('clickable', kind === 'audio' || kind === 'muted');
+            el.title = INDICATOR_TITLE[kind];
+        }
     }
 
     function updateTabTitle(index, title, faviconUrl) {

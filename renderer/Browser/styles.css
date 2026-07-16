@@ -45,7 +45,7 @@ html[data-vibrancy="true"] #content-area { background: transparent; }
 
 .wc-mac { gap: 8px; padding-left: 4px; padding-right: 8px; }
 .wc-mac .wc-btn {
-  width: 12px; height: 12px; border-radius: 50%;
+  width: 12px; height: 12px; border-radius: 50%; /* native macOS traffic lights stay round */
   border: none; cursor: pointer; padding: 0; transition: filter 0.1s;
 }
 .wc-mac .wc-close    { background: #ff5f57; }
@@ -62,7 +62,7 @@ html[data-vibrancy="true"] #content-area { background: transparent; }
 }
 .wc-win .wc-btn svg { width: 10px; height: 10px; pointer-events: none; }
 .wc-win .wc-btn:hover { background: var(--hover); color: var(--text); }
-.wc-win .wc-close:hover { background: #c0392b; color: #fff; }
+.wc-win .wc-close:hover { background: var(--danger); color: #fff; }
 
 /* ── Utility Bar ─────────────────────────── */
 #utility-bar {
@@ -85,7 +85,7 @@ html[data-vibrancy="true"] #content-area { background: transparent; }
 
 .nav-btn {
   width: 30px; height: 30px; border: none; background: transparent;
-  border-radius: 9px; color: var(--text-2); cursor: pointer;
+  border-radius: 0; color: var(--text-2); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: color 0.12s, background 0.12s;
 }
@@ -105,7 +105,7 @@ html[data-vibrancy="true"] #content-area { background: transparent; }
   display: flex; align-items: center; height: 36px;
   background: color-mix(in srgb, var(--bg) 55%, transparent);
   border: 1px solid var(--border);
-  border-radius: 999px; padding: 0 15px; gap: 9px;   /* soft full pill */
+  border-radius: 0; padding: 0 15px; gap: 9px;   /* hard-edged slab */
   transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 }
 .omnibox:focus-within {
@@ -134,18 +134,35 @@ html[data-vibrancy="true"] #content-area { background: transparent; }
 .omnibox[data-omni="secure"]   .omni-icon:hover,
 .omnibox[data-omni="insecure"] .omni-icon:hover { color: var(--text); }
 
+.omni-input { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; }
+
 #searchBar {
-  flex: 1; background: transparent; border: none; outline: none;
+  width: 100%; background: transparent; border: none; outline: none;
   font-family: var(--font); font-size: 13.5px; font-weight: 500;
   letter-spacing: -0.015em; color: var(--text);
 }
 #searchBar::placeholder { color: var(--text-3); }
 
+/* Firefox-style resting URL — the full URL stays visible when the bar is not
+   focused: the host reads in full text colour, scheme and path recede. The
+   real input still holds the complete URL underneath (text made transparent),
+   so click-to-edit and select-all behave exactly as before. */
+#url-display {
+  position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
+  display: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: var(--font); font-size: 13.5px; font-weight: 500;
+  letter-spacing: -0.015em; color: var(--text-2);
+  pointer-events: none;
+}
+#url-display .host { color: var(--text); }
+.omnibox.showing-url #searchBar { color: transparent; }
+.omnibox.showing-url #url-display { display: block; }
+
 .trailing-icons { display: flex; gap: 2px; align-items: center; flex-shrink: 0; }
 
 .icon-btn {
   width: 30px; height: 30px; border: none; background: transparent;
-  border-radius: 9px; color: var(--text-2); cursor: pointer;
+  border-radius: 0; color: var(--text-2); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: color 0.12s, background 0.12s; position: relative;
 }
@@ -162,12 +179,12 @@ browser-action-list {
   --browser-action-hover-bg: var(--hover);
 }
 browser-action-list::part(action) {
-  width: 30px; height: 30px; border-radius: 9px;
+  width: 30px; height: 30px; border-radius: 0;
   background-size: 60%;
 }
 browser-action-list::part(badge) {
   font-size: 8px; min-width: 12px; height: 12px; line-height: 12px;
-  border-radius: 6px; padding: 0 2px;
+  border-radius: 0; padding: 0 2px;
 }
 
 /* Reader / Picture-in-Picture buttons */
@@ -179,7 +196,7 @@ browser-action-list::part(badge) {
 .downloads-btn.hidden { display: none; }
 .downloads-btn .downloads-dot {
   display: none; position: absolute; top: 5px; right: 5px;
-  width: 5px; height: 5px; border-radius: 50%;
+  width: 5px; height: 5px; border-radius: 0;
   background: var(--text);
 }
 .downloads-btn.has-new .downloads-dot { display: block; }
@@ -190,7 +207,7 @@ browser-action-list::part(badge) {
 #bookmark-btn .bookmark-filled { display: none; }
 #bookmark-btn.bookmarked .bookmark-outline { display: none; }
 #bookmark-btn.bookmarked .bookmark-filled { display: block; }
-#bookmark-btn.bookmarked { color: #f5c842; }
+#bookmark-btn.bookmarked { color: var(--accent); }
 
 /* ── Bookmark Bar ─────────────────────────── */
 .bookmark-bar {
@@ -211,7 +228,7 @@ browser-action-list::part(badge) {
 .bookmark-bar-item {
   display: flex; align-items: center; gap: 6px;
   padding: 0 10px; height: 23px;
-  border: none; background: transparent; border-radius: 999px;  /* soft pill */
+  border: none; background: transparent; border-radius: 0;  /* square chip */
   cursor: pointer; font-family: var(--font); font-size: 11.5px; font-weight: 500;
   color: var(--text-2); white-space: nowrap; max-width: 160px;
   overflow: hidden; text-overflow: ellipsis;
@@ -219,7 +236,7 @@ browser-action-list::part(badge) {
   margin: 0 1px; position: relative;
 }
 .bookmark-bar-item:hover { background: var(--hover); color: var(--text); }
-.bookmark-bar-favicon { width: 12px; height: 12px; flex-shrink: 0; border-radius: 2px; }
+.bookmark-bar-favicon { width: 12px; height: 12px; flex-shrink: 0; border-radius: 0; }
 .bookmark-bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .bookmark-bar-more {
@@ -241,7 +258,7 @@ browser-action-list::part(badge) {
 .bookmark-bar-rename-input {
   background: var(--bg-2, var(--bg));
   border: 1px solid var(--accent, #4a9eff);
-  border-radius: 3px;
+  border-radius: 0;
   color: var(--text);
   font: inherit;
   font-size: 11px;
@@ -272,7 +289,7 @@ browser-action-list::part(badge) {
   left: -2px; top: 2px; bottom: 2px;
   width: 2px;
   background: var(--accent, #4a9eff);
-  border-radius: 1px;
+  border-radius: 0;
   pointer-events: none;
 }
 
@@ -290,14 +307,14 @@ browser-action-list::part(badge) {
   background: var(--surface); border: 1px solid var(--border-2);
   min-width: 200px; max-width: 300px;
   padding: 4px;
-  border-radius: 12px;
+  border-radius: 0;
   overflow: hidden;
 }
 
 .bookmark-overflow-item {
   display: flex; align-items: center; gap: 8px;
   width: 100%; padding: 6px 10px;
-  border: none; border-radius: 8px; background: transparent; cursor: pointer;
+  border: none; border-radius: 0; background: transparent; cursor: pointer;
   font-family: var(--font); font-size: 12px;
   color: var(--text-2); text-align: left;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -314,7 +331,7 @@ browser-action-list::part(badge) {
   top: 0; left: 8px; right: 8px;
   height: 2px;
   background: var(--accent, #4a9eff);
-  border-radius: 1px;
+  border-radius: 0;
   pointer-events: none;
 }
 
@@ -384,7 +401,7 @@ html.tab-dragging * { user-select: none !important; -webkit-user-select: none !i
 #tab-bar.merge-target { background: var(--active-bg); }
 #tab-bar.merge-target::after {
   content: ''; position: absolute; inset: 2px 4px;
-  border: 1.5px dashed var(--text-3); border-radius: 8px;
+  border: 1.5px dashed var(--text-3); border-radius: 0;
   pointer-events: none;
 }
 /* Interactive bits inside the draggable strip must opt out of the drag region. */
@@ -430,8 +447,8 @@ html.tab-dragging * { user-select: none !important; -webkit-user-select: none !i
 .tab-button {
   display: flex; align-items: center; gap: 8px;
   padding: 0 26px 0 12px;
-  height: calc(100% - 12px);        /* soft pill floating inside the strip */
-  border-radius: 9px;
+  height: 100%;                     /* full-height: tabs sit ON the toolbar, not float over it */
+  border-radius: 0;
   background: transparent; border: none;
   color: var(--text-2);
   font-family: var(--font); font-size: 12.5px; font-weight: 500; letter-spacing: -0.015em;
@@ -445,28 +462,41 @@ html.tab-dragging * { user-select: none !important; -webkit-user-select: none !i
   outline-offset: -2px;
   z-index: 10;
 }
-/* Active tab: a soft raised card — filled with the toolbar's surface colour
-   plus a hairline ring (inset shadow: no layout shift), floating like the
-   reference's segmented pills. */
+/* Active tab: a true file-folder tab — same surface as the toolbar it opens
+   into, hairline on top and sides, OPEN at the bottom so tab and address bar
+   read as one attached piece (inset shadow: no layout shift). */
 .tab-button.active {
   background: var(--surface);
   color: var(--text);
-  box-shadow: inset 0 0 0 1px var(--border-2);
+  box-shadow: inset 1px 0 0 var(--border-2), inset -1px 0 0 var(--border-2), inset 0 1px 0 var(--border-2);
 }
 
 .tab-favicon {
-  width: 14px; height: 14px; flex-shrink: 0; border-radius: 3px; object-fit: cover;
+  width: 14px; height: 14px; flex-shrink: 0; border-radius: 0; object-fit: cover;
   opacity: 0.7; transition: opacity 0.12s;
 }
 .tab-button:hover .tab-favicon,
 .tab-button.active .tab-favicon { opacity: 1; }
 .tab-title { flex: 1; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 160px; }
 
+/* Media indicator: speaker while a tab is audible (click = mute/unmute);
+   mic/camera in the danger colour while it holds a recording grant. Sits
+   between favicon and title. */
+.tab-indicator {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 16px; height: 16px; margin: 0 -2px;
+  color: var(--text-2);
+}
+.tab-indicator.rec { color: var(--danger); }
+.tab-indicator.clickable { cursor: pointer; }
+.tab-indicator.clickable:hover { color: var(--text); background: var(--active-bg); }
+.tab-button.pinned .tab-indicator { display: none; }
+
 /* Loading tab: a thin monochrome spinner sits in the favicon slot. */
 .tab-button.loading .tab-favicon { visibility: hidden; }
 .tab-button.loading::before {
   content: ''; position: absolute; left: 11px; top: 50%; margin-top: -6px;
-  width: 12px; height: 12px; box-sizing: border-box; border-radius: 50%;
+  width: 12px; height: 12px; box-sizing: border-box; border-radius: 50%; /* a spinner must stay circular */
   border: 1.5px solid var(--border-2); border-top-color: var(--text-2);
   animation: tab-spin 0.7s linear infinite;
 }
@@ -475,7 +505,7 @@ html.tab-dragging * { user-select: none !important; -webkit-user-select: none !i
 
 .tab-close {
   position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
-  width: 18px; height: 18px; border-radius: 5px;
+  width: 18px; height: 18px; border-radius: 0;
   background: transparent; border: none; font-size: 13px; line-height: 1;
   color: var(--text-3); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
@@ -491,7 +521,7 @@ html.tab-dragging * { user-select: none !important; -webkit-user-select: none !i
 .tab-button.pinned .tab-close { display: none; }
 
 #new-tab-btn {
-  width: 30px; height: 30px; border-radius: 9px;
+  width: 30px; height: 30px; border-radius: 0;
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: none;
   color: var(--text-2); font-size: 18px; font-weight: 300;
@@ -510,7 +540,7 @@ html.tab-dragging * { user-select: none !important; -webkit-user-select: none !i
 .pomodoro-pill {
   display: flex; align-items: center; gap: 6px;
   height: 28px; padding: 0 10px 0 8px;
-  border-radius: 0;
+  border-radius: 0;               /* square, like the omnibox */
   background: transparent; border: 1px solid var(--border);
   cursor: pointer; flex-shrink: 0;
   transition: border-color 0.15s; user-select: none;
@@ -527,16 +557,16 @@ html.tab-dragging * { user-select: none !important; -webkit-user-select: none !i
   transform: rotate(-90deg); transform-origin: 14px 14px;
   transition: stroke-dashoffset 1s linear, stroke 0.3s;
 }
-.pill-ring-fill.break { stroke: #4ec94e; }
+.pill-ring-fill.break { stroke: var(--accent); }
 .pill-phase-dot {
   width: 5px; height: 5px; border-radius: 0;
   background: var(--text); flex-shrink: 0; transition: background 0.3s;
 }
-.pill-phase-dot.break { background: #4ec94e; }
+.pill-phase-dot.break { background: var(--accent); }
 .pill-time {
   font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em; color: var(--text); white-space: nowrap;
-  font-family: 'Menlo', monospace;
+  font-family: var(--mono);
 }
 
 /* ── Focus btn active ────────────────────── */
@@ -562,12 +592,12 @@ html.tab-dragging * { user-select: none !important; -webkit-user-select: none !i
   font-size: 10px; font-weight: 700;
   letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-3);
 }
-.pomodoro-phase.break { color: #4ec94e; }
+.pomodoro-phase.break { color: var(--accent); }
 
 .pomodoro-time {
   font-size: 64px; font-weight: 200; letter-spacing: -2px;
   color: var(--text); line-height: 1; font-variant-numeric: tabular-nums;
-  font-family: 'Menlo', monospace;
+  font-family: var(--mono);
 }
 
 .pomodoro-controls { display: flex; gap: 6px; }
@@ -610,7 +640,6 @@ html.tab-dragging * { user-select: none !important; -webkit-user-select: none !i
 }
 .tab-button[data-private="true"].active {
   background: rgba(110,70,200,0.18);
-  border-bottom-color: rgba(110,70,200,0.18);
   color: #9b59f0;
 }
 .tab-button[data-private="true"] .tab-title {
@@ -629,9 +658,9 @@ html.tab-dragging * { user-select: none !important; -webkit-user-select: none !i
   text-transform: uppercase;
   color: #7c3aed;
   padding: 0 10px;
-  background: rgba(124,58,237,0.10);  /* soft pastel pill, no hard border */
+  background: rgba(124,58,237,0.10);  /* soft pastel chip, square */
   border: none;
-  border-radius: 999px;
+  border-radius: 0;
   height: 21px;
   margin-right: 6px;
   flex-shrink: 0;

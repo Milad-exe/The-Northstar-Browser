@@ -18,7 +18,7 @@ body {
   display: flex; flex-direction: column;
   background: var(--surface);
   border: 1px solid var(--border-2);
-  border-radius: 12px; padding: 10px;
+  border-radius: 0; padding: 10px;
   width: 100%; max-width: 264px; gap: 8px;
 }
 
@@ -26,10 +26,10 @@ body {
   width: 100%; border: 1px solid var(--border-2); outline: none;
   font-size: 12.5px; font-family: inherit; padding: 8px 11px;
   background: var(--bg); color: var(--text);
-  border-radius: 8px; transition: border-color 0.14s, box-shadow 0.14s;
+  border-radius: 0; transition: border-color 0.14s, box-shadow 0.14s;
 }
 #find-input::placeholder { color: var(--text-3); }
-#find-input:focus { border-color: var(--text-3); }
+#find-input:focus { border-color: color-mix(in srgb, var(--accent) 50%, var(--border-2)); }
 
 .find-controls {
   display: flex; align-items: center; justify-content: space-between; gap: 6px;
@@ -39,7 +39,7 @@ body {
 
 .find-btn {
   background: transparent; border: 1px solid var(--border-2);
-  color: var(--text-2); cursor: pointer; padding: 5px 8px; border-radius: 7px;
+  color: var(--text-2); cursor: pointer; padding: 5px 8px; border-radius: 0;
   font-size: 11px; font-family: inherit;
   display: flex; align-items: center; justify-content: center;
   min-width: 26px; height: 26px; transition: color 0.1s, background 0.1s, border-color 0.1s;
@@ -51,16 +51,20 @@ body {
 
 .close-btn {
   color: var(--text-3); font-size: 13px; background: transparent; border: none;
-  cursor: pointer; padding: 4px 6px; border-radius: 7px; transition: color 0.1s, background 0.1s;
+  cursor: pointer; padding: 4px 6px; border-radius: 0; transition: color 0.1s, background 0.1s;
   font-family: inherit;
 }
 .close-btn:hover { color: var(--text); background: var(--active-bg); }
 
 .match-counter {
-  font-size: 11px; color: var(--text-3); margin: 0 4px; min-width: 46px;
+  font-size: 11px; color: var(--text-2); margin: 0 4px; min-width: 46px;
   text-align: center; font-weight: 500;
   font-family: var(--mono, 'Menlo', monospace); letter-spacing: 0.04em;
 }
 
 .find-highlight { background: rgba(245,196,50,0.35); color: inherit; }
 .find-highlight.current { background: #f5c842; color: #000; }
+
+/* Chrome UI text is interface, not copy — never selectable. Inputs stay editable. */
+body { user-select: none; -webkit-user-select: none; }
+input, textarea { user-select: text; -webkit-user-select: text; }

@@ -126,6 +126,13 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
         return false;
     });
 
+    // Speaker icon on a tab → toggle that tab's audio.
+    ipcMain.handle('muteTab', (_e, index) => {
+        const wd = wm.getWindowByWebContents(_e.sender);
+        if (wd && wd.tabs) { wd.tabs.muteTab(index); return true; }
+        return false;
+    });
+
     ipcMain.handle('reorderTabs', (_e, order) => {
         const wd = wm.getWindowByWebContents(_e.sender);
         if (wd && wd.tabs) { wd.tabs.reorderTabs(order); return true; }

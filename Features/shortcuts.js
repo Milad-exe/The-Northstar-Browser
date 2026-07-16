@@ -391,19 +391,25 @@ class Shortcuts {
     // ── Developer shortcuts ────────────────────────────────────────────────────
 
     registerDeveloperShortcuts() {
+        // Devtools open for web content only — internal chrome pages (new tab,
+        // settings, history, …) are app UI and stay closed outside --dev runs.
+        const devtoolsAllowed = (wc) => {
+            if (process.argv.includes('--dev')) return true;
+            try { return /^https?:/i.test(wc.getURL() || ''); } catch { return false; }
+        };
         this.registerShortcut('F12', () => {
             const tab = this.activeTab();
-            if (tab) tab.webContents.toggleDevTools();
+            if (tab && devtoolsAllowed(tab.webContents)) tab.webContents.toggleDevTools();
         });
 
         this.registerShortcut('CmdOrCtrl+Shift+I', () => {
             const tab = this.activeTab();
-            if (tab) tab.webContents.toggleDevTools();
+            if (tab && devtoolsAllowed(tab.webContents)) tab.webContents.toggleDevTools();
         });
 
-        // Renderer devtools (for debugging the chrome UI itself)
+        // Renderer devtools (for debugging the chrome UI itself) — dev runs only.
         this.registerShortcut('CmdOrCtrl+Shift+J', () => {
-            this.mainWindow.webContents.toggleDevTools();
+            if (process.argv.includes('--dev')) this.mainWindow.webContents.toggleDevTools();
         });
     }
 

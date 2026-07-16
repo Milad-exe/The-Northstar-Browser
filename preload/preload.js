@@ -170,13 +170,15 @@ contextBridge.exposeInMainWorld(
         getTabUrl: (index) => ipcRenderer.invoke("getTabUrl", index),
         getButton: (index) => ipcRenderer.invoke("getTabButton", index),
         pin: (index) => ipcRenderer.invoke("pinTab", index),
+        toggleMute: (index) => ipcRenderer.invoke("muteTab", index),
     reorder: (order) => ipcRenderer.invoke('reorderTabs', order),
     onTabCreated: (callback) => ipcRenderer.on('tab-created', callback),
         onTabRemoved: (callback) => ipcRenderer.on('tab-removed', callback),
         onTabSwitched: (callback) => ipcRenderer.on('tab-switched', callback),
         onUrlUpdated: (callback) => ipcRenderer.on('url-updated', callback),
         onNavigationUpdated: (callback) => ipcRenderer.on('navigation-updated', callback),
-        onTabLoading: (callback) => ipcRenderer.on('tab-loading', callback)
+        onTabLoading: (callback) => ipcRenderer.on('tab-loading', callback),
+        onMediaIndicator: (callback) => ipcRenderer.on('tab-media-indicator', callback)
     }
 );
 

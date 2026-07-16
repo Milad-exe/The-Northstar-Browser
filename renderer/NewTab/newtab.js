@@ -26,187 +26,185 @@ function tick() {
   if (d) d.textContent = `${DAYS[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()}`;
 }
 
-// ── ASCII starfield background ───────────────────────────────────────────────
-// A stippled "north star over the mountains" scene, generated to fit the
-// viewport. Two summits frame the edges, a low valley sits behind the clock,
-// and the north star hangs above the gap. Purely decorative, no network use.
+// ── Background — ASCII-rendered mountains under a starry sky ─────────────────
+// The scene — layered ridges, a field of stars, and one genuinely bright
+// Polaris — is computed as a smooth luminance field, then rendered the way an
+// ASCII shader would: each character cell maps its brightness through a glyph
+// ramp (· : ; i I W), drawn on canvas in the theme's mono font and ink
+// colour. Deterministic (seeded hash), never animated, no network use.
 
 function hash(n) { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); }
-const smooth  = (a, b, t) => { t = Math.max(0, Math.min(1, (t - a) / (b - a))); return t * t * (3 - 2 * t); };
-const clamp01 = (v) => Math.max(0, Math.min(1, v));
+const smooth = (a, b, t) => { t = Math.max(0, Math.min(1, (t - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-// Coherent value noise — interpolated hash grid — so the stipple clusters into
-// a natural texture instead of looking like random static.
-function vnoise(x, y) {
-  const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
-  const h = (a, b) => hash(a * 157.3 + b * 113.7);
-  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
-  const tl = h(xi, yi), tr = h(xi + 1, yi), bl = h(xi, yi + 1), br = h(xi + 1, yi + 1);
-  return (tl * (1 - u) + tr * u) * (1 - v) + (bl * (1 - u) + br * u) * v;
-}
-const fbm = (x, y) => vnoise(x, y) * 0.65 + vnoise(x * 2.3 + 9.1, y * 2.3 + 3.7) * 0.35;
-
-function ridgeY(x, base, peaks) {
-  let h = 0;
-  for (const p of peaks) {
-    const t = Math.max(0, 1 - Math.abs(x - p.cx) / p.hw);   // triangular tent
-    h = Math.max(h, p.a * (t * t * (3 - 2 * t)));           // smoothstepped
-  }
-  h += (fbm(x * 14, 7) - 0.5) * 0.02;                       // gentle jagged rim
-  return base - h;
+// The theme's ink colour (--text, #rrggbb) as [r, g, b] for canvas alphas.
+function inkRGB() {
+  const v = getComputedStyle(document.documentElement).getPropertyValue('--text').trim();
+  const m = /^#([0-9a-f]{6})$/i.exec(v);
+  if (!m) return [230, 228, 228];
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-function buildAsciiScene(cols, rows, cellAR) {
-  const AR = cellAR || 2.0;
-  const grid = Array.from({ length: rows }, () => new Array(cols).fill(' '));
-  const put  = (r, c, ch) => { if (r >= 0 && r < rows && c >= 0 && c < cols) grid[r][c] = ch; };
+// The scene occupies the bottom-right 70% of the page and dissolves along its
+// top/left boundary, so the composition reads as one anchored piece of art
+// rather than wallpaper.
+const REGION = { x0: 0.30, y0: 0.30 };
 
-  // Elliptical clearing around the clock / search so the UI floats in calm
-  // space. Sized to the UI column only — art may live right beside it.
-  const clearing = (x, y) => {
-    const ex = (x - 0.5) / 0.26, ey = (y - 0.45) / 0.26;
-    const e = Math.sqrt(ex * ex + ey * ey);
-    return smooth(0.90, 1.30, e);
-  };
+function renderBackground() {
+  const canvas = document.getElementById('bg');
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const w = window.innerWidth, h = window.innerHeight;
+  canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  const [R, G, B] = inkRGB();
+  const ink = (a) => `rgba(${R},${G},${B},${a})`;
 
-  // ── Mountain — shaded heightfield massif (the organic look) ──────────────
-  // One dominant peak under Polaris with a secondary summit to its right,
-  // fading out toward the left. Density is shaped by slope shading (lit left
-  // face / shadowed right face), coherent value-noise texture, a crisp rim,
-  // and a dissolving base. Rendered with a SOFT dither — half ordered matrix,
-  // half hash noise — so the stipple stays organic without clumping.
-  const BAYER8 = [
-    [ 0,32, 8,40, 2,34,10,42],[48,16,56,24,50,18,58,26],
-    [12,44, 4,36,14,46, 6,38],[60,28,52,20,62,30,54,22],
-    [ 3,35,11,43, 1,33, 9,41],[51,19,59,27,49,17,57,25],
-    [15,47, 7,39,13,45, 5,37],[63,31,55,23,61,29,53,21],
-  ];
-  const softDither = (r, c) =>
-    0.5 * ((BAYER8[r % 8][c % 8] + 0.5) / 64) + 0.5 * hash(c * 7919 + r * 104729);
+  // Character grid in the theme's mono font.
+  const mono = getComputedStyle(document.documentElement).getPropertyValue('--mono').trim()
+            || "ui-monospace, Menlo, monospace";
+  const CW = 8, CH = 13;                          // cell size (px)
+  const cols = Math.ceil(w / CW), rows = Math.ceil(h / CH);
+  ctx.font = `11px ${mono}`;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
 
-  // The dominant summit sits to the RIGHT of the UI column (x > 0.7) so its
-  // top never intersects the clearing and the peak reads whole.
-  const base  = 1.05;
-  const peaks = [
-    { cx: 0.70, a: 0.20, hw: 1.05 },   // broad connecting base
-    { cx: 0.80, a: 0.50, hw: 0.26 },   // dominant peak (under the star)
-    { cx: 0.55, a: 0.26, hw: 0.18 },   // low shoulder toward the valley
-  ];
-  const ridge = (xx) => {
-    let h = 0;
+  // Region-space coordinates: (u, v) ∈ [0,1] inside the bottom-right block.
+  const toU = (x) => (x - REGION.x0) / (1 - REGION.x0);
+  const toV = (y) => (y - REGION.y0) / (1 - REGION.y0);
+
+  // ── Three mountain planes with atmospheric perspective ───────────────────
+  // Each plane: tent-function skyline + its own light. The sun (well, star-
+  // light) comes from the upper LEFT: west faces catch it, east faces fall
+  // into shadow — that directional shading is what gives the relief depth.
+  const ridge = (u, peaks) => {
+    let hh = 0;
     for (const p of peaks) {
-      const t = Math.max(0, 1 - Math.abs(xx - p.cx) / p.hw);
-      h = Math.max(h, p.a * (t * t * (3 - 2 * t)));
+      const t = Math.max(0, 1 - Math.abs(u - p.cx) / p.hw);
+      hh = Math.max(hh, p.a * (t * t * (3 - 2 * t)));
     }
-    h += (fbm(xx * 14, 7) - 0.5) * 0.018;                   // gentle jagged rim
-    return base - h;
+    return hh;
   };
-  const dx = 1 / cols;
-  const leftFade = (x) => smooth(0.02, 0.30, x);            // recedes to the west
-
-  for (let c = 0; c < cols; c++) {
-    const x = c / cols;
-    const rY = ridge(x);
-    const span  = Math.max(0.05, base - rY);
-    const slope = (ridge(x + dx) - ridge(x - dx)) / (2 * dx);
-    const lit   = clamp01(0.5 - slope * 0.6);               // light from upper-left
-    for (let r = 0; r < rows; r++) {
-      const y = r / rows;
-      if (y < rY) continue;
-      const t = (y - rY) / span;                            // 0 at rim → 1 at base
-      let d;
-      if (y - rY < 0.016) d = 1;                            // crisp rim
-      else {
-        const grad  = clamp01(1 - 0.5 * t);                 // solid up top, eases down
-        const shade = 0.52 + 0.72 * lit;                    // 3D face shading
-        const tex   = 0.82 + 0.34 * fbm(x * 6.0, y * 6.0 * AR); // coherent texture
-        d = grad * shade * tex;
-        if (t > 0.6) d *= smooth(1.0, 0.6, t);              // dissolve toward the base
-      }
-      d *= leftFade(x) * clearing(x, y);
-      if (d > softDither(r, c)) grid[r][c] = (d > 0.8 && hash(r * 31 + c) < 0.16) ? ':' : '·';
-    }
-  }
-
-  // ── Sky — sparse and quiet; stars thin toward the horizon ────────────────
-  for (let c = 0; c < cols; c++) {
-    const x = c / cols;
-    for (let r = 0; r < rows; r++) {
-      const y = r / rows;
-      if (grid[r][c] !== ' ') continue;
-      const p = 0.0017 * (1.15 - y) * clearing(x, y);
-      if (Math.random() < p) grid[r][c] = Math.random() < 0.12 ? '*' : '·';
-    }
-  }
-
-  // ── Ursa Minor — the Little Dipper, its handle ending at Polaris ──────────
-  // Offsets are in "sky units" (x right, y down), scaled per grid; the bowl
-  // hangs down-left of the pole star exactly as it reads in the north sky.
-  // The Dipper wheels around Polaris through the night — this orientation has
-  // the handle rising to the upper-right, keeping the whole figure in the
-  // empty corner of the sky, well away from the clock.
-  const sc = Math.round(0.78 * cols), sr = Math.round(0.19 * rows);
-  const S = Math.min(cols * 0.050, (rows * 0.075) * AR);     // constellation scale
-  const DIP = [
-    { x: 0.00,  y:  0.00 },    // Polaris
-    { x: 0.9,   y: -0.55 },    // Yildun
-    { x: 1.7,   y: -0.95 },    // Epsilon UMi
-    { x: 2.6,   y: -1.15 },    // Zeta UMi (bowl rim)
-    { x: 3.6,   y: -1.45 },    // Eta UMi
-    { x: 3.5,   y: -2.15 },    // Gamma UMi (Pherkad)
-    { x: 2.5,   y: -1.85 },    // Beta UMi (Kochab) — closes the bowl
+  const PLANES = [
+    { // far range — a low hazy wall near the region's midline
+      peaks: [{ cx: 0.12, a: 0.20, hw: 0.30 }, { cx: 0.46, a: 0.26, hw: 0.24 }, { cx: 0.85, a: 0.22, hw: 0.32 }],
+      base: 0.52, body: 0.12, fadeTo: 0.02, litGain: 0.12, texture: 0,
+    },
+    { // mid range
+      peaks: [{ cx: 0.28, a: 0.30, hw: 0.24 }, { cx: 0.72, a: 0.24, hw: 0.26 }],
+      base: 0.70, body: 0.24, fadeTo: 0.04, litGain: 0.20, texture: 0.05,
+    },
+    { // near range — dominant summit under Polaris
+      peaks: [{ cx: 0.18, a: 0.22, hw: 0.22 }, { cx: 0.66, a: 0.44, hw: 0.26 }, { cx: 1.04, a: 0.26, hw: 0.24 }],
+      base: 1.00, body: 0.40, fadeTo: 0.08, litGain: 0.30, texture: 0.10,
+    },
   ];
-  const dipC = (p) => sc + Math.round(p.x * S);
-  const dipR = (p) => sr + Math.round(p.y * S / AR);
-  // Nothing from the constellation may intrude on the UI clearing.
-  const inClear = (rr, cc) => clearing(cc / cols, rr / rows) < 0.25;
-  // faint connecting lines (sparse dots), then the member stars on top
-  const link = (a, b) => {
-    const steps = Math.max(Math.abs(dipC(b) - dipC(a)), Math.abs(dipR(b) - dipR(a)) * 2);
-    for (let k = 1; k < steps; k++) {
-      if (Math.random() < 0.55) continue;                    // broken, hand-drawn line
-      const cc = Math.round(dipC(a) + (dipC(b) - dipC(a)) * k / steps);
-      const rr = Math.round(dipR(a) + (dipR(b) - dipR(a)) * k / steps);
-      if (grid[rr] && grid[rr][cc] === ' ' && !inClear(rr, cc)) put(rr, cc, '·');
+  // Valley fog: pale horizontal bands pooling at each plane's foot — they
+  // separate the ranges the way haze does in a real mountain evening.
+  const fogAt = (v) => 0.55 * Math.exp(-Math.pow((v - 0.545) / 0.048, 2))
+                     + 0.45 * Math.exp(-Math.pow((v - 0.725) / 0.042, 2));
+
+  // Scene luminance in region space. Nearest plane wins (it occludes).
+  const du = 0.004;
+  const sceneLum = (u, v) => {
+    for (let i = PLANES.length - 1; i >= 0; i--) {
+      const P = PLANES[i];
+      const rimV = P.base - ridge(u, P.peaks);
+      if (v < rimV) continue;                     // sky above this plane
+      const span = Math.max(0.08, P.base - rimV);
+      const t = (v - rimV) / span;                // 0 crest → 1 foot
+      // No crest line: the body is simply brightest at the top and fades
+      // down — the skyline emerges from the gradient, not from an outline.
+      // Directional light: west (lit) faces brighter, east faces shadowed.
+      const slope = (ridge(u + du, P.peaks) - ridge(u - du, P.peaks)) / (2 * du);
+      const lit = 1 + P.litGain * Math.max(-1, Math.min(1, -slope * 1.6));
+      // Couloirs: two interleaved sine striations run down the faces —
+      // deterministic texture, strongest on the near plane, calm in the haze.
+      const gully = 1 + P.texture * Math.sin(u * 61 + i * 7) * Math.sin(u * 23 - v * 5);
+      // Body fades toward the foot, then the valley fog eats it.
+      let lum = (P.body * (1 - 0.62 * t) + P.fadeTo * t) * lit * gully;
+      lum *= 1 - 0.85 * fogAt(v);
+      return Math.max(0, lum);
     }
+    return 0;
   };
-  for (let i = 0; i < DIP.length - 1; i++) link(DIP[i], DIP[i + 1]);
-  link(DIP[3], DIP[6]);                                      // close the bowl
-  for (let i = 1; i < DIP.length; i++) {
-    if (!inClear(dipR(DIP[i]), dipC(DIP[i]))) put(dipR(DIP[i]), dipC(DIP[i]), '*');
+
+  // UI exclusion: soft ellipse behind the clock/search column (viewport space).
+  const clearing = (x, y) => {
+    const ex = (x - 0.5) / 0.40, ey = (y - 0.43) / 0.34;
+    return smooth(0.88, 1.18, Math.sqrt(ex * ex + ey * ey));
+  };
+  // The region dissolves at its top/left boundary instead of cutting hard.
+  const regionFade = (u, v) => smooth(-0.02, 0.14, u) * smooth(-0.02, 0.12, v);
+
+  // Polaris: in the region's sky, above the dominant summit.
+  const pu = 0.66, pv = 0.14;
+  const pc = Math.round((REGION.x0 + pu * (1 - REGION.x0)) * cols);
+  const pr = Math.round((REGION.y0 + pv * (1 - REGION.y0)) * rows);
+
+  // Glyph ramp, dark → bright — fine steps low down so shading walks up
+  // gradually instead of jumping to heavy glyphs.
+  const RAMP = [[0.10, '·'], [0.16, ':'], [0.24, ';'], [0.34, 'i'], [0.46, 'I'], [0.60, 'H'], [1.5, 'W']];
+  const glyphFor = (lum) => { if (lum < 0.055) return null; for (const [lim, g] of RAMP) if (lum < lim) return g; return 'W'; };
+
+  // Star field: three magnitudes, seeded, sky cells of the region only.
+  const starCell = new Map();                     // r * cols + c → [glyph, alpha]
+  for (let i = 0; i < 80; i++) {
+    const u = hash(i * 4 + 1), v = hash(i * 4 + 2) * 0.85;
+    const c = Math.floor((REGION.x0 + u * (1 - REGION.x0)) * cols);
+    const r = Math.floor((REGION.y0 + v * (1 - REGION.y0)) * rows);
+    if (Math.hypot(c - pc, (r - pr) * (CH / CW)) < 8) continue;
+    const m = hash(i * 4 + 3);                    // magnitude
+    const glyph = m > 0.94 ? '+' : (m > 0.75 ? '·' : '.');
+    const a = (0.09 + 0.26 * m) * (1 - 0.45 * v);
+    starCell.set(r * cols + c, [glyph, a]);
   }
 
-  // ── Polaris — the north star, bright core with 4-point rays and glow ──────
-  const G = 4;
-  for (let dr2 = -G; dr2 <= G; dr2++) for (let dc2 = -Math.round(G * AR); dc2 <= G * AR; dc2++) {
-    const rr = Math.hypot(dc2 / AR, dr2);
-    if (rr <= G && rr > 1 && Math.random() < Math.exp(-rr / 1.4) * 0.4) put(sr + dr2, sc + dc2, '·');
+  // Polaris' glow and diffraction spikes, in grid space.
+  const polarisLum = (c, r) => {
+    const dc = c - pc, dr = (r - pr) * (CH / CW);
+    const d = Math.hypot(dc, dr);
+    let lum = 0.80 * Math.exp(-d / 1.8);
+    if (r === pr) lum = Math.max(lum, 0.75 * Math.max(0, 1 - Math.abs(dc) / 6));
+    if (c === pc) lum = Math.max(lum, 0.75 * Math.max(0, 1 - Math.abs(dr) / 5));
+    return lum < 0.09 ? 0 : lum;
+  };
+
+  for (let r = 0; r < rows; r++) {
+    for (let cc = 0; cc < cols; cc++) {
+      const x = (cc + 0.5) / cols, y = (r + 0.5) / rows;
+      const u = toU(x), v = toV(y);
+      if (u < -0.01 || v < -0.01) continue;       // outside the 70% region
+      const cv = clearing(x, y) * regionFade(u, v);
+      const gx = cc * CW + CW / 2, gy = r * CH + CH / 2;
+
+      // Polaris core cell: always bright, above everything.
+      if (cc === pc && r === pr) {
+        ctx.fillStyle = ink(1);
+        ctx.fillText('✦', gx, gy);
+        continue;
+      }
+
+      const pl = polarisLum(cc, r);
+      const scene = sceneLum(u, v) * cv;
+      const lum = Math.max(scene, pl);
+      const star = starCell.get(r * cols + cc);
+
+      if (star && lum < 0.1 && cv > 0.4) {        // stars live in empty sky
+        ctx.fillStyle = ink(star[1]);
+        ctx.fillText(star[0], gx, gy);
+        continue;
+      }
+      const g = glyphFor(lum);
+      if (!g) continue;
+      // Character density carries the shading; alpha follows it gently, with
+      // a low ceiling so the scene stays behind the page rather than on it.
+      ctx.fillStyle = ink(Math.min(0.40, 0.09 + 0.40 * lum) * (pl > scene ? 1 : Math.max(cv, 0)));
+      ctx.fillText(g, gx, gy);
+    }
   }
-  const RH = 9, RV = Math.round(9 / AR) + 1;
-  for (let k = 1; k <= RH; k++) { const p = 1 - k / (RH + 1); if (Math.random() < p) put(sr, sc + k, k <= 2 ? '*' : '·'); if (Math.random() < p) put(sr, sc - k, k <= 2 ? '*' : '·'); }
-  for (let k = 1; k <= RV; k++) { const p = 1 - k / (RV + 1); if (Math.random() < p) put(sr + k, sc, k <= 1 ? '*' : '·'); if (Math.random() < p) put(sr - k, sc, k <= 1 ? '*' : '·'); }
-  put(sr, sc, '*'); put(sr, sc - 1, '*'); put(sr, sc + 1, '*'); put(sr - 1, sc, '*'); put(sr + 1, sc, '*');
-
-  return grid.map(row => row.join('').replace(/\s+$/, '')).join('\n');
-}
-
-function renderAsciiBackground() {
-  const pre = document.getElementById('ascii-bg');
-  if (!pre) return;
-  // Measure one character cell from the <pre>'s own font metrics.
-  const probe = document.createElement('span');
-  probe.textContent = '·'.repeat(100);
-  probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;font:inherit;';
-  pre.appendChild(probe);
-  const cw = probe.getBoundingClientRect().width / 100 || 6.6;
-  pre.removeChild(probe);
-  const ch = parseFloat(getComputedStyle(pre).lineHeight) || 12;
-
-  const boxW = pre.clientWidth  || window.innerWidth;
-  const boxH = pre.clientHeight || window.innerHeight;
-  const cols = Math.max(30, Math.ceil(boxW / cw) + 1);
-  const rows = Math.max(16, Math.ceil(boxH / ch) + 1);
-  pre.textContent = buildAsciiScene(cols, rows, ch / cw);
 }
 
 // Mirror the omnibox: bare domains become URLs, everything else is a search.
@@ -224,11 +222,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const secs = new Date().getSeconds();
   setTimeout(() => { tick(); setInterval(tick, 60000); }, (60 - secs) * 1000);
 
-  renderAsciiBackground();
+  renderBackground();
   let bgTimer = null;
   window.addEventListener('resize', () => {
     clearTimeout(bgTimer);
-    bgTimer = setTimeout(renderAsciiBackground, 150);
+    bgTimer = setTimeout(renderBackground, 150);
   });
 
   // Keyboard hint matches the platform's focus-address-bar shortcut.

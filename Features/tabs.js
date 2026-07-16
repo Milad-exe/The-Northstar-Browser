@@ -872,6 +872,7 @@ class Tabs {
             }
             // Mini player: media playing in a background tab shows the overlay.
             try { miniPlayer.onMediaState(this.getWindowData(), tabIndex, true); } catch {}
+            this.sendMediaIndicators(tabIndex, tab); // muted tabs stay marked while playing
         });
         tab.webContents.on('media-paused', () => {
             tab.hasPlayingMedia = false;
@@ -879,7 +880,41 @@ class Tabs {
                 try { this.mainWindow.webContents.send('media-state', { index: tabIndex, playing: false }); } catch {}
             }
             try { miniPlayer.onMediaState(this.getWindowData(), tabIndex, false); } catch {}
+            this.sendMediaIndicators(tabIndex, tab);
         });
+
+        // ── Tab-strip media indicators ────────────────────────────────────────
+        // Speaker on audible tabs; mic/camera (recording) from the permission
+        // layer's custom event — a granted getUserMedia is when capture starts.
+        // Chromium gives no stream-ended signal, so recording clears on
+        // navigation (the temp permission grants clear there too).
+        tab.webContents.on('audio-state-changed', (e) => {
+            tab.isAudible = !!e.audible;
+            this.sendMediaIndicators(tabIndex, tab);
+        });
+        tab.webContents.on('media-capture-started', (names) => {
+            if (!tab.capturing) tab.capturing = new Set();
+            (Array.isArray(names) ? names : []).forEach(n => tab.capturing.add(n));
+            this.sendMediaIndicators(tabIndex, tab);
+        });
+        tab.webContents.on('did-navigate', () => {
+            if (tab.capturing && tab.capturing.size) {
+                tab.capturing.clear();
+                this.sendMediaIndicators(tabIndex, tab);
+            }
+        });
+    }
+
+    sendMediaIndicators(index, tab) {
+        const cap = tab.capturing || new Set();
+        const capture = cap.has('camera') ? 'camera' : (cap.has('microphone') ? 'mic' : null);
+        try {
+            this.mainWindow.webContents.send('tab-media-indicator', {
+                index, audible: !!tab.isAudible, capture,
+                muted: !!tab.webContents.isAudioMuted(),
+                playing: !!tab.hasPlayingMedia,
+            });
+        } catch {}
     }
 
     sendTabUpdate(tabIndex, tab, url, title, favicon) {
@@ -1394,6 +1429,7 @@ class Tabs {
             const tab = this.tabMap.get(index);
             const isMuted = tab.webContents.isAudioMuted();
             tab.webContents.setAudioMuted(!isMuted);
+            this.sendMediaIndicators(index, tab); // flip the speaker icon at once
         }
     }
 

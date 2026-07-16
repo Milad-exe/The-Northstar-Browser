@@ -14,18 +14,15 @@ html[data-vibrancy="true"], html[data-vibrancy="true"] body {
   background: color-mix(in srgb, var(--bg) 72%, transparent);
 }
 
-/* ── ASCII scene (Polaris & the Little Dipper over layered mountains) ──
-   Full-bleed, but deliberately quiet: low ink opacity, sparse sky, and the
-   generator keeps an elliptical clearing behind the clock/search. */
-#ascii-bg {
+/* ── Background canvas — long-exposure star trails around Polaris over a
+   ridge silhouette (drawn by newtab.js in the theme's ink colour). Quiet by
+   construction: hairline arcs at single-digit opacities. */
+#bg {
   position: fixed; inset: 0; z-index: 0;
-  margin: 0; padding: 0;
-  font-family: var(--mono);
-  font-size: 11px; line-height: 12px; letter-spacing: 0;
-  white-space: pre; overflow: hidden;
-  color: color-mix(in srgb, var(--text) 33%, transparent);
-  pointer-events: none; user-select: none; -webkit-user-select: none;
-  text-shadow: 0 0 1px currentColor;   /* soft bloom so the dots read as points of light */
+  /* canvas is a replaced element: inset alone won't stretch it — the DPR-
+     scaled backing buffer must be squeezed to the viewport explicitly */
+  width: 100%; height: 100%;
+  pointer-events: none;
 }
 
 .home {
@@ -70,7 +67,7 @@ html[data-vibrancy="true"], html[data-vibrancy="true"] body {
   height: 52px; padding: 0 12px 0 22px;
   background: color-mix(in srgb, var(--surface) 70%, transparent);
   border: 1px solid var(--border);
-  border-radius: 999px;               /* soft full pill */
+  border-radius: 0;               /* soft full pill */
   transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 }
 .search:focus-within {
@@ -94,7 +91,7 @@ html[data-vibrancy="true"], html[data-vibrancy="true"] body {
   flex-shrink: 0;
   font-family: var(--mono); font-size: 10px; font-weight: 700;
   letter-spacing: 0.06em; color: var(--text-3);
-  padding: 5px 9px; border-radius: 999px;
+  padding: 5px 9px; border-radius: 0;
   border: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface-2) 55%, transparent);
   transition: opacity 0.15s;
@@ -118,3 +115,7 @@ html[data-vibrancy="true"], html[data-vibrancy="true"] body {
   .clock { font-size: clamp(54px, 16vw, 84px); }
   .search { height: 48px; }
 }
+
+/* UI text is interface, not copy. The search input stays selectable. */
+body { user-select: none; -webkit-user-select: none; }
+.search-input { user-select: text; -webkit-user-select: text; }

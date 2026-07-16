@@ -1,6 +1,6 @@
 *, *::before, *::after { box-sizing: border-box; }
 
-/* Rows scroll inside the rounded card (not the body) so its corners stay put. */
+/* Rows scroll inside the card (not the body) so its edges stay put. */
 html, body { height: 100%; }
 body {
   margin: 0; padding: 4px 0;
@@ -16,18 +16,18 @@ body {
   overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--border-2);
-  border-radius: 13px;
+  border-radius: 0;
   font-family: var(--font);
   -webkit-font-smoothing: antialiased;
 }
 #list::-webkit-scrollbar { width: 8px; }
 #list::-webkit-scrollbar-track { background: transparent; }
-#list::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 4px; }
+#list::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 0; }
 
 .item {
   display: flex; align-items: center; gap: 12px;
   padding: 0 12px; margin: 1px 0;
-  border-radius: 8px;
+  border-radius: 0;
   min-height: 40px;
   font-size: 13.5px; color: var(--text-2);
   cursor: pointer;
@@ -37,7 +37,7 @@ body {
 .item:hover, .item.active { background: var(--active-bg); }
 
 .item img.fav {
-  width: 17px; height: 17px; border-radius: 3px; flex-shrink: 0;
+  width: 17px; height: 17px; border-radius: 0; flex-shrink: 0;
 }
 
 /* Main label — one line, truncates */
@@ -52,7 +52,7 @@ body {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: var(--text);
 }
-.sep { color: var(--text-3); flex-shrink: 0; }
+.sep { color: var(--text-3); flex-shrink: 0; margin: 0 6px; }
 .secondary {
   min-width: 0; flex-shrink: 2;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -72,5 +72,9 @@ body {
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 10px; }
 ::-webkit-scrollbar-track { background: var(--surface); border-left: 1px solid var(--border); }
-::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 5px; border: 2px solid var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 0; border: 2px solid var(--surface); }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+
+/* Chrome UI text is interface, not copy — never selectable. Inputs stay editable. */
+body { user-select: none; -webkit-user-select: none; }
+input, textarea { user-select: text; -webkit-user-select: text; }

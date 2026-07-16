@@ -15,7 +15,7 @@ body {
   padding: 15px;
   background: var(--surface);
   border: 1px solid var(--border-2);
-  border-radius: 12px;
+  border-radius: 0;
 }
 
 h3 {
@@ -41,7 +41,7 @@ h3 {
   border: 1px solid var(--border-2);
   background: var(--bg);
   color: var(--text);
-  border-radius: 8px; outline: none;
+  border-radius: 0; outline: none;
   transition: border-color 0.14s, box-shadow 0.14s;
 }
 .field input:focus { border-color: var(--text-3); }
@@ -52,7 +52,7 @@ button {
   flex: 1; padding: 8px 10px;
   background: transparent;
   border: 1px solid var(--border-2);
-  border-radius: 8px;
+  border-radius: 0;
   font-family: var(--font); font-size: 12px; font-weight: 500;
   color: var(--text-2); cursor: pointer;
   transition: background 0.1s, color 0.1s;

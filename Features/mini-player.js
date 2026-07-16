@@ -14,8 +14,7 @@
 const path = require('path');
 const { WebContentsView } = require('electron');
 
-const W = 300, H = 96, MARGIN = 14;      // compact card
-const EXP_MAXW = 760, EXP_H = 84;        // expanded full-width bar
+const BAR_MAXW = 760, BAR_H = 84, MARGIN = 14;   // single full-width bar
 
 // Reads playback state from the page. Prefers MediaSession metadata (YouTube,
 // Spotify, SoundCloud all set it) and falls back to the document title.
@@ -66,22 +65,34 @@ const TOGGLE_JS = `(() => {
 
 function panelBounds(wd) {
     const b = wd.window.getBounds();
-    if (wd.miniPlayerExpanded) {
-        const w = Math.min(EXP_MAXW, b.width - 2 * MARGIN);
-        return { x: Math.max(0, Math.round((b.width - w) / 2)), y: Math.max(0, b.height - EXP_H - MARGIN), width: w, height: EXP_H };
-    }
-    return { x: Math.max(0, b.width - W - MARGIN), y: Math.max(0, b.height - H - MARGIN), width: W, height: H };
+    const w = Math.min(BAR_MAXW, b.width - 2 * MARGIN);
+    return { x: Math.max(0, Math.round((b.width - w) / 2)), y: Math.max(0, b.height - BAR_H - MARGIN), width: w, height: BAR_H };
 }
 
 function isEnabled(wd) {
     try { return wd.tabs?.persistence?.get('miniPlayerEnabled') !== false; } catch { return true; }
 }
 
+function liveTab(wd, index) {
+    const tab = index == null ? null : wd.tabs?.tabMap.get(index);
+    return tab && tab.webContents && !tab.webContents.isDestroyed() ? tab : null;
+}
+
 function show(wd, tabIndex) {
     if (!wd || wd.window.isDestroyed() || !isEnabled(wd)) return;
     if (wd.miniPlayerDismissedFor === tabIndex) return;
+    if (!liveTab(wd, tabIndex)) return;   // never bind to a closed/dying tab
+    if (wd.miniPlayer) {
+        // Panel already up: another tab may NOT steal the binding while the
+        // bound tab is still alive and playing — otherwise closing the bound
+        // tab compares against the thief's index and the panel outlives it.
+        const cur = liveTab(wd, wd.miniPlayerTab);
+        if (cur && cur.hasPlayingMedia && wd.miniPlayerTab !== tabIndex) return;
+        wd.miniPlayerTab = tabIndex;
+        pushState(wd);
+        return;
+    }
     wd.miniPlayerTab = tabIndex;
-    if (wd.miniPlayer) { pushState(wd); return; }
 
     const view = new WebContentsView({
         webPreferences: {
@@ -116,6 +127,22 @@ function hide(wd) {
     wd.miniPlayerTab = null;
 }
 
+// Show only for playback the user can actually hear (or has deliberately tab-
+// muted). Muted autoplay — ads, hero banners, preview thumbnails — fires
+// media-started-playing too and must not pop the panel. Audibility needs a
+// beat to settle after playback starts, hence the delayed check.
+function showIfAudible(wd, index) {
+    setTimeout(() => {
+        try {
+            const tab = liveTab(wd, index);
+            if (!tab || !tab.hasPlayingMedia) return;
+            if (!wd.tabs || index === wd.tabs.activeTabIndex) return;
+            if (!tab.webContents.isCurrentlyAudible() && !tab.webContents.audioMuted) return;
+            show(wd, index);
+        } catch {}
+    }, 300);
+}
+
 async function pushState(wd) {
     if (!wd || !wd.miniPlayer || wd.miniPlayerTab == null) return;
     const tab = wd.tabs?.tabMap.get(wd.miniPlayerTab);
@@ -127,7 +154,6 @@ async function pushState(wd) {
         s = { title, artist: '', cur: 0, dur: 0, paused: !tab.hasPlayingMedia };
     }
     s.muted = !!tab.webContents.audioMuted;
-    s.expanded = !!wd.miniPlayerExpanded;
     try { wd.miniPlayer.webContents.send('mp-state', s); } catch {}
 }
 
@@ -140,7 +166,7 @@ function onMediaState(wd, index, playing) {
         if (wd.miniPlayerDismissedFor !== undefined && wd.miniPlayerDismissedFor !== index) {
             wd.miniPlayerDismissedFor = undefined;
         }
-        show(wd, index);
+        showIfAudible(wd, index);
     } else if (!playing && wd.miniPlayer && wd.miniPlayerTab === index) {
         pushState(wd); // reflect the paused state; keep the panel up
     }
@@ -149,9 +175,9 @@ function onMediaState(wd, index, playing) {
 function onTabSwitch(wd, prevIndex, newIndex) {
     if (!wd) return;
     if (wd.miniPlayer && wd.miniPlayerTab === newIndex) hide(wd); // arrived at the media tab
-    const prev = wd.tabs?.tabMap.get(prevIndex);
+    const prev = liveTab(wd, prevIndex);
     if (prev && prev.hasPlayingMedia && prevIndex !== newIndex && wd.miniPlayerDismissedFor !== prevIndex) {
-        show(wd, prevIndex); // walked away from a playing tab
+        showIfAudible(wd, prevIndex); // walked away from a playing tab
     }
 }
 
@@ -180,10 +206,6 @@ async function action(wd, act, value) {
     } else if (act === 'volume') {
         const vol = Math.max(0, Math.min(1, Number(value) || 0));
         try { await tab.webContents.executeJavaScript(VOLUME_JS(vol), true); } catch {}
-        pushState(wd);
-    } else if (act === 'expand' || act === 'collapse') {
-        wd.miniPlayerExpanded = act === 'expand';
-        try { wd.miniPlayer?.setBounds(panelBounds(wd)); } catch {}
         pushState(wd);
     } else if (act === 'goto') {
         const t = wd.miniPlayerTab;

@@ -70,7 +70,12 @@
             <path d="M10 8.2v3.2M10 13.6v.1"/>
           </svg>
         </span>
-        <input id="searchBar" placeholder="Search or enter URL" type="text">
+        <div class="omni-input">
+          <input id="searchBar" placeholder="Search or enter URL" type="text">
+          <!-- Firefox-style resting URL: host bright, scheme/path dimmed.
+               Painted over the (text-transparent) input while it's unfocused. -->
+          <div id="url-display" aria-hidden="true"></div>
+        </div>
       </div>
     </div>
 

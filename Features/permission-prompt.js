@@ -262,7 +262,15 @@ function attach(sess, { persist = true } = {}) {
                 // Grant path: on macOS make sure the OS has also granted access
                 // (camera/mic) before we hand back "allowed".
                 const grant = async (allowed) => {
-                    if (allowed) await ensureOsMediaAccess(names);
+                    if (allowed) {
+                        await ensureOsMediaAccess(names);
+                        // Custom signal for the tab strip's recording indicator
+                        // (Chromium exposes no capture-started event; a granted
+                        // getUserMedia is the moment capture begins).
+                        if (names.includes('camera') || names.includes('microphone')) {
+                            try { wc?.emit('media-capture-started', names); } catch {}
+                        }
+                    }
                     callback(allowed);
                 };
                 // Explicit decisions (panel override / stored) come FIRST — before

@@ -5,13 +5,13 @@ html, body { margin: 0; padding: 0; background: transparent; font-family: var(--
   margin: 4px; padding: 14px 16px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 0;
 }
 #head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 #title { font-size: 13px; font-weight: 600; color: var(--text); }
 #close {
   background: none; border: none; color: var(--text-3); cursor: pointer;
-  font-size: 13px; width: 22px; height: 22px; border-radius: 5px;
+  font-size: 13px; width: 22px; height: 22px; border-radius: 0;
 }
 #close:hover { background: var(--hover); color: var(--text); }
 
@@ -22,7 +22,7 @@ html, body { margin: 0; padding: 0; background: transparent; font-family: var(--
 #actions { display: flex; justify-content: flex-end; gap: 8px; }
 button.btn-primary, button.btn-ghost {
   font-family: var(--font); font-size: 12px; font-weight: 500;
-  padding: 7px 16px; border-radius: 6px; cursor: pointer;
+  padding: 7px 16px; border-radius: 0; cursor: pointer;
   letter-spacing: 0.03em;
 }
 .btn-primary { background: var(--text); color: var(--surface); border: 1px solid var(--text); }

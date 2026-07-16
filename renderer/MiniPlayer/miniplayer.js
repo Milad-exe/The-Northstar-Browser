@@ -24,15 +24,6 @@ api.onState((s) => {
     last = s;
     const label = s.artist ? `${s.artist} — ${s.title}` : (s.title || 'Playing media…');
 
-    // mode
-    document.getElementById('compact').style.display  = s.expanded ? 'none' : '';
-    document.getElementById('expanded').style.display = s.expanded ? 'flex' : 'none';
-
-    // compact
-    document.getElementById('c-title').textContent = label;
-    document.getElementById('c-time').textContent  = fmt(s.cur);
-
-    // expanded
     document.getElementById('x-title').textContent = label;
     document.getElementById('x-el').textContent    = fmt(s.cur);
     document.getElementById('x-rem').textContent   = s.dur > 0 ? '-' + fmt(Math.max(0, s.dur - s.cur)) : '';
@@ -51,16 +42,10 @@ api.onState((s) => {
 
 // ── Actions ────────────────────────────────────────────────────────────────
 const on = (id, fn) => document.getElementById(id).addEventListener('click', fn);
-on('c-toggle', () => api.action('toggle'));
 on('x-toggle', () => api.action('toggle'));
-on('c-mute',   () => api.action('mute'));
 on('x-mute',   () => api.action('mute'));
-on('c-goto',   () => api.action('goto'));
 on('x-goto',   () => api.action('goto'));
-on('c-close',  () => api.action('close'));
 on('x-close',  () => api.action('close'));
-on('expand',   () => api.action('expand'));
-on('collapse', () => api.action('collapse'));
 
 // Seek: click position on the track = fraction of duration.
 document.getElementById('x-track').addEventListener('click', (e) => {

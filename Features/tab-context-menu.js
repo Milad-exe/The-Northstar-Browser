@@ -93,6 +93,11 @@ class TabContextMenu {
     }
 
     addInspect(params) {
+        // Internal chrome pages (new tab, settings, history, …) are UI, not
+        // web content — no devtools there outside a --dev run.
+        const url = this.tab.webContents.getURL?.() || '';
+        const internal = !/^https?:/i.test(url);
+        if (internal && !process.argv.includes('--dev')) return;
         this.sep();
         this.contextTemplate.push(
             {

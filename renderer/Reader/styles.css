@@ -43,7 +43,7 @@ html[data-rd-face="serif"] body { font-family: Georgia, "Iowan Old Style", "Time
 .rd-tool {
   font: inherit; font-size: 12.5px;
   min-width: 30px; height: 28px; padding: 0 8px;
-  border: 1px solid var(--rd-tool-border); border-radius: 6px;
+  border: 1px solid var(--rd-tool-border); border-radius: 0;
   background: var(--rd-tool-bg); color: var(--rd-tool-fg);
   cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
 }
@@ -74,7 +74,7 @@ html[data-rd-face="serif"] body { font-family: Georgia, "Iowan Old Style", "Time
 #rd-article h1, #rd-article h2, #rd-article h3, #rd-article h4 { line-height: 1.25; margin: 1.6em 0 0.6em; }
 #rd-article h2 { font-size: 1.4em; }
 #rd-article h3 { font-size: 1.2em; }
-#rd-article img, #rd-article video, #rd-article figure { max-width: 100%; height: auto; display: block; margin: 1.4em auto; border-radius: 4px; }
+#rd-article img, #rd-article video, #rd-article figure { max-width: 100%; height: auto; display: block; margin: 1.4em auto; border-radius: 0; }
 #rd-article figure { margin: 1.4em auto; }
 #rd-article figcaption { color: var(--rd-muted); font-size: 0.8em; text-align: center; margin-top: 6px; }
 #rd-article blockquote {
@@ -82,7 +82,7 @@ html[data-rd-face="serif"] body { font-family: Georgia, "Iowan Old Style", "Time
   border-left: 3px solid var(--rd-rule); color: var(--rd-muted);
 }
 #rd-article pre {
-  background: var(--rd-tool-bg); padding: 14px; border-radius: 8px;
+  background: var(--rd-tool-bg); padding: 14px; border-radius: 0;
   overflow-x: auto; font-size: 0.85em; line-height: 1.45;
 }
 #rd-article code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.88em; }

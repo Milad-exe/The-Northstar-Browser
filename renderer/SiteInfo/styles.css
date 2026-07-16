@@ -12,7 +12,7 @@ body {
 .card {
   background: var(--surface);
   border: 1px solid var(--border-2);
-  border-radius: 12px;
+  border-radius: 0;
   overflow: hidden;
 }
 
@@ -40,12 +40,12 @@ body {
 .toggle { position: relative; display: inline-block; flex-shrink: 0; }
 .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
 .track {
-  display: block; width: 34px; height: 20px; border-radius: 999px;
+  display: block; width: 34px; height: 20px; border-radius: 0;
   background: var(--border-2); cursor: pointer; transition: background 0.15s;
 }
 .track::after {
   content: ''; position: absolute; top: 3px; left: 3px;
-  width: 14px; height: 14px; border-radius: 50%;
+  width: 14px; height: 14px; border-radius: 0;
   background: var(--text-2); transition: transform 0.15s, background 0.15s;
 }
 .toggle input:checked + .track { background: var(--text); }
@@ -67,7 +67,7 @@ body {
 
 .seg {
   display: flex; flex-shrink: 0;
-  border: 1px solid var(--border-2); border-radius: 7px; overflow: hidden;
+  border: 1px solid var(--border-2); border-radius: 0; overflow: hidden;
 }
 .seg button {
   border: none; background: transparent; color: var(--text-2);
@@ -82,7 +82,7 @@ body {
 /* ── Clear data ── */
 .clear {
   display: block; width: calc(100% - 24px); margin: 4px 12px 12px;
-  padding: 8px; border-radius: 8px;
+  padding: 8px; border-radius: 0;
   border: 1px solid var(--border-2); background: transparent;
   color: color-mix(in srgb, var(--danger) 72%, var(--text));
   font-family: inherit; font-size: 12px; cursor: pointer;
@@ -90,3 +90,7 @@ body {
 }
 .clear:hover:not(:disabled) { background: var(--hover); }
 .clear:disabled { opacity: 0.6; cursor: default; }
+
+/* Chrome UI text is interface, not copy — never selectable. Inputs stay editable. */
+body { user-select: none; -webkit-user-select: none; }
+input, textarea { user-select: text; -webkit-user-select: text; }
