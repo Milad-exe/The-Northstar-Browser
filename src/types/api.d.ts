@@ -355,7 +355,33 @@ interface Bridge_overlaySuggestions {
     [key: string]: any;   // methods the extractor missed
 }
 
+// exposed by preload.ts (chrome window)
+interface Bridge_extensionsUI {
+    togglePanel: any;
+    closePanel: any;
+    onChanged: any;
+    onPanelClosed: any;
+    onPinnedChanged: any;
+    onActivate: any;
+    closeActionPopup: any;
+}
+
+// exposed by extensions-panel-preload.ts (extensions panel overlay)
+interface Bridge_extPanel {
+    setPinned: any;
+    activate: any;
+    list: any;
+    setEnabled: any;
+    remove: any;
+    openOptions: any;
+    openStore: any;
+    close: any;
+    onData: any;
+}
+
 interface Window {
+    extensionsUI: Bridge_extensionsUI;
+    extPanel: Bridge_extPanel;
     electronAPI: Bridge_electronAPI;
     overlayDownloads: Bridge_overlayDownloads;
     findAPI: Bridge_findAPI;

@@ -30,10 +30,15 @@ try {
         // require can't resolve this package by name (its "exports" map isn't
         // honored here). The chrome window runs with sandbox:false so this works.
         const p = require('path');
-        const baPath = p.join(__dirname, '..', 'node_modules', 'electron-chrome-extensions', 'dist', 'cjs', 'browser-action.js');
+        // __dirname is app/preload — node_modules sits two levels up, next to
+        // package.json (same relative location in dev and in the packaged asar).
+        const baPath = p.join(__dirname, '..', '..', 'node_modules', 'electron-chrome-extensions', 'dist', 'cjs', 'browser-action.js');
         require(baPath).injectBrowserAction();
     }
-} catch (e) {}
+} catch (e) {
+    // Surface loudly: if this breaks, extension toolbar buttons silently vanish.
+    console.error('[preload] browser-action injection failed:', e);
+}
 
 // Theme attribute only matters on internal pages (they style via themes.css).
 // Web pages skip it — that sync IPC used to block every page's document-start.
@@ -355,6 +360,18 @@ exposeInternal('northstarSettings', {
   clearHistory:      ()         => ipcRenderer.invoke('settings-clear-history'),
   toggleBookmarkBar: ()         => ipcRenderer.send('toggle-bookmark-bar'),
   loginGoogle:       (clientId, clientSecret) => ipcRenderer.invoke('google-login', clientId, clientSecret),
+  onUtilityBarChanged: (fn)      => ipcRenderer.on('utility-bar-changed', (_e, cfg) => fn(cfg)),
+});
+
+exposeInternal('extensionsUI', {
+    togglePanel:     (anchor) => ipcRenderer.invoke('extensions-panel-toggle', anchor),
+    closePanel:      ()       => ipcRenderer.invoke('extensions-panel-close'),
+    onChanged:       (fn)     => ipcRenderer.on('extensions-changed',      ()  => fn()),
+    onPanelClosed:   (fn)     => ipcRenderer.on('extensions-panel-closed', ()  => fn()),
+    // Firefox-style pinning: unpinned actions collapse out of the toolbar strip.
+    onPinnedChanged: (fn)     => ipcRenderer.on('ext-pinned-changed',  (_e, map) => fn(map)),
+    closeActionPopup: ()      => ipcRenderer.invoke('extensions-close-action-popup'),
+    onActivate:      (fn)     => ipcRenderer.on('ext-activate-action', (_e, id)  => fn(id)),
 });
 
 exposeInternal('downloads', {

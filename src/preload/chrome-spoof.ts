@@ -22,6 +22,16 @@
 (function () {
     'use strict';
 
+    // Spoof WEB pages only. In chrome-extension:// frames (popups, options
+    // pages) and our own file:// UI, Chromium's real extension bindings must
+    // install chrome.* themselves — spoofing there makes the native bindings
+    // system fail with "Failed to create API on Chrome object".
+    if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
+    // The Chrome Web Store gets REAL native webstore bindings from Chromium —
+    // replacing window.chrome there breaks them the same way.
+    if (location.hostname === 'chromewebstore.google.com' ||
+        location.hostname === 'chrome.google.com') return;
+
     const CHROME_MAJOR = (process.versions.chrome || '140.0.0.0').split('.')[0];
     const CHROME_FULL  = `${CHROME_MAJOR}.0.0.0`;
 

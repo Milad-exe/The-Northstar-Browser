@@ -41,6 +41,10 @@ html[data-vibrancy="true"] .tab-button.active { background: color-mix(in srgb, v
 html[data-vibrancy="true"] .omnibox { background: color-mix(in srgb, var(--bg) 90%, transparent); }
 html[data-vibrancy="true"] #content-area { background: transparent; }
 
+/* Settings → Appearance → Toolbar can remove items entirely; !important so it
+   wins over the dynamic .hidden show/hide logic on reader/pip/downloads. */
+.user-hidden { display: none !important; }
+
 /* ── Window Controls ─────────────────────── */
 .window-controls {
   display: flex; align-items: center;

@@ -437,7 +437,7 @@ class Tabs {
         const wd = this.getWindowData();
         if (!wd?.window?.contentView) return;
 
-        const overlays = [wd.menu, wd.suggestions, wd.bookmarkPrompt, wd.folderDropdown, wd.downloadsPanel, wd.passwordPrompt];
+        const overlays = [wd.menu, wd.suggestions, wd.bookmarkPrompt, wd.folderDropdown, wd.downloadsPanel, wd.extensionsPanel, wd.passwordPrompt];
         overlays.forEach((view) => {
             if (!view) return;
             try {

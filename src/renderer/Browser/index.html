@@ -32,13 +32,13 @@
   <!-- Navigation / address bar -->
   <div id="utility-bar">
     <div class="nav-buttons">
-      <button id="back-btn" class="nav-btn" title="Back">
+      <button id="back-btn" tabindex="-1" class="nav-btn" title="Back">
         <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5l-5.5 5.5 5.5 5.5"/></svg>
       </button>
-      <button id="forward-btn" class="nav-btn" title="Forward">
+      <button id="forward-btn" tabindex="-1" class="nav-btn" title="Forward">
         <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4.5l5.5 5.5L8 15.5"/></svg>
       </button>
-      <button id="reload-btn" class="nav-btn" title="Reload">
+      <button id="reload-btn" tabindex="-1" class="nav-btn" title="Reload">
         <svg class="nav-reload" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
           <path d="M15.5 6.5A6.5 6.5 0 103.6 12"/>
           <path d="M15.8 3.4v3.3h-3.3"/>
@@ -90,22 +90,28 @@
     <div class="trailing-icons">
       <!-- Extension browser-action buttons (electron-chrome-extensions) -->
       <browser-action-list id="ext-actions"></browser-action-list>
+      <!-- Extensions: lists installed extensions; links to the Chrome Web Store -->
+      <button id="extensions-btn" tabindex="-1" class="icon-btn" title="Extensions">
+        <svg class="icon-svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+          <path d="M8 3.5a1.5 1.5 0 013 0V5h2.5A1.5 1.5 0 0115 6.5V9h1a1.5 1.5 0 010 3h-1v2.5a1.5 1.5 0 01-1.5 1.5H11v-1a1.5 1.5 0 00-3 0v1H5.5A1.5 1.5 0 014 15.5V13H3a1.5 1.5 0 010-3h1V6.5A1.5 1.5 0 015.5 5H8V3.5z"/>
+        </svg>
+      </button>
       <!-- Reader mode: hidden until the page looks like an article -->
-      <button id="reader-btn" class="icon-btn reader-btn hidden" title="Reader View">
+      <button id="reader-btn" tabindex="-1" class="icon-btn reader-btn hidden" title="Reader View">
         <svg class="icon-svg" viewBox="0 0 20 20" fill="none">
           <rect x="3" y="4" width="14" height="12" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
           <path d="M6.5 8h5M6.5 11h7M6.5 13.5h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
       </button>
       <!-- Picture-in-Picture: hidden until the active tab plays video -->
-      <button id="pip-btn" class="icon-btn pip-btn hidden" title="Picture-in-Picture">
+      <button id="pip-btn" tabindex="-1" class="icon-btn pip-btn hidden" title="Picture-in-Picture">
         <svg class="icon-svg" viewBox="0 0 20 20" fill="none">
           <rect x="3" y="4.5" width="14" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
           <rect x="10" y="9" width="5.5" height="4.5" rx="1" fill="currentColor"/>
         </svg>
       </button>
       <!-- Downloads: hidden until the first download of the session -->
-      <button id="downloads-btn" class="icon-btn downloads-btn hidden" title="Downloads">
+      <button id="downloads-btn" tabindex="-1" class="icon-btn downloads-btn hidden" title="Downloads">
         <svg class="icon-svg" viewBox="0 0 20 20" fill="none">
           <path d="M10 3v8.5M6.5 8.5L10 12l3.5-3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           <path d="M4 15.5h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -113,7 +119,7 @@
         <span class="downloads-dot"></span>
       </button>
       <!-- Bookmark: filled star when bookmarked, outline when not -->
-      <button id="bookmark-btn" class="icon-btn" title="Bookmark">
+      <button id="bookmark-btn" tabindex="-1" class="icon-btn" title="Bookmark">
         <svg class="icon-svg bookmark-outline" viewBox="0 0 20 20" fill="none">
           <path d="M5 3h10a1 1 0 011 1v13l-6-3.5L4 17V4a1 1 0 011-1z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
         </svg>
@@ -122,13 +128,13 @@
         </svg>
       </button>
       <!-- Focus: clock icon -->
-      <button id="focus-btn" class="icon-btn" title="Focus Mode">
+      <button id="focus-btn" tabindex="-1" class="icon-btn" title="Focus Mode">
         <svg class="icon-svg" viewBox="0 0 20 20" fill="none">
           <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5"/>
           <path d="M10 6v4l2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>
-      <button id="menu-btn" class="icon-btn menu-btn" title="Menu">
+      <button id="menu-btn" tabindex="-1" class="icon-btn menu-btn" title="Menu">
         <svg viewBox="0 0 16 12" width="16" height="12" fill="currentColor">
           <rect y="0" width="16" height="1.5" rx="0.75"/>
           <rect y="5.25" width="16" height="1.5" rx="0.75"/>
@@ -152,12 +158,12 @@
       <div class="pomodoro-phase" id="pomodoro-phase">Focus</div>
       <div class="pomodoro-time" id="pomodoro-time">25:00</div>
       <div class="pomodoro-controls">
-        <button id="pomodoro-start" class="pom-btn pom-btn-primary">Start</button>
-        <button id="pomodoro-skip"  class="pom-btn">Skip</button>
-        <button id="pomodoro-reset" class="pom-btn">Reset</button>
+        <button id="pomodoro-start" tabindex="-1" class="pom-btn pom-btn-primary">Start</button>
+        <button id="pomodoro-skip" tabindex="-1"  class="pom-btn">Skip</button>
+        <button id="pomodoro-reset" tabindex="-1" class="pom-btn">Reset</button>
       </div>
       <div class="pomodoro-sessions" id="pomodoro-sessions"></div>
-      <button id="pomodoro-close" class="pom-close" title="Close">✕</button>
+      <button id="pomodoro-close" tabindex="-1" class="pom-close" title="Close">✕</button>
     </div>
   </div>
 

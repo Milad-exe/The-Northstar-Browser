@@ -109,6 +109,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // ── Appearance: Bookmark bar ───────────────────────────────────────────
+    // Toolbar customization — one persisted object; every key defaults to true.
+    const tbToggles = document.querySelectorAll('.tb-toggle');
+    if (tbToggles.length) {
+        const tbConfig: any = Object.assign({}, settings.utilityBar || {});
+        tbToggles.forEach((cb: any) => {
+            const key = cb.dataset.key;
+            cb.checked = tbConfig[key] !== false;
+            cb.addEventListener('change', async () => {
+                tbConfig[key] = cb.checked;
+                await save('utilityBar', tbConfig);
+            });
+        });
+    }
+
     const bookmarkBarToggle = document.getElementById('bookmark-bar-toggle');
 
     // We track the saved state in settings; the bookmark bar actual visibility

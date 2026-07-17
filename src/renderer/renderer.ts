@@ -125,6 +125,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initFocusModeAndPomodoro();
     initMenu();
     initDownloads();
+    initExtensions();
+    initUtilityBarConfig();
     initReaderAndPip();
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -2318,6 +2320,134 @@ document.addEventListener('DOMContentLoaded', () => {
         window.focusMode.getState().then(active => focusBtn.classList.toggle('active', active));
 
         pomUpdateUI();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Utility-bar customization — Settings → Appearance → Toolbar decides which
+    // buttons exist. 'user-hidden' (display:none !important) layers on top of
+    // the dynamic '.hidden' logic (reader/pip/downloads still self-hide when
+    // not applicable), so both must clear for a button to show.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    function applyUtilityBarConfig(cfg) {
+        // Inside the function: the init sequence at the top of the file runs
+        // before top-level consts down here would be initialized (TDZ).
+        const UTILITY_BAR_ITEMS = {
+            extensions: 'extensions-btn',
+            downloads:  'downloads-btn',
+            bookmark:   'bookmark-btn',
+            reader:     'reader-btn',
+            pip:        'pip-btn',
+            focus:      'focus-btn',
+            pomodoro:   'pomodoro-pill',
+        };
+        const conf = cfg || {};
+        for (const [key, id] of Object.entries(UTILITY_BAR_ITEMS)) {
+            const el = document.getElementById(id);
+            if (el) el.classList.toggle('user-hidden', conf[key] === false);
+        }
+    }
+
+    function initUtilityBarConfig() {
+        applyUtilityBarConfig(settings.utilityBar);
+        if (window.northstarSettings?.onUtilityBarChanged) {
+            window.northstarSettings.onUtilityBarChanged((cfg) => {
+                settings.utilityBar = cfg;
+                applyUtilityBarConfig(cfg);
+            });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Extensions button + panel (puzzle icon → installed list + Web Store link)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    function initExtensions() {
+        const btn = document.getElementById('extensions-btn');
+        if (!btn || !window.extensionsUI) return;
+
+        let panelOpen = false;
+
+        // ── Firefox-style pinning ────────────────────────────────────────────
+        // Unpinned actions stay rendered (so a panel activation can still click
+        // them and anchor their popup to the toolbar) but are lifted out of the
+        // strip: absolutely positioned at the list origin and invisible.
+        const actionList = () => document.querySelector('browser-action-list');
+
+        function applyPinned(map) {
+            const list: any = actionList();
+            const root = list && list.shadowRoot;
+            if (!root) return;
+            let style = root.getElementById('ink-pin-style');
+            if (!style) {
+                style = document.createElement('style');
+                style.id = 'ink-pin-style';
+                root.appendChild(style);
+            }
+            const unpinned = Object.keys(map || {}).filter(id => map[id] === false);
+            // :host{position:relative} makes the collapsed nodes anchor at the
+            // list's own origin (right side of the toolbar) — so a popup opened
+            // from the panel appears under the toolbar, not at the viewport corner.
+            style.textContent = ':host{position:relative}\n' + unpinned.map(id =>
+                `#${CSS.escape(id)}{position:absolute;left:0;top:0;visibility:hidden;pointer-events:none;}`
+            ).join('\n');
+        }
+
+        let pinnedMap = (settings.extPinned || {});
+        // The custom element upgrades asynchronously — retry until its shadow
+        // root exists, then keep the style asserted across re-renders.
+        const pinInit = setInterval(() => {
+            const list: any = actionList();
+            if (!list || !list.shadowRoot) return;
+            clearInterval(pinInit);
+            applyPinned(pinnedMap);
+            new MutationObserver(() => {
+                if (!list.shadowRoot.getElementById('ink-pin-style')) applyPinned(pinnedMap);
+            }).observe(list.shadowRoot, { childList: true });
+        }, 250);
+
+        window.extensionsUI.onPinnedChanged((map) => {
+            pinnedMap = map || {};
+            applyPinned(pinnedMap);
+        });
+
+        // Panel row click → click the real action button so the extension's
+        // popup opens (or its onClicked fires), anchored to the toolbar.
+        window.extensionsUI.onActivate((id) => {
+            const list: any = actionList();
+            const node = list && list.shadowRoot && list.shadowRoot.getElementById(id);
+            if (node) node.click();
+        });
+
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const r = btn.getBoundingClientRect();
+            panelOpen = await window.extensionsUI.togglePanel(
+                { left: r.left, right: r.right, top: r.top, bottom: r.bottom });
+            btn.classList.toggle('active', panelOpen);
+        });
+
+        window.extensionsUI.onPanelClosed(() => {
+            panelOpen = false;
+            btn.classList.remove('active');
+        });
+
+        // Close the panel AND any open action popup on clicks outside
+        // (chrome or page content) — mirrors Firefox dismissal behavior.
+        // Clicks inside the action strip (or our synthetic activation clicks)
+        // are the ones OPENING a popup — those must not dismiss it.
+        window.addEventListener('click', (e: any) => {
+            if (panelOpen && !btn.contains(e.target)) window.extensionsUI.closePanel();
+            const insideActionStrip = typeof e.composedPath === 'function' &&
+                e.composedPath().some((n: any) => n && n.tagName === 'BROWSER-ACTION-LIST');
+            if (!insideActionStrip) window.extensionsUI.closeActionPopup();
+        });
+        if (window.contentInteraction) {
+            window.contentInteraction.onClicked(() => {
+                if (panelOpen) window.extensionsUI.closePanel();
+                window.extensionsUI.closeActionPopup();
+            });
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────

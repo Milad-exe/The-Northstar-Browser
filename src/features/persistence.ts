@@ -27,6 +27,10 @@ const DEFAULTS = {
     pomShortBreak:     5,
     pomLongBreak:      15,
     pomSessions:       4,
+    // Toolbar customization: which utility-bar buttons are visible (missing key = shown)
+    utilityBar:        {},
+    // Extension pinning: extension id → false when unpinned from the toolbar
+    extPinned:         {},
 };
 
 class Persistence {

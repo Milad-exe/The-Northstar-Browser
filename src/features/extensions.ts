@@ -28,6 +28,7 @@ class Extensions {
     session: any;               // Electron session extensions are loaded into
     wm: any;                    // WindowManager — to resolve windows for popups
     instance: any;              // ElectronChromeExtensions (for tab wiring)
+    popups: Set<any>;           // live browser-action PopupViews (closed on tab switch/clicks)
     listeners: Set<any>;        // subscribers to extension-list changes
     disabled: Record<string, { path: string; name: string; version: string; description: string; optionsUrl: string }>;
     disabledFile: string | null;
@@ -41,6 +42,7 @@ class Extensions {
         this.disabledFile = null;
         this.disabled  = {};     // id → { path, name, version, description, optionsUrl } for disabled extensions
         this.listeners = new Set();
+        this.popups    = new Set();
     }
 
     onChanged(fn) { this.listeners.add(fn); }
@@ -54,15 +56,11 @@ class Extensions {
         this.disabledFile = path.join(app.getPath('userData'), 'extensions-disabled.json');
         try { this.disabled = JSON.parse(fs.readFileSync(this.disabledFile, 'utf-8')) || {}; } catch { this.disabled = {}; }
 
-        // Enable Web Store install + load store-installed extensions on startup.
-        await installChromeWebStore({
-            session,
-            loadExtensions: true,
-            allowUnpackedExtensions: true,
-            autoUpdate: true,
-        }).catch((e) => console.error('installChromeWebStore:', e.message));
-
         // chrome.* API implementation + browser-action UI plumbing.
+        // MUST be constructed BEFORE installChromeWebStore loads persisted
+        // extensions: the browser-action API only registers extensions from
+        // 'extension-loaded' events, so anything loaded earlier would never
+        // get a toolbar action button.
         this.instance = new (ElectronChromeExtensions as any)({
             license: 'GPL-3.0',
             session,
@@ -76,9 +74,26 @@ class Extensions {
             removeWindow: (win) => { try { win.close(); } catch {} },
         });
 
+        // Track live browser-action popups so the browser can close them the
+        // way Firefox does (tab switch, clicking elsewhere) — the library only
+        // closes them on window blur, which misses clicks landing on
+        // WebContentsViews inside the same window.
+        this.instance.on?.('browser-action-popup-created', (popup) => {
+            this.popups.add(popup);
+            try { popup.browserWindow?.once('closed', () => this.popups.delete(popup)); } catch {}
+        });
+
         // Serve extension icons (crx://extension-icon/...) so the toolbar
         // <browser-action-list> buttons actually render their icons.
         try { ElectronChromeExtensions.handleCRXProtocol(session); } catch (e) { console.error('handleCRXProtocol:', e.message); }
+
+        // Enable Web Store install + load store-installed extensions on startup.
+        await installChromeWebStore({
+            session,
+            loadExtensions: true,
+            allowUnpackedExtensions: true,
+            autoUpdate: true,
+        }).catch((e) => console.error('installChromeWebStore:', e.message));
 
         // Reload any persisted unpacked extensions (the web store loader only
         // manages store-installed ones).
@@ -111,7 +126,16 @@ class Extensions {
         try { this.instance?.addTab(webContents, browserWindow); } catch {}
     }
     selectTab(webContents) {
+        this.closePopups();   // switching tabs dismisses an open action popup (Firefox behavior)
         try { this.instance?.selectTab(webContents); } catch {}
+    }
+
+    /** Close any open browser-action popups. */
+    closePopups() {
+        for (const popup of [...this.popups]) {
+            try { popup.destroy(); } catch {}
+            this.popups.delete(popup);
+        }
     }
     getContextMenuItems(webContents, params) {
         try { return this.instance?.getContextMenuItems(webContents, params) || []; } catch { return []; }
@@ -213,7 +237,11 @@ class Extensions {
         const url = ext ? this._optionsUrl(ext) : null;
         if (!url) return false;
         const wd = this._activeWindow();
-        if (wd?.tabs) wd.tabs.createLazyTab(url, ext.name, false, false, true, true);
+        if (wd?.tabs) {
+            // Open AND focus — a background tab looks like nothing happened.
+            const idx = wd.tabs.createLazyTab(url, ext.name, false, false, true, true);
+            try { wd.tabs.showTab(idx); } catch {}
+        }
         return true;
     }
 

@@ -44,6 +44,13 @@ function register(ipcMain, { wm, webContents, nativeTheme, app, focusMode }) {
             });
         }
 
+        if (key === 'utilityBar') {
+            // Chrome windows re-apply toolbar visibility live.
+            wm.getAllWindows().forEach(w => {
+                try { w.window.webContents.send('utility-bar-changed', value); } catch {}
+            });
+        }
+
         if (key === 'persistAllTabs') {
             const wd = wm.getWindowByWebContents(_e.sender);
             if (wd?.tabs) { try { wd.tabs.saveStateDebounced(); } catch {} }

@@ -357,6 +357,7 @@ class WindowManager {
             if (windowData.bookmarkPrompt?.webContents === webContents) return windowData;
             if (windowData.folderDropdown?.webContents === webContents) return windowData;
             if (windowData.downloadsPanel?.webContents === webContents) return windowData;
+            if (windowData.extensionsPanel?.webContents === webContents) return windowData;
             if (windowData.passwordPrompt?.webContents === webContents) return windowData;
             if (windowData.siteInfoView?.webContents === webContents) return windowData;
             if (windowData.miniPlayer?.webContents === webContents) return windowData;
