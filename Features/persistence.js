@@ -108,8 +108,33 @@ class Persistence {
         }
     }
 
+    // Called (debounced) on every tab event during browsing — the encrypted
+    // write happens asynchronously so it never blocks the main event loop.
+    // Concurrent calls coalesce: while a write is in flight the newest state
+    // waits its turn, and a quit hook flushes anything still pending.
     saveState(state) {
-        try { this.writeEncrypted(this.statePath, state); } catch {}
+        this._pendingState = state;
+        if (!this._quitHooked) {
+            this._quitHooked = true;
+            try { app.on('before-quit', () => this.flushStateSync()); } catch {}
+        }
+        if (this._savingState) return;
+        this._savingState = true;
+        (async () => {
+            while (this._pendingState) {
+                const s = this._pendingState;
+                this._pendingState = null;
+                try { await fs.promises.writeFile(this.statePath, encrypt(JSON.stringify(s))); } catch {}
+            }
+            this._savingState = false;
+        })();
+    }
+
+    flushStateSync() {
+        if (!this._pendingState) return;
+        const s = this._pendingState;
+        this._pendingState = null;
+        try { fs.writeFileSync(this.statePath, encrypt(JSON.stringify(s))); } catch {}
     }
 }
 

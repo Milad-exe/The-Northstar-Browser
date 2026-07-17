@@ -222,8 +222,14 @@ function setup(sess) {
     // ── onHeadersReceived: tighten referrer policy + kill DNS prefetch ────────
     // Setting Referer directly in onBeforeSendHeaders is ignored since Electron 7;
     // injecting a strict Referrer-Policy response header is the supported path.
+    // Both headers only mean anything on DOCUMENTS (they govern the page's own
+    // behaviour) — skip the header copy for the ~95% of requests that are
+    // subresources, where injecting them does nothing.
     sess.webRequest.onHeadersReceived((details, cb) => {
-        if (!config.trimReferrer) return cb({});
+        if (!config.trimReferrer ||
+            (details.resourceType !== 'mainFrame' && details.resourceType !== 'subFrame')) {
+            return cb({});
+        }
         const headers = { ...details.responseHeaders };
         headers['Referrer-Policy']        = ['strict-origin-when-cross-origin'];
         headers['X-DNS-Prefetch-Control'] = ['off'];

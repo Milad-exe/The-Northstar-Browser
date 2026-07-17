@@ -1,12 +1,30 @@
-const path = require('path');
-const fs   = require('fs').promises;
+const path   = require('path');
+const fs     = require('fs').promises;
+const fsSync = require('fs');
 const { app } = require('electron');
 const { encrypt, decrypt, isEncrypted } = require('./encryption');
+
+/**
+ * Browsing history — kept in memory, persisted with a write-behind.
+ *
+ * The old implementation hit the disk for EVERYTHING: every keystroke in the
+ * address bar (suggestions search) and every page navigation re-read, decrypted
+ * and re-parsed the whole file, then re-encrypted and rewrote it. Now the list
+ * loads once, all reads are memory-speed, and mutations schedule one coalesced
+ * encrypted write 500 ms later (flushed synchronously on quit so nothing is
+ * lost). Privacy-motivated deletions (remove / clear) flush immediately.
+ */
+
+const MAX_ENTRIES = 1000;
+const WRITE_DELAY_MS = 500;
 
 class History {
     constructor() {
         this.file        = null;
         this.initialized = false;
+        this.cache       = null;   // Array — the single source of truth once loaded
+        this._writeTimer = null;
+        this._quitHooked = false;
         this.initPath();
     }
 
@@ -31,58 +49,71 @@ class History {
         return true;
     }
 
-    // ── Low-level read/write (handles encrypt/decrypt + plaintext migration) ──
+    // ── Load once; every later read is served from memory ────────────────────
 
-    async read() {
+    async load() {
+        if (this.cache) return this.cache;
         await this.ensureFile();
         try {
             const raw = await fs.readFile(this.file, 'utf8');
-            let plaintext;
-            if (isEncrypted(raw)) {
-                plaintext = decrypt(raw);
-            } else {
-                // Plaintext legacy file — migrate to encrypted on next write
-                plaintext = raw;
-            }
+            // Plaintext legacy file — migrated to encrypted on next write.
+            const plaintext = isEncrypted(raw) ? decrypt(raw) : raw;
             const data = JSON.parse(plaintext);
-            return Array.isArray(data) ? data : [];
+            this.cache = Array.isArray(data) ? data : [];
         } catch {
-            return [];
+            this.cache = [];
+        }
+        return this.cache;
+    }
+
+    // ── Write-behind ──────────────────────────────────────────────────────────
+
+    _scheduleWrite() {
+        clearTimeout(this._writeTimer);
+        this._writeTimer = setTimeout(() => { this._flush().catch(() => {}); }, WRITE_DELAY_MS);
+        if (!this._quitHooked) {
+            this._quitHooked = true;
+            try { app.on('before-quit', () => this.flushSync()); } catch {}
         }
     }
 
-    async write(data) {
-        try {
-            await fs.writeFile(this.file, encrypt(JSON.stringify(data, null, 2)), 'utf8');
-        } catch {}
+    async _flush() {
+        clearTimeout(this._writeTimer);
+        this._writeTimer = null;
+        if (!this.cache) return;
+        await fs.writeFile(this.file, encrypt(JSON.stringify(this.cache)), 'utf8');
     }
 
-    // ── Public API ──────────────────────────────────────────────────────────
+    // Quit path — a pending debounced write must not die with the process.
+    flushSync() {
+        if (!this._writeTimer || !this.cache) return;
+        clearTimeout(this._writeTimer);
+        this._writeTimer = null;
+        try { fsSync.writeFileSync(this.file, encrypt(JSON.stringify(this.cache)), 'utf8'); } catch {}
+    }
+
+    // ── Public API (signatures unchanged) ─────────────────────────────────────
 
     async loadHistory() {
-        return this.read();
+        return this.load();
     }
 
     async addToHistory(url, title) {
-        await this.ensureFile();
-        try {
-            const history = await this.read();
-
-            if (isSearchResultUrl(url)) return;
-
-            // Remove existing entry for same URL (dedup, keep fresh timestamp at top)
-            const deduped = history.filter(e => e.url !== url);
-
-            deduped.unshift({ url, title, timestamp: new Date().toISOString() });
-
-            await this.write(deduped.slice(0, 1000));
-        } catch {}
+        if (isSearchResultUrl(url)) return;
+        const history = await this.load();
+        // Dedup by URL, keep the fresh timestamp at the top.
+        const i = history.findIndex(e => e.url === url);
+        if (i !== -1) history.splice(i, 1);
+        history.unshift({ url, title, timestamp: new Date().toISOString() });
+        if (history.length > MAX_ENTRIES) history.length = MAX_ENTRIES;
+        this._scheduleWrite();
     }
 
     async removeFromHistory(url, timestamp) {
         try {
-            const history = await this.read();
-            await this.write(history.filter(e => !(e.url === url && e.timestamp === timestamp)));
+            const history = await this.load();
+            this.cache = history.filter(e => !(e.url === url && e.timestamp === timestamp));
+            await this._flush();   // deletion is a privacy action — persist now
             return true;
         } catch {
             return false;
@@ -92,7 +123,8 @@ class History {
     async clearHistory() {
         try {
             await this.ensureFile();
-            await this.write([]);
+            this.cache = [];
+            await this._flush();
             return true;
         } catch {
             return false;
@@ -103,12 +135,12 @@ class History {
     async clearSince(sinceMs) {
         try {
             if (!sinceMs) return this.clearHistory();
-            const history = await this.read();
-            const kept = history.filter(e => {
+            const history = await this.load();
+            this.cache = history.filter(e => {
                 const t = Date.parse(e.timestamp || 0);
                 return isNaN(t) ? true : t < sinceMs;
             });
-            await this.write(kept);
+            await this._flush();
             return true;
         } catch {
             return false;

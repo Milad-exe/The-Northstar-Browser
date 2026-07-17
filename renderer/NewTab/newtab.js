@@ -240,7 +240,11 @@ document.addEventListener('DOMContentLoaded', () => {
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       const url = resolveQuery(input.value);
-      if (url) window.location.href = url;
+      if (url) {
+        // Yield the page immediately — don't sit under the incoming site.
+        document.documentElement.classList.add('leaving');
+        window.location.href = url;
+      }
     });
   }
 

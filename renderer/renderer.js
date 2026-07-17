@@ -230,8 +230,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function initAddressBar() {
         // Pre-warm the suggestions overlay so its first load doesn't steal
-        // focus (and a keystroke) once the user starts typing.
-        window.suggestions.warm?.().catch?.(() => {});
+        // focus (and a keystroke) once the user starts typing — but NOT during
+        // startup: spawning that renderer competed with the chrome's own first
+        // paint. Warm on first address-bar focus, or once startup has settled.
+        let suggestionsWarmed = false;
+        const warmSuggestions = () => {
+            if (suggestionsWarmed) return;
+            suggestionsWarmed = true;
+            window.suggestions.warm?.().catch?.(() => {});
+        };
+        searchBar.addEventListener('focus', warmSuggestions, { once: true });
+        setTimeout(warmSuggestions, 2500);
 
         searchBar.addEventListener('input', (e) => {
             userTyping = true;

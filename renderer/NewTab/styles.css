@@ -119,3 +119,9 @@ html[data-vibrancy="true"], html[data-vibrancy="true"] body {
 /* UI text is interface, not copy. The search input stays selectable. */
 body { user-select: none; -webkit-user-select: none; }
 .search-input { user-select: text; -webkit-user-select: text; }
+
+/* Leaving: the moment a navigation starts the page yields — a fast fade to
+   bare background, so the clock never lingers over an incoming site while
+   Chromium waits for the new document to commit. */
+.home, #bg, .wordmark { transition: opacity 0.12s ease; }
+html.leaving .home, html.leaving #bg, html.leaving .wordmark { opacity: 0; }

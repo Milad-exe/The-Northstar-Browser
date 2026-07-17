@@ -201,10 +201,15 @@ function register(ipcMain, { wm }) {
         return true;
     });
 
-    // Sync check used by the cosmetic ad-hiding preload on every page.
-    ipcMain.on('site-protection-off-sync', (e, host) => {
-        try { e.returnValue = sitePermissions.isProtectionOff(sitePermissions.siteOf(host || '')); }
-        catch { e.returnValue = false; }
+    // One async round trip answering "should cosmetic hiding stay on for this
+    // host?" (ad-block enabled AND the site's shield is not off). Replaces the
+    // old sendSync channel that blocked every page's document-start.
+    ipcMain.handle('cosmetic-filter-state', (_e, host) => {
+        try {
+            const privacy = require('../Features/privacy');
+            if (privacy.getConfig().adBlockEnabled === false) return false;
+            return !sitePermissions.isProtectionOff(sitePermissions.siteOf(host || ''));
+        } catch { return true; }
     });
 
     ipcMain.handle('close-site-info', (e) => { closePanel(wm.getWindowByWebContents(e.sender)); });

@@ -17,16 +17,18 @@ function register(ipcMain, { wm }) {
             const items = await wm.history.loadHistory();
             if (!query?.trim()) return [];
 
-            const q        = query.trim().toLowerCase();
-            const filtered = items
-                .filter(e => !isSearchResultUrl(e.url))
-                .filter(e =>
-                    (e.title || '').toLowerCase().includes(q) ||
-                    (e.url  || '').toLowerCase().includes(q)
-                );
-
-            filtered.sort((a, b) => relevanceScore(b, q) - relevanceScore(a, q));
-            return filtered.slice(0, limit);
+            const q = query.trim().toLowerCase();
+            // Score once per entry, THEN sort — scoring inside the comparator
+            // recomputed both scores on every comparison (O(n log n) rescans).
+            const scored = [];
+            for (const e of items) {
+                if (isSearchResultUrl(e.url)) continue;
+                if (!(e.title || '').toLowerCase().includes(q) &&
+                    !(e.url   || '').toLowerCase().includes(q)) continue;
+                scored.push([relevanceScore(e, q), e]);
+            }
+            scored.sort((a, b) => b[0] - a[0]);
+            return scored.slice(0, limit).map(s => s[1]);
         } catch (err) {
             console.error('history-search:', err);
             return [];

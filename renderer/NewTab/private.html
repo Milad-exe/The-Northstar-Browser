@@ -5,9 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none';" />
   <title>Private Tab</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../fonts.css">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -167,6 +165,9 @@
     @media (max-width: 600px) {
       .time-display { font-size: 64px; letter-spacing: -3px; }
     }
+    /* Leaving: fade out the instant navigation starts (see newtab styles.css). */
+    body > * { transition: opacity 0.12s ease; }
+    html.leaving body > * { opacity: 0; }
   </style>
 </head>
 <body>
@@ -244,6 +245,8 @@
           } else {
             url = 'https://www.google.com/search?q=' + encodeURIComponent(query);
           }
+          // Yield the page immediately — don't sit under the incoming site.
+          document.documentElement.classList.add('leaving');
           window.location.href = url;
         });
       }

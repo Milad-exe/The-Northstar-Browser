@@ -1,5 +1,15 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// This preload is shared by the browser chrome and by every tab — including
+// arbitrary WEB pages. The window.* bridges below (tabs, bookmarks, history,
+// settings, downloads, …) are for the chrome and internal file:// pages ONLY:
+// exposing them to web content would let any website read bookmarks/history,
+// flip settings and drive tabs. Web pages get only the inert page behaviours
+// (link-selection suppression, click forwarding, password autofill) — which
+// also skips ~20 bridge setups and a sync IPC on every page load.
+const INTERNAL = location.protocol === 'file:';
+const exposeInternal = (name, api) => { if (INTERNAL) contextBridge.exposeInMainWorld(name, api); };
+
 // Enable the <browser-action-list> element for extension toolbar buttons.
 // This preload is shared by the chrome window and by tabs, so only inject the
 // element into the browser chrome page — not arbitrary web pages.
@@ -26,22 +36,26 @@ try {
     }
 } catch (e) {}
 
-try {
-    const settings = ipcRenderer.sendSync('settings-get-sync');
-    if (settings && settings.theme && settings.theme !== 'default') {
-        const applyTheme = () => document.documentElement.setAttribute('data-theme', settings.theme);
-        if (document.documentElement) applyTheme();
-        else document.addEventListener('DOMContentLoaded', applyTheme);
-    }
-} catch (e) {}
+// Theme attribute only matters on internal pages (they style via themes.css).
+// Web pages skip it — that sync IPC used to block every page's document-start.
+if (INTERNAL) {
+    try {
+        const settings = ipcRenderer.sendSync('settings-get-sync');
+        if (settings && settings.theme && settings.theme !== 'default') {
+            const applyTheme = () => document.documentElement.setAttribute('data-theme', settings.theme);
+            if (document.documentElement) applyTheme();
+            else document.addEventListener('DOMContentLoaded', applyTheme);
+        }
+    } catch (e) {}
 
-ipcRenderer.on('theme-changed', (_e, theme) => {
-    if (theme && theme !== 'default') {
-        document.documentElement.setAttribute('data-theme', theme);
-    } else {
-        document.documentElement.removeAttribute('data-theme');
-    }
-});
+    ipcRenderer.on('theme-changed', (_e, theme) => {
+        if (theme && theme !== 'default') {
+            document.documentElement.setAttribute('data-theme', theme);
+        } else {
+            document.documentElement.removeAttribute('data-theme');
+        }
+    });
+}
 
 function findAnchorInEventPath(event) {
     try {
@@ -154,7 +168,7 @@ window.addEventListener('blur', () => {
     disableLinkSelectionSuppression(0);
 }, true);
 
-contextBridge.exposeInMainWorld(
+exposeInternal(
     "tab", {
         add: () => ipcRenderer.invoke("addTab"),
         addPrivate: () => ipcRenderer.invoke("addPrivateTab"),
@@ -182,7 +196,7 @@ contextBridge.exposeInMainWorld(
     }
 );
 
-contextBridge.exposeInMainWorld('northstarPrivate', {
+exposeInternal('northstarPrivate', {
     newPrivateWindow: () => ipcRenderer.invoke('newPrivateWindow'),
     isPrivateWindow:  () => ipcRenderer.invoke('isPrivateWindow'),
     // Synchronous variant — lets the renderer finish setup in one tick so tab
@@ -192,17 +206,17 @@ contextBridge.exposeInMainWorld('northstarPrivate', {
 });
 
 // Bridge for UI events emitted from main (via Tabs.pinTab -> 'pin-tab')
-contextBridge.exposeInMainWorld('tabsUI', {
+exposeInternal('tabsUI', {
     onPinTab: (handler) => ipcRenderer.on('pin-tab', (_e, { index }) => handler(index)),
 });
 
 // Reader mode + Picture-in-Picture
-contextBridge.exposeInMainWorld('reader', {
+exposeInternal('reader', {
     toggle:   (index) => ipcRenderer.invoke('reader-toggle', index),
     onState:  (cb) => ipcRenderer.on('reader-state',  (_e, d) => cb(d)),
     onFailed: (cb) => ipcRenderer.on('reader-failed', (_e, d) => cb(d)),
 });
-contextBridge.exposeInMainWorld('pip', {
+exposeInternal('pip', {
     toggle:       (index) => ipcRenderer.invoke('toggle-pip', index),
     onMediaState: (cb) => ipcRenderer.on('media-state', (_e, d) => cb(d)),
 });
@@ -211,18 +225,18 @@ contextBridge.exposeInMainWorld('pip', {
 // Exposed to the Reader view (which loads inside a tab). getArticle() returns
 // null unless the tab is actually in reader mode, and exit() is a guarded no-op
 // otherwise — safe to expose to ordinary pages.
-contextBridge.exposeInMainWorld('northstarReader', {
+exposeInternal('northstarReader', {
     getArticle: () => ipcRenderer.invoke('reader-get-article'),
     exit:       () => ipcRenderer.invoke('reader-exit'),
 });
 
 // Persistence controls
-contextBridge.exposeInMainWorld('persist', {
+exposeInternal('persist', {
     getMode: () => ipcRenderer.invoke('getPersistMode'),
     setMode: (enabled) => ipcRenderer.invoke('setPersistMode', enabled),
 });
 
-contextBridge.exposeInMainWorld(
+exposeInternal(
     "dragdrop", {
         getWindowAtPoint: (screenX, screenY) => ipcRenderer.invoke('get-window-at-point', screenX, screenY),
         getThisWindowId: () => ipcRenderer.invoke('get-this-window-id'),
@@ -234,7 +248,7 @@ contextBridge.exposeInMainWorld(
     }
 );
 
-contextBridge.exposeInMainWorld(
+exposeInternal(
     "menu", {
         open: () => ipcRenderer.invoke('open'),
         close: () => ipcRenderer.invoke('close-menu'),
@@ -242,7 +256,7 @@ contextBridge.exposeInMainWorld(
     }
 );
 
-contextBridge.exposeInMainWorld(
+exposeInternal(
     "browserHistory", {
         get: () => ipcRenderer.invoke('history-get'),
         search: (query, limit) => ipcRenderer.invoke('history-search', query, limit),
@@ -251,7 +265,7 @@ contextBridge.exposeInMainWorld(
 );
 
 // Suggestions overlay controls from the main renderer
-contextBridge.exposeInMainWorld('suggestions', {
+exposeInternal('suggestions', {
     warm: () => ipcRenderer.invoke('suggestions-warm'),
     open: (bounds, items, activeIndex, query, engine) => ipcRenderer.invoke('suggestions-open', { bounds, items, activeIndex, query, engine }),
     update: (bounds, items, activeIndex, query, engine) => ipcRenderer.invoke('suggestions-update', { bounds, items, activeIndex, query, engine }),
@@ -261,7 +275,7 @@ contextBridge.exposeInMainWorld('suggestions', {
     onCreated:    (handler) => ipcRenderer.on('suggestions-created',    () => handler())
 });
 
-contextBridge.exposeInMainWorld("electronAPI", {
+exposeInternal("electronAPI", {
   windowClick: (pos) => ipcRenderer.send("window-click", pos),
   onShowFindInPage: (callback) => ipcRenderer.on('show-find-in-page', callback),
   onFocusAddressBar: (callback) => ipcRenderer.on('focus-address-bar', () => callback()),
@@ -285,7 +299,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   externBookmarkDrop:           (x, y) => ipcRenderer.send('extern-bookmark-drop', x, y),
 });
 
-contextBridge.exposeInMainWorld('focusMode', {
+exposeInternal('focusMode', {
   toggle: () => ipcRenderer.invoke('focus-mode-toggle'),
   getState: () => ipcRenderer.invoke('focus-mode-get'),
   onChanged: (handler) => ipcRenderer.on('focus-mode-changed', (_e, active) => handler(active)),
@@ -293,7 +307,7 @@ contextBridge.exposeInMainWorld('focusMode', {
   overlayClose: () => ipcRenderer.send('overlay-close'),
 });
 
-contextBridge.exposeInMainWorld('browserBookmarks', {
+exposeInternal('browserBookmarks', {
   getAll:       ()               => ipcRenderer.invoke('bookmarks-get'),
   add:          (url, title)     => ipcRenderer.invoke('bookmarks-add', url, title),
   remove:       (url)            => ipcRenderer.invoke('bookmarks-remove', url),
@@ -318,15 +332,15 @@ document.addEventListener('mousedown', (e) => {
     try { ipcRenderer.send('content-view-click'); } catch {}
 }, true);
 
-contextBridge.exposeInMainWorld('contentInteraction', {
+exposeInternal('contentInteraction', {
     onClicked: (fn) => ipcRenderer.on('content-clicked', () => fn())
 });
 
-contextBridge.exposeInMainWorld('siteInfo', {
+exposeInternal('siteInfo', {
     open: (anchor) => ipcRenderer.invoke('open-site-info', anchor),
 });
 
-contextBridge.exposeInMainWorld('windowControls', {
+exposeInternal('windowControls', {
   platform:         process.platform,
   minimize:         ()  => ipcRenderer.invoke('window-minimize'),
   maximize:         ()  => ipcRenderer.invoke('window-maximize'),
@@ -335,7 +349,7 @@ contextBridge.exposeInMainWorld('windowControls', {
   onMaximizeChanged:(fn) => ipcRenderer.on('window-maximize-changed', (_e, v) => fn(v)),
 });
 
-contextBridge.exposeInMainWorld('northstarSettings', {
+exposeInternal('northstarSettings', {
   get:               ()         => ipcRenderer.invoke('settings-get'),
   getSync:           ()         => { try { return ipcRenderer.sendSync('settings-get-sync') || {}; } catch { return {}; } },
   set:               (key, val) => ipcRenderer.invoke('settings-set', key, val),
@@ -344,7 +358,7 @@ contextBridge.exposeInMainWorld('northstarSettings', {
   loginGoogle:       (clientId, clientSecret) => ipcRenderer.invoke('google-login', clientId, clientSecret),
 });
 
-contextBridge.exposeInMainWorld('downloads', {
+exposeInternal('downloads', {
     getAll:        ()       => ipcRenderer.invoke('downloads-get'),
     togglePanel:   (anchor) => ipcRenderer.invoke('downloads-panel-toggle', anchor),
     closePanel:    ()       => ipcRenderer.invoke('downloads-panel-close'),
@@ -406,7 +420,7 @@ contextBridge.exposeInMainWorld('downloads', {
     setTimeout(autofill, 1200); // catch late-rendered login forms
 })();
 
-contextBridge.exposeInMainWorld('urlUtils', {
+exposeInternal('urlUtils', {
     getDomain: (url) => {
         try {
             return new URL(url).hostname.toLowerCase().replace(/^www\./, '');

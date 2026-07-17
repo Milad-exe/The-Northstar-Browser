@@ -116,9 +116,10 @@ class WindowManager {
             width:  restoredBounds ? restoredBounds.width  : width,
             height: restoredBounds ? restoredBounds.height : height,
             ...(restoredBounds ? { x: restoredBounds.x, y: restoredBounds.y } : {}),
-            // inactive: shown via showInactive() below — used for tab tear-off,
-            // where focusing a new window mid-drag would break mouse capture.
-            ...(options?.inactive ? { show: false } : {}),
+            // Hidden until ready-to-show: with a transparent background the
+            // window would otherwise appear as an empty ghost at normal bounds
+            // before the chrome paints (and before maximize/fullscreen apply).
+            show: false,
             minWidth: 800,
             minHeight: 600,
             icon: path.join(__dirname, '../logo.png'),
@@ -156,21 +157,30 @@ class WindowManager {
             this._persistWindowBounds(window);
         });
 
+        // First reveal happens only after the chrome has painted, at its final
+        // state (restored bounds + maximize/fullscreen), so the drag regions in
+        // the tab strip / toolbar are grabbable from the very first frame.
         const shouldFullScreen = !!savedState?.isFullScreen;
         const shouldMaximize = !!savedState?.isMaximized && !shouldFullScreen;
-        if (shouldFullScreen || shouldMaximize) {
-            window.once('ready-to-show', () => {
-                try {
-                    if (shouldFullScreen) window.setFullScreen(true);
-                    else window.maximize();
-                } catch {}
-            });
-        }
+        window.once('ready-to-show', () => {
+            try {
+                if (shouldFullScreen) window.setFullScreen(true);
+                else if (shouldMaximize) window.maximize();
+            } catch {}
+            // inactive: tab tear-off — focusing a new window mid-drag would
+            // break mouse capture.
+            try { options?.inactive ? window.showInactive() : window.show(); } catch {}
+        });
 
         window.loadFile('renderer/Browser/index.html');
-        if (options?.inactive) {
-            window.once('ready-to-show', () => { try { window.showInactive(); } catch {} });
-        }
+
+        // Safety net: if the renderer never signals ready-to-show (load error),
+        // don't leave the user with an invisible window.
+        setTimeout(() => {
+            try {
+                if (!window.isDestroyed() && !window.isVisible()) window.show();
+            } catch {}
+        }, 3000);
 
         // Save window bounds whenever it moves or resizes (debounced)
         let _saveBoundsTimer = null;

@@ -35,17 +35,23 @@ function remove() {
 }
 
 // ── Check setting at page load ────────────────────────────────────────────────
+// Optimistic: inject immediately (blocking is on by default), then confirm with
+// ONE async round trip and undo if the user disabled blocking or shielded this
+// site. The old version made two SYNC IPC calls here — every frame of every
+// page blocked its document-start on main-process round trips.
 
-let enabled = true;
 try {
     const { ipcRenderer } = require('electron');
-    const settings = ipcRenderer.sendSync('settings-get-sync');
-    enabled = settings?.adBlockEnabled !== false;
 
-    // Per-site protections shield (lock-icon panel) — skip cosmetic hiding too.
-    if (enabled && ipcRenderer.sendSync('site-protection-off-sync', location.hostname) === true) {
-        enabled = false;
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', inject, { once: true });
+    } else {
+        inject();
     }
+
+    ipcRenderer.invoke('cosmetic-filter-state', location.hostname)
+        .then((on) => { if (on === false) remove(); })
+        .catch(() => {});
 
     // Live toggle — main process broadcasts when the setting changes.
     ipcRenderer.on('adblock-set-enabled', (_e, value) => {
@@ -53,11 +59,3 @@ try {
         else       remove();
     });
 } catch {}
-
-if (enabled) {
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', inject, { once: true });
-    } else {
-        inject();
-    }
-}

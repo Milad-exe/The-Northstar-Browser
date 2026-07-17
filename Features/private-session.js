@@ -59,7 +59,12 @@ function setup(sess) {
     // ── Response-side privacy headers ─────────────────────────────────────────
     // Injecting Referrer-Policy here is the correct approach — setting Referer
     // directly in onBeforeSendHeaders is silently ignored since Electron 7.
+    // Documents only: these headers govern the page's own behaviour and do
+    // nothing on subresources, so skip the per-request header copy there.
     sess.webRequest.onHeadersReceived((details, callback) => {
+        if (details.resourceType !== 'mainFrame' && details.resourceType !== 'subFrame') {
+            return callback({});
+        }
         const headers = { ...details.responseHeaders };
         headers['Referrer-Policy']        = ['strict-origin-when-cross-origin'];
         headers['X-DNS-Prefetch-Control'] = ['off'];

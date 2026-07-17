@@ -813,7 +813,16 @@ class Tabs {
         // Error page — skip aborts (e.g. navigating away mid-load) and sub-frame errors
         tab.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
             if (!isMainFrame) return;
-            if (errorCode === -3) return; // ERR_ABORTED — user navigated away
+            if (errorCode === -3) {
+                // ERR_ABORTED — e.g. the user hit stop. If the still-current
+                // document is the new-tab page mid-fade-out, bring it back.
+                try {
+                    if ((tab.webContents.getURL() || '').includes('/NewTab/')) {
+                        tab.webContents.executeJavaScript("document.documentElement.classList.remove('leaving')", true).catch(() => {});
+                    }
+                } catch {}
+                return;
+            }
             const params = new URLSearchParams({
                 url:  validatedURL || '',
                 code: String(errorCode),
@@ -1115,6 +1124,12 @@ class Tabs {
         if (this.tabMap.has(index)) {
             const tab = this.tabMap.get(index)
             tab.slept = false; // loading revives a slept (discarded) renderer
+            // Leaving the new-tab page: fade it out NOW. Chromium keeps the old
+            // document painted until the new one commits, and a static clock
+            // sitting there for the whole network wait reads as "stuck".
+            if (this.tabUrls.get(index) === 'newtab') {
+                try { tab.webContents.executeJavaScript("document.documentElement.classList.add('leaving')", true).catch(() => {}); } catch {}
+            }
             tab.webContents.loadURL(url)
             this.tabUrls.set(index, url)
             
