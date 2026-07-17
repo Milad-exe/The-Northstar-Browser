@@ -1,0 +1,163 @@
+/* Wrapped in @layer components: ui.css declares the layer order
+ * (theme < base < components < utilities), so Tailwind utility classes in
+ * the page markup can always override these component rules. */
+@layer components {
+
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0; padding: 0;
+  font-family: var(--font);
+  background: transparent;
+  font-size: 12.5px; color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+#container {
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  border-radius: 0;
+  overflow: hidden;
+  width: 240px;
+}
+
+.hidden { display: none !important; }
+
+/* ── Navigation header ───────────────────────── */
+
+.back-btn {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; height: 32px; padding: 0 12px;
+  border: none; border-bottom: 1px solid var(--border);
+  background: transparent;
+  font-family: var(--font); font-size: 12.5px; font-weight: 500;
+  color: var(--text-2); cursor: pointer;
+  text-align: left;
+  transition: background 0.08s, color 0.08s;
+  -webkit-app-region: no-drag;
+}
+.back-btn:hover  { background: var(--hover); color: var(--text); }
+.back-btn:active { background: var(--active-bg); }
+
+.back-btn.drag-over {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--text);
+  outline: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  outline-offset: -1px;
+}
+
+.back-arrow {
+  display: flex; align-items: center; flex-shrink: 0;
+  opacity: 0.38;
+  transition: opacity 0.08s;
+  pointer-events: none;
+}
+.back-btn:hover .back-arrow,
+.back-btn.drag-over .back-arrow { opacity: 0.8; }
+
+.back-label {
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ── Items list ──────────────────────────────── */
+
+.items-list {
+  padding: 4px;
+}
+
+.item {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%; height: 32px; padding: 0 10px;
+  border-radius: 0;
+  background: transparent; border: none;
+  font-family: var(--font); font-size: 12.5px;
+  color: var(--text-2); cursor: pointer;
+  text-align: left; white-space: nowrap; overflow: hidden;
+  transition: background 0.1s, color 0.1s;
+  -webkit-app-region: no-drag;
+  position: relative;
+}
+.item:hover  { background: var(--active-bg); color: var(--text); }
+.item:active { background: var(--hover); }
+
+.item img {
+  width: 14px; height: 14px; flex-shrink: 0; border-radius: 0;
+  opacity: 0.65; pointer-events: none;
+  transition: opacity 0.08s;
+}
+.item:hover img { opacity: 1; }
+
+.item-label {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
+  pointer-events: none;
+}
+
+.folder-icon-left {
+  flex-shrink: 0; display: flex; align-items: center;
+  opacity: 0.4; color: inherit; pointer-events: none;
+  transition: opacity 0.08s;
+}
+.item:hover .folder-icon-left { opacity: 0.8; }
+
+.submenu-arrow {
+  display: flex; align-items: center; flex-shrink: 0;
+  opacity: 0.22; margin-left: auto; padding-left: 4px;
+  pointer-events: none;
+  transition: opacity 0.08s;
+}
+.item:hover .submenu-arrow { opacity: 0.5; }
+
+/* ── Separator ───────────────────────────────── */
+
+.sep {
+  height: 1px; background: var(--border); margin: 3px 0;
+}
+
+/* ── Empty state ─────────────────────────────── */
+
+.empty {
+  padding: 10px 12px;
+  color: var(--text-3); font-size: 11.5px; font-style: italic;
+}
+
+/* ── Inline rename ───────────────────────────── */
+
+.inline-rename-input {
+  flex: 1; min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--accent, #5e81f4);
+  border-radius: 0; color: var(--text);
+  font: inherit; font-size: 12.5px;
+  outline: none; padding: 0 5px;
+  height: 20px; line-height: 20px;
+}
+
+/* ── Scrollbar ───────────────────────────────── */
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-2); }
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+
+/* ── Drag states ─────────────────────────────── */
+
+.item.dragging { opacity: 0.25; }
+
+.item.drop-before::before {
+  content: '';
+  position: absolute; top: 0; left: 12px; right: 12px;
+  height: 2px; background: var(--accent);
+  pointer-events: none;
+}
+
+.item.drag-into {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--text);
+  outline: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  outline-offset: -1px;
+}
+
+}

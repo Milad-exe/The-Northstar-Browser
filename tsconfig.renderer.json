@@ -1,0 +1,16 @@
+{
+  // Chrome-UI page scripts. Each page loads its script with a plain
+  // <script src> tag (no bundler), so these files are compiled as classic
+  // scripts: no import/export — each file is wrapped in an IIFE instead.
+  // The window.api bridge they talk to is declared in src/types/api.d.ts.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": []
+  },
+  "include": [
+    "src/renderer/**/*.ts",
+    "src/types/**/*.d.ts"
+  ]
+}

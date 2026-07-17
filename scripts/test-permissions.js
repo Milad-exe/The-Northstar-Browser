@@ -39,8 +39,8 @@ if (process.platform === 'darwin' && systemPreferences) {
     systemPreferences.askForMediaAccess = async () => true;
 }
 
-const permissionPrompt = require(path.join(INK, 'Features/permission-prompt.js'));
-const sitePermissions  = require(path.join(INK, 'Features/site-permissions.js'));
+const permissionPrompt = require(path.join(INK, 'app/features/permission-prompt.js'));
+const sitePermissions  = require(path.join(INK, 'app/features/site-permissions.js')).default;
 
 // ── Tiny test framework ──────────────────────────────────────────────────────
 const results = [];
@@ -153,7 +153,7 @@ async function main() {
     check('T7 store file written to disk', fs.existsSync(path.join(USERDATA, 'site-permissions.dat')));
     // fresh reader sees it (simulated restart)
     delete require.cache[require.resolve(path.join(INK, 'Features/site-permissions.js'))];
-    const fresh = require(path.join(INK, 'Features/site-permissions.js'));
+    const fresh = require(path.join(INK, 'app/features/site-permissions.js')).default;
     check('T7 fresh process reads persisted allow', fresh.state(ORIGIN, 'camera') === 'allow', `state=${fresh.state(ORIGIN, 'camera')}`);
 
     // ── T8: block-after-allow via panel (stored) ─────────────────────────────
