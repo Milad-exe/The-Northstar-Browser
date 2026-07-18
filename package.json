@@ -57,7 +57,10 @@
       "icon": "icons/icon.ico",
       "target": [
         "nsis"
-      ]
+      ],
+      "signtoolOptions": {
+        "sign": "./scripts/vmp-sign.js"
+      }
     },
     "mac": {
       "icon": "icons/icon.icns",
