@@ -25,13 +25,16 @@ Day-to-day commands:
 
 | Command | What it does |
 |---|---|
+| `npm run dev` | **Watch mode**: tsc + tailwind + asset watchers, Electron auto-restarts on main-process changes, and the UI live-reloads (internal pages reload, the chrome hot-swaps CSS) |
 | `npm run build` | Full build: TypeScript → `app/`, static assets → `app/`, Tailwind → `app/renderer/styles/ui.css` |
-| `npm run build:ts` | Compile both TS projects only |
-| `npm run build:css` | Rebuild the Tailwind stylesheet only |
 | `npm run typecheck` | Type-check everything without emitting |
-| `npm run watch` | Recompile the main process on change |
+| `npm run smoke` | Build, boot the app, and health-check it over CDP (UI intact, extensions registered, zero uncaught errors) |
 | `npm run dist` (`dist:mac` / `dist:win` / `dist:linux`) | Package with electron-builder |
 | `npm run test:permissions` | Headless permission-system test harness |
+
+Designing UI? Open `app/renderer/StyleGuide/index.html` in any browser — a live
+style guide showing every theme token, type style, and component pattern, with
+a theme switcher. Pair it with `npm run dev` for instant feedback.
 
 ---
 

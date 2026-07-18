@@ -179,6 +179,32 @@ class Northstar {
 
             this.windowManager.createWindow();
 
+            // Dev live reload (--dev): edits under app/renderer refresh the UI
+            // instantly — internal pages reload; the chrome hot-swaps CSS only
+            // (a full chrome reload would drop the tab strip's runtime state).
+            if (process.argv.includes('--dev')) {
+                const fs = require('fs');
+                let reloadTimer = null;
+                try {
+                    fs.watch(path.join(__dirname, 'renderer'), { recursive: true }, () => {
+                        clearTimeout(reloadTimer);
+                        reloadTimer = setTimeout(() => {
+                            for (const wc of webContents.getAllWebContents()) {
+                                const url = wc.getURL();
+                                if (!url.startsWith('file://')) continue;
+                                if (url.includes('/Browser/index.html')) {
+                                    wc.executeJavaScript(
+                                        `document.querySelectorAll('link[rel=stylesheet]').forEach(l=>{const u=new URL(l.href);u.searchParams.set('t',Date.now());l.href=u.toString();})`
+                                    ).catch(() => {});
+                                } else {
+                                    wc.reloadIgnoringCache();
+                                }
+                            }
+                        }, 300);
+                    });
+                } catch {}
+            }
+
             // Extensions — enable Chrome Web Store install + reload persisted
             // extensions and set up the chrome.* APIs. Runs AFTER the first
             // window so extension loading never delays startup; any tabs created

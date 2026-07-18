@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Northstar Style Guide</title>
+  <link rel="stylesheet" href="../styles/ui.css">
+  <style>
+    .swatch { width: 100%; height: 44px; border: 1px solid var(--border-2); }
+  </style>
+</head>
+<body class="bg-base p-10 font-sans text-primary">
+  <div class="mx-auto max-w-3xl">
+
+    <div class="mb-2 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-tertiary">Northstar</div>
+    <h1 class="mb-1 text-3xl font-bold tracking-tight">Style guide</h1>
+    <p class="mb-8 text-[13px] text-secondary">
+      Every color below is a theme token — switch themes and the whole page recolors.
+      Open this file in any browser, or edit it live with <span class="font-mono">npm run dev</span>.
+    </p>
+
+    <div class="mb-10 flex gap-2">
+      <button class="theme-btn cursor-pointer border border-strong bg-transparent px-4 py-1.5 text-[12px] font-medium hover:bg-hover" data-theme="">Northstar</button>
+      <button class="theme-btn cursor-pointer border border-strong bg-transparent px-4 py-1.5 text-[12px] font-medium hover:bg-hover" data-theme="fathom">Fathom</button>
+      <button class="theme-btn cursor-pointer border border-strong bg-transparent px-4 py-1.5 text-[12px] font-medium hover:bg-hover" data-theme="porcelain">Porcelain</button>
+      <button class="theme-btn cursor-pointer border border-strong bg-transparent px-4 py-1.5 text-[12px] font-medium hover:bg-hover" data-theme="dune">Dune</button>
+    </div>
+
+    <h2 class="mb-3 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-secondary">Color tokens</h2>
+    <div class="mb-2 grid grid-cols-4 gap-3">
+      <div><div class="swatch" style="background:var(--bg)"></div><div class="mt-1 font-mono text-[10px] text-tertiary">bg-base · --bg</div></div>
+      <div><div class="swatch" style="background:var(--surface)"></div><div class="mt-1 font-mono text-[10px] text-tertiary">bg-surface</div></div>
+      <div><div class="swatch" style="background:var(--surface-2)"></div><div class="mt-1 font-mono text-[10px] text-tertiary">bg-surface-2</div></div>
+      <div><div class="swatch" style="background:var(--hover)"></div><div class="mt-1 font-mono text-[10px] text-tertiary">bg-hover</div></div>
+      <div><div class="swatch" style="background:var(--active-bg)"></div><div class="mt-1 font-mono text-[10px] text-tertiary">bg-active</div></div>
+      <div><div class="swatch" style="background:var(--accent)"></div><div class="mt-1 font-mono text-[10px] text-tertiary">accent</div></div>
+      <div><div class="swatch" style="background:var(--danger)"></div><div class="mt-1 font-mono text-[10px] text-tertiary">danger</div></div>
+      <div><div class="swatch" style="background:var(--border-2)"></div><div class="mt-1 font-mono text-[10px] text-tertiary">border-strong</div></div>
+    </div>
+    <div class="mb-10 text-[12px]">
+      <span class="text-primary">text-primary</span> ·
+      <span class="text-secondary">text-secondary</span> ·
+      <span class="text-tertiary">text-tertiary</span> ·
+      <span class="text-accent">text-accent</span> ·
+      <span class="text-danger">text-danger</span>
+    </div>
+
+    <h2 class="mb-3 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-secondary">Type</h2>
+    <div class="mb-10 space-y-2">
+      <div class="text-3xl font-bold tracking-tight">Display — Manrope bold, tight</div>
+      <div class="text-[13px]">Body — 13px regular for content</div>
+      <div class="text-[12.5px] font-medium">UI label — 12.5px medium (tabs, rows)</div>
+      <div class="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-secondary">Micro label — mono, uppercase, spaced</div>
+    </div>
+
+    <h2 class="mb-3 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-secondary">Buttons</h2>
+    <div class="mb-10 flex items-center gap-3">
+      <button class="cursor-pointer border border-primary bg-primary px-5 py-2 text-[13px] font-medium text-base hover:opacity-85">Primary</button>
+      <button class="cursor-pointer border border-strong bg-transparent px-5 py-2 text-[13px] font-medium text-primary hover:bg-hover">Secondary</button>
+      <button class="cursor-pointer border border-strong bg-transparent px-5 py-2 text-[13px] font-medium text-danger hover:bg-hover">Danger</button>
+      <button class="cursor-pointer border-0 bg-transparent px-2 py-2 text-[13px] text-secondary hover:text-primary">Ghost</button>
+    </div>
+
+    <h2 class="mb-3 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-secondary">Surfaces</h2>
+    <div class="mb-10 grid grid-cols-2 gap-4">
+      <div class="border border-subtle bg-surface p-4">
+        <div class="mb-1 text-[12.5px] font-medium">Card / panel</div>
+        <div class="text-[12px] text-secondary">bg-surface + border-subtle, hard corners, no shadow.</div>
+      </div>
+      <div class="border border-strong bg-surface p-4">
+        <div class="mb-1 flex items-center justify-between">
+          <span class="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-secondary">Overlay</span>
+          <span class="cursor-pointer text-[13px] leading-none text-tertiary hover:text-primary">✕</span>
+        </div>
+        <div class="text-[12px] text-secondary">Floating panels use border-strong.</div>
+      </div>
+    </div>
+
+    <h2 class="mb-3 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-secondary">Inputs</h2>
+    <div class="mb-10 flex items-center gap-4">
+      <input class="w-64 border border-subtle bg-base px-3.5 py-2 font-sans text-[13px] text-primary outline-none placeholder:text-tertiary focus:border-strong" placeholder="Omnibox-style input">
+      <label class="flex cursor-pointer items-center gap-2 text-[12.5px]">
+        <input type="checkbox" class="accent-[var(--accent)]" checked> Checkbox
+      </label>
+    </div>
+
+    <h2 class="mb-3 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-secondary">Rules</h2>
+    <ul class="list-inside list-disc space-y-1 text-[13px] text-secondary">
+      <li>Colors come from tokens only — never hex in markup.</li>
+      <li>Square corners everywhere. No drop shadows; hierarchy comes from borders and surface steps.</li>
+      <li>Micro labels are mono + uppercase + tracked; body copy is Manrope.</li>
+      <li>Hover states use <span class="font-mono">bg-hover</span>, active states <span class="font-mono">bg-active</span>.</li>
+    </ul>
+
+  </div>
+  <script src="guide.js"></script>
+</body>
+</html>

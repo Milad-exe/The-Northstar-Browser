@@ -16,7 +16,7 @@
   "main": "app/main.js",
   "scripts": {
     "start": "npm run build && electron .",
-    "dev": "npm run build && electron . --dev",
+    "dev": "node scripts/dev.js",
     "build": "npm run build:ts && npm run build:assets && npm run build:css",
     "build:ts": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json",
     "build:css": "tailwindcss -i src/renderer/styles/ui.css -o app/renderer/styles/ui.css --minify",
@@ -28,7 +28,8 @@
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:linux": "npm run build && electron-builder --linux",
     "vmp-sign": "node scripts/vmp-sign.js node_modules/electron/dist",
-    "test:permissions": "npm run build:ts && electron scripts/test-permissions.js"
+    "test:permissions": "npm run build:ts && electron scripts/test-permissions.js",
+    "smoke": "npm run build && node scripts/smoke.js"
   },
   "build": {
     "appId": "com.northstar.browser",

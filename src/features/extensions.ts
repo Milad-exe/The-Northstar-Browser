@@ -19,8 +19,17 @@ import path from 'path';
 import crypto from 'crypto';
 import { execFileSync } from 'child_process';
 import { app } from 'electron';
-import { ElectronChromeExtensions } from 'electron-chrome-extensions';
-import { installChromeWebStore, installExtension, uninstallExtension } from 'electron-chrome-web-store';
+// Loaded lazily in setup(): these two libraries are the heaviest requires in
+// the main process, and setup() only runs AFTER the first window exists — as
+// top-level imports they would sit on the startup critical path for nothing.
+let ElectronChromeExtensions: any;
+let webStore: any;   // { installChromeWebStore, installExtension, uninstallExtension }
+function loadLibs() {
+    if (!ElectronChromeExtensions) {
+        ({ ElectronChromeExtensions } = require('electron-chrome-extensions'));
+        webStore = require('electron-chrome-web-store');
+    }
+}
 // Session's extension API surface moved to session.extensions in newer Electron.
 const extApi = (session: any) => session.extensions || session;
 
@@ -50,6 +59,7 @@ class Extensions {
 
     /** Call once in app.whenReady, after the session is configured. */
     async setup(session, wm) {
+        loadLibs();
         this.session = session;
         this.wm = wm;
         this.unpackedFile = path.join(app.getPath('userData'), 'extensions-unpacked.json');
@@ -88,7 +98,7 @@ class Extensions {
         try { ElectronChromeExtensions.handleCRXProtocol(session); } catch (e) { console.error('handleCRXProtocol:', e.message); }
 
         // Enable Web Store install + load store-installed extensions on startup.
-        await installChromeWebStore({
+        await webStore.installChromeWebStore({
             session,
             loadExtensions: true,
             allowUnpackedExtensions: true,
@@ -249,7 +259,8 @@ class Extensions {
 
     async installById(id) {
         const cleanId = String(id || '').trim().match(/[a-p]{32}/i)?.[0] || String(id || '').trim();
-        const ext = await installExtension(cleanId, { session: this.session });
+        loadLibs();
+        const ext = await webStore.installExtension(cleanId, { session: this.session });
         this._emit();
         return { id: ext.id, name: ext.name };
     }
@@ -277,7 +288,7 @@ class Extensions {
     async remove(id) {
         // A disabled extension isn't loaded, so uninstall would no-op — just drop it.
         if (this.disabled[id]) { delete this.disabled[id]; this._saveDisabled(); this._emit(); return true; }
-        try { await uninstallExtension(id, { session: this.session }); }
+        try { await webStore.uninstallExtension(id, { session: this.session }); }
         catch { try { extApi(this.session).removeExtension(id); } catch {} }
         this._removeUnpackedById(id);
         this._emit();

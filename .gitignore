@@ -142,3 +142,4 @@ ink.code-workspace
 
 # Compiled output (built from src/ by npm run build)
 app/
+CLAUDE.md

@@ -1092,6 +1092,9 @@ class Tabs {
 
         if (this.tabMap.has(index)) {
             const tab = this.tabMap.get(index);
+            // Background tabs skip live resizing (see resizeAllTabs) — catch up
+            // on the current bounds before this one becomes visible.
+            tab.setBounds(this.getTabBounds())
             tab.setVisible(true)
             // Sleep bookkeeping: the outgoing tab starts ageing now; the incoming
             // tab is fresh. Wake it if the sleep scan discarded its renderer.
@@ -1477,8 +1480,12 @@ class Tabs {
     resizeAllTabs() {
         const bounds = this.getTabBounds()
 
+        // Only the visible tab is resized immediately. Background views would
+        // each relayout + repaint on every setBounds — with many tabs open
+        // that turns window resizing into a jank festival. Hidden tabs get
+        // their bounds applied in showTab() the moment they become visible.
         this.tabMap.forEach((tab, index) => {
-            tab.setBounds(bounds)
+            if (index === this.activeTabIndex) tab.setBounds(bounds)
         })
     }
 
