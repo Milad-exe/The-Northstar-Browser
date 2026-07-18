@@ -130,7 +130,7 @@ class WindowManager {
             show: false,
             minWidth: 800,
             minHeight: 600,
-            icon: path.join(__dirname, '../logo.png'),
+            icon: path.join(__dirname, process.platform === 'win32' ? '../logo-win.png' : '../logo.png'),
             frame: process.platform === 'linux' ? true : false,
             titleBarStyle: process.platform === 'win32' || process.platform === 'linux' ? 'default' : 'hiddenInset',
             trafficLightPosition: { x: 14, y: 15 }, // Vertically center within the 42px top tab strip

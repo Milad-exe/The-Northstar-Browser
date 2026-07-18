@@ -738,8 +738,12 @@ document.addEventListener('DOMContentLoaded', () => {
         let u;
         try { u = new URL(url); } catch { return null; }
         if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
-        if (!url.startsWith(u.origin)) return null; // credentials or odd forms: show plain
-        return [u.protocol + '//', u.host, url.slice(u.origin.length)];
+        // Split on the raw string, not the parsed origin — IDN hosts, uppercase
+        // schemes and credential forms would otherwise fall back to domain-only
+        // and make the rest of the URL vanish from the bar.
+        const m = url.match(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/(?:[^/?#@]*@)?)([^/?#]+)([\s\S]*)$/);
+        if (!m) return null;
+        return [m[1], m[2], m[3]];
     }
 
     // Resting input value: the full URL for http(s) pages, the legacy domain

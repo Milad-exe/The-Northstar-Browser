@@ -270,6 +270,7 @@ class Tabs {
         const makePrivate = isPrivate || this.isPrivateWindow;
 
         const webPrefs: any = {
+            autoplayPolicy: 'user-gesture-required',
             preload: preloadForPage(url),
             contextIsolation: true,
             nodeIntegration: false,
@@ -457,6 +458,7 @@ class Tabs {
         const makePrivate = isPrivate || this.isPrivateWindow;
 
         const webPrefs: any = {
+            autoplayPolicy: 'user-gesture-required',
             preload: path.join(__dirname, '../preload/preload.js'),
             contextIsolation: true,
             nodeIntegration: false,
@@ -589,6 +591,7 @@ class Tabs {
 
         const tab: TabView = new WebContentsView({
             webPreferences: {
+                autoplayPolicy: 'user-gesture-required',
                 preload: preloadForPage(pageType),
                 contextIsolation: true,
                 nodeIntegration: false

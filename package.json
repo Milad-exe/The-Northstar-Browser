@@ -38,7 +38,7 @@
       "mirror": "https://github.com/castlabs/electron-releases/releases/download/"
     },
     "productName": "Northstar",
-    "copyright": "Copyright \u00a9 2025 Milad Rakhshbahar",
+    "copyright": "Copyright © 2025 Milad Rakhshbahar",
     "directories": {
       "output": "dist"
     },
@@ -46,6 +46,7 @@
       "app/**/*",
       "package.json",
       "logo.png",
+      "logo-win.png",
       "node_modules/**/*"
     ],
     "asarUnpack": [

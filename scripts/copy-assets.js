@@ -33,4 +33,5 @@ function walk(dir) {
 
 walk(SRC);
 fs.copyFileSync(path.join(ROOT, 'logo.png'), path.join(OUT, 'logo.png'));
+fs.copyFileSync(path.join(ROOT, 'logo-win.png'), path.join(OUT, 'logo-win.png'));
 console.log(`copy-assets: ${copied + 1} files → app/`);
