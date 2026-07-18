@@ -1,0 +1,79 @@
+/* Wrapped in @layer components: ui.css declares the layer order
+ * (theme < base < components < utilities), so Tailwind utility classes in
+ * the page markup can always override these component rules. */
+@layer components {
+
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font); background: var(--bg);
+  min-height: 100vh; font-size: 13px; color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+html[data-vibrancy="true"], html[data-vibrancy="true"] body {
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+}
+
+.page { max-width: 820px; margin: 0 auto; padding: 48px 32px 64px; }
+
+.header h1 {
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--text-2); margin-bottom: 32px;
+  padding-bottom: 16px; border-bottom: 1px solid var(--border);
+}
+
+#container {
+  border: 1px solid var(--border);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  overflow: hidden;
+  padding: 5px;
+}
+
+.bookmark-entry {
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 12px; margin: 1px 0;
+  border-radius: 0;
+  cursor: pointer; transition: background 0.1s;
+}
+.bookmark-entry:hover { background: var(--active-bg); }
+
+.bookmark-favicon { width: 14px; height: 14px; flex-shrink: 0; border-radius: 0; opacity: 0.7; }
+
+.bookmark-content { flex: 1; min-width: 0; }
+
+.bookmark-title {
+  font-size: 12.5px; font-weight: 500; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.bookmark-url {
+  font-size: 11px; color: var(--text-3); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: var(--mono);
+}
+
+.bookmark-remove {
+  background: none; border: none; color: var(--text-3); font-size: 14px;
+  cursor: pointer; padding: 3px 6px; border-radius: 0; opacity: 0;
+  transition: opacity 0.1s, color 0.1s; flex-shrink: 0;
+}
+.bookmark-entry:hover .bookmark-remove { opacity: 1; }
+.bookmark-remove:hover { color: var(--danger); }
+
+.empty-msg {
+  text-align: center; color: var(--text-3);
+  font-size: 12px; padding: 48px 24px; letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-2); }
+
+/* Page header is interface, not copy; entries stay selectable for copying URLs. */
+.header h1 { user-select: none; -webkit-user-select: none; }
+
+}

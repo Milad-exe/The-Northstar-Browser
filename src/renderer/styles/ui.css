@@ -1,0 +1,61 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+ * ui.css — the single Tailwind v4 entry for every chrome-UI page.
+ *
+ * Built by `npm run build:css` into app/renderer/styles/ui.css; every page
+ * links it FIRST, then its own styles.css with page-specific component rules.
+ *
+ * Two deliberate choices:
+ *
+ * 1. No Tailwind preflight. The pages predate Tailwind and carry their own
+ *    resets; preflight would subtly reflow the hand-tuned brutalist chrome.
+ *    Only the theme layer (design tokens) and utilities are imported.
+ *
+ * 2. Cascade layers put page CSS below utilities. The layer order declared
+ *    here means a Tailwind utility class in the markup always beats a rule
+ *    from a page's styles.css (which are wrapped in @layer components) —
+ *    so "add a class in HTML" behaves the way a developer expects.
+ *
+ * Design tokens: the runtime theme system stays plain CSS custom properties
+ * (see themes.css — four palettes + private-mode, switched by setting
+ * data-theme / data-private-* on <html>). The @theme block below maps those
+ * variables into Tailwind, which is what makes utilities theme-aware:
+ *
+ *     bg-surface     → var(--surface)      text-primary  → var(--text)
+ *     bg-surface-2   → var(--surface-2)    text-secondary→ var(--text-2)
+ *     bg-hover       → var(--hover)        text-tertiary → var(--text-3)
+ *     bg-active      → var(--active-bg)    text-accent / bg-accent → var(--accent)
+ *     border-subtle  → var(--border)       text-danger / bg-danger → var(--danger)
+ *     border-strong  → var(--border-2)     font-sans → var(--font), font-mono → var(--mono)
+ *
+ * Utilities recolor live when the theme changes — no rebuild needed.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/theme" layer(theme);
+@import "tailwindcss/utilities" layer(utilities);
+
+@import "./fonts.css";
+@import "./themes.css";
+
+@theme inline {
+  /* Wipe Tailwind's stock palette so only the ink tokens exist — a page can't
+   * quietly drift off-palette with bg-blue-500. */
+  --color-*: initial;
+
+  --color-base:      var(--bg);
+  --color-surface:   var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-primary:   var(--text);
+  --color-secondary: var(--text-2);
+  --color-tertiary:  var(--text-3);
+  --color-subtle:    var(--border);
+  --color-strong:    var(--border-2);
+  --color-hover:     var(--hover);
+  --color-active:    var(--active-bg);
+  --color-accent:    var(--accent);
+  --color-danger:    var(--danger);
+
+  --font-sans: var(--font);
+  --font-mono: var(--mono);
+}

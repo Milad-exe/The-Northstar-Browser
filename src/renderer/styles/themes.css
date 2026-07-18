@@ -1,0 +1,93 @@
+/* renderer/themes.css
+ *
+ * Four palettes, one brutalist aesthetic: airy surfaces, hard square edges,
+ * quiet borders, mono micro-labels, tight heavy display type.
+ *
+ *   default   — Northstar · ink black, faded silver, blood-wine accent (dark)
+ *   fathom    — Fathom    · abyssal navy, arctic mist (dark)
+ *   porcelain — Porcelain · warm grey-lilac (light)
+ *   dune      — Dune      · cream & silent navy, sandy amber (light)
+ */
+
+:root {
+  /* Northstar (default) — ink black; sleek, high-contrast, wine accent */
+  --bg:        #090909;
+  --surface:   #131111;
+  --surface-2: #1c1919;
+  --text:      #e6e4e4;
+  --text-2:    #acacac;
+  --text-3:    #4a4747;
+  --border:    rgba(172,172,172,0.09);
+  --border-2:  rgba(172,172,172,0.16);
+  --hover:     rgba(172,172,172,0.06);
+  --active-bg: rgba(172,172,172,0.11);
+  --accent:    #a63d4a;
+  --danger:    #c94f5c;
+  --font:      'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mono:      'Space Mono', 'SF Mono', monospace;
+}
+
+html[data-theme="fathom"] {
+  /* Fathom — abyssal navy, cold current, arctic mist */
+  --bg:        #01162b;
+  --surface:   #082036;
+  --surface-2: #0e2a44;
+  --text:      #d2dbeb;
+  --text-2:    #94a2bf;
+  --text-3:    #46618a;
+  --border:    rgba(148,162,191,0.10);
+  --border-2:  rgba(148,162,191,0.18);
+  --hover:     rgba(148,162,191,0.07);
+  --active-bg: rgba(148,162,191,0.13);
+  --accent:    #6a90b4;
+  --danger:    #e05c6e;
+}
+
+html[data-theme="porcelain"] {
+  /* Porcelain — soft warm grey-lilac light; gentle contrast, paper-like */
+  --bg:        #eceaee;
+  --surface:   #f8f7fa;
+  --surface-2: #e2dfe5;
+  --text:      #1c1b1f;
+  --text-2:    #6d6a75;
+  --text-3:    #a9a6b1;
+  --border:    rgba(28,27,31,0.08);
+  --border-2:  rgba(28,27,31,0.14);
+  --hover:     rgba(28,27,31,0.05);
+  --active-bg: rgba(28,27,31,0.08);
+  --accent:    #3f7ce0;
+  --danger:    #d24d43;
+}
+
+html[data-theme="dune"] {
+  /* Dune — light cream, silent navy ink, sandy amber warmth */
+  --bg:        #fcedd3;
+  --surface:   #fdf4e2;
+  --surface-2: #f3e2c4;
+  --text:      #102a6b;
+  --text-2:    #4a5c94;
+  --text-3:    #a5987f;
+  --border:    rgba(16,42,107,0.12);
+  --border-2:  rgba(16,42,107,0.20);
+  --hover:     rgba(16,42,107,0.06);
+  --active-bg: rgba(16,42,107,0.10);
+  --accent:    #015185;
+  --danger:    #b8442f;
+}
+
+/* ── Private mode — polar-opposite lavender/violet palette ── */
+html[data-private-window="true"],
+html[data-private-tab="true"] {
+  --bg:        #f0ebff;
+  --surface:   #e6deff;
+  --surface-2: #dcd4ff;
+  --text:      #180a40;
+  --text-2:    #6b4da8;
+  --text-3:    #c4b0e8;
+  --border:    rgba(110,70,200,0.14);
+  --border-2:  rgba(110,70,200,0.24);
+  --hover:     rgba(110,70,200,0.07);
+  --active-bg: rgba(110,70,200,0.13);
+  --accent:    #7c3aed;
+  --danger:    #c03060;
+}

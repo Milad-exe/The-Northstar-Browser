@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none';" />
+    <title>Find</title>
+    <link rel="stylesheet" href="../styles/ui.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="find-container">
+        <div class="find-bar">
+            <input type="text" id="find-input" placeholder="Find in page..." autofocus>
+            <div class="find-controls">
+                <div class="find-nav">
+                    <button id="prev-btn" class="find-btn" title="Previous">▲</button>
+                    <button id="next-btn" class="find-btn" title="Next">▼</button>
+                </div>
+                <span id="match-counter" class="match-counter">0 of 0</span>
+                <button id="close-btn" class="find-btn close-btn" title="Close">✕</button>
+            </div>
+        </div>
+    </div>
+    <script src="find.js"></script>
+</body>
+</html>

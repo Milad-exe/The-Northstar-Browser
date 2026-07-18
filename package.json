@@ -13,16 +13,23 @@
   "license": "ISC",
   "author": "Milad Rakhshbahar",
   "type": "commonjs",
-  "main": "main.js",
+  "main": "app/main.js",
   "scripts": {
-    "start": "electron .",
-    "dev": "electron . --dev",
-    "build": "electron-builder",
-    "build:win": "electron-builder --win",
-    "build:mac": "electron-builder --mac",
-    "build:linux": "electron-builder --linux",
+    "start": "npm run build && electron .",
+    "dev": "node scripts/dev.js",
+    "build": "npm run build:ts && npm run build:assets && npm run build:css",
+    "build:ts": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json",
+    "build:css": "tailwindcss -i src/renderer/styles/ui.css -o app/renderer/styles/ui.css --minify",
+    "build:assets": "node scripts/copy-assets.js",
+    "watch": "tsc -p tsconfig.main.json --watch",
+    "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:linux": "npm run build && electron-builder --linux",
     "vmp-sign": "node scripts/vmp-sign.js node_modules/electron/dist",
-    "test": "jest"
+    "test:permissions": "npm run build:ts && electron scripts/test-permissions.js",
+    "smoke": "npm run build && node scripts/smoke.js"
   },
   "build": {
     "appId": "com.northstar.browser",
@@ -36,13 +43,10 @@
       "output": "dist"
     },
     "files": [
-      "main.js",
+      "app/**/*",
       "package.json",
       "logo.png",
-      "Features/**/*",
-      "ipc/**/*",
-      "preload/**/*",
-      "renderer/**/*",
+      "logo-win.png",
       "node_modules/**/*"
     ],
     "asarUnpack": [
@@ -83,7 +87,11 @@
     "tldts": "^7.4.2"
   },
   "devDependencies": {
+    "@tailwindcss/cli": "^4.3.3",
+    "@types/node": "^26.1.1",
     "electron": "github:castlabs/electron-releases#v38.8.6+wvcus",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2"
   }
 }

@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none';" />
+  <title>Northstar</title>
+  <link rel="stylesheet" href="../styles/ui.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Tab Bar (top strip — sits beside the native window controls) -->
+  <div id="tab-bar">
+    <!-- Window controls — position/style set by JS based on platform -->
+    <div id="window-controls" class="window-controls"></div>
+    <button id="tab-scroll-left" class="tab-scroll-btn" tabindex="-1" aria-label="Scroll tabs left">‹</button>
+    <div id="tabs-container"></div>
+    <button id="tab-scroll-right" class="tab-scroll-btn" tabindex="-1" aria-label="Scroll tabs right">›</button>
+    <div id="tab-actions">
+      <button id="new-tab-btn" class="tab-add" tabindex="-1" aria-label="New tab">+</button>
+    </div>
+    <!-- Draggable filler: keeps the + next to the last tab, taking the slack up
+         to the window controls / private badge. Collapses to 0 once tabs fill
+         the strip, so the + falls back to the far right. -->
+    <div id="tab-drag-spacer"></div>
+    <div id="private-window-badge" class="private-badge">
+      <svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor"><path d="M8 1L2 3.5V8c0 3.3 2.5 5.7 6 7 3.5-1.3 6-3.7 6-7V3.5L8 1zm0 6.5h4c-.3 2.2-1.8 4-4 5.1V7.5H4V5l4-1.7V7.5z"/></svg>
+      Private
+    </div>
+  </div>
+
+  <!-- Navigation / address bar -->
+  <div id="utility-bar">
+    <div class="nav-buttons">
+      <button id="back-btn" tabindex="-1" class="nav-btn" title="Back">
+        <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5l-5.5 5.5 5.5 5.5"/></svg>
+      </button>
+      <button id="forward-btn" tabindex="-1" class="nav-btn" title="Forward">
+        <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4.5l5.5 5.5L8 15.5"/></svg>
+      </button>
+      <button id="reload-btn" tabindex="-1" class="nav-btn" title="Reload">
+        <svg class="nav-reload" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15.5 6.5A6.5 6.5 0 103.6 12"/>
+          <path d="M15.8 3.4v3.3h-3.3"/>
+        </svg>
+        <svg class="nav-stop" viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+          <path d="M6 6l8 8M14 6l-8 8"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="omnibox-wrapper">
+      <div class="omnibox" data-omni="search">
+        <span class="omni-icon" id="omni-icon">
+          <!-- Search: shown while typing / on new tab -->
+          <svg class="oi oi-search" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <circle cx="10.5" cy="10.5" r="6.5"/>
+            <line x1="15.5" y1="15.5" x2="21" y2="21"/>
+          </svg>
+          <!-- Secure: HTTPS page -->
+          <svg class="oi oi-secure" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="9" width="12" height="8" rx="1.5"/>
+            <path d="M6.5 9V6.5a3.5 3.5 0 017 0V9"/>
+          </svg>
+          <!-- Not secure: HTTP page -->
+          <svg class="oi oi-insecure" viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 3.2L2.8 16h14.4L10 3.2z"/>
+            <path d="M10 8.2v3.2M10 13.6v.1"/>
+          </svg>
+        </span>
+        <div class="omni-input">
+          <input id="searchBar" placeholder="Search or enter URL" type="text">
+          <!-- Firefox-style resting URL: host bright, scheme/path dimmed.
+               Painted over the (text-transparent) input while it's unfocused. -->
+          <div id="url-display" aria-hidden="true"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Inline pomodoro pill — hidden until focus mode/timer is active -->
+    <div id="pomodoro-pill" class="pomodoro-pill hidden" title="Click to manage timer">
+      <svg class="pill-ring" viewBox="0 0 28 28" width="28" height="28">
+        <circle class="pill-ring-bg"   cx="14" cy="14" r="11"/>
+        <circle class="pill-ring-fill" id="pill-ring-fill" cx="14" cy="14" r="11"/>
+      </svg>
+      <span class="pill-phase-dot" id="pill-phase-dot"></span>
+      <span class="pill-time" id="pill-time">25:00</span>
+    </div>
+
+    <div class="trailing-icons">
+      <!-- Extension browser-action buttons (electron-chrome-extensions) -->
+      <browser-action-list id="ext-actions"></browser-action-list>
+      <!-- Extensions: lists installed extensions; links to the Chrome Web Store -->
+      <button id="extensions-btn" tabindex="-1" class="icon-btn" title="Extensions">
+        <svg class="icon-svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+          <path d="M8 3.5a1.5 1.5 0 013 0V5h2.5A1.5 1.5 0 0115 6.5V9h1a1.5 1.5 0 010 3h-1v2.5a1.5 1.5 0 01-1.5 1.5H11v-1a1.5 1.5 0 00-3 0v1H5.5A1.5 1.5 0 014 15.5V13H3a1.5 1.5 0 010-3h1V6.5A1.5 1.5 0 015.5 5H8V3.5z"/>
+        </svg>
+      </button>
+      <!-- Reader mode: hidden until the page looks like an article -->
+      <button id="reader-btn" tabindex="-1" class="icon-btn reader-btn hidden" title="Reader View">
+        <svg class="icon-svg" viewBox="0 0 20 20" fill="none">
+          <rect x="3" y="4" width="14" height="12" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M6.5 8h5M6.5 11h7M6.5 13.5h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <!-- Picture-in-Picture: hidden until the active tab plays video -->
+      <button id="pip-btn" tabindex="-1" class="icon-btn pip-btn hidden" title="Picture-in-Picture">
+        <svg class="icon-svg" viewBox="0 0 20 20" fill="none">
+          <rect x="3" y="4.5" width="14" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+          <rect x="10" y="9" width="5.5" height="4.5" rx="1" fill="currentColor"/>
+        </svg>
+      </button>
+      <!-- Downloads: hidden until the first download of the session -->
+      <button id="downloads-btn" tabindex="-1" class="icon-btn downloads-btn hidden" title="Downloads">
+        <svg class="icon-svg" viewBox="0 0 20 20" fill="none">
+          <path d="M10 3v8.5M6.5 8.5L10 12l3.5-3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M4 15.5h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <span class="downloads-dot"></span>
+      </button>
+      <!-- Bookmark: filled star when bookmarked, outline when not -->
+      <button id="bookmark-btn" tabindex="-1" class="icon-btn" title="Bookmark">
+        <svg class="icon-svg bookmark-outline" viewBox="0 0 20 20" fill="none">
+          <path d="M5 3h10a1 1 0 011 1v13l-6-3.5L4 17V4a1 1 0 011-1z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>
+        <svg class="icon-svg bookmark-filled" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M5 3h10a1 1 0 011 1v13l-6-3.5L4 17V4a1 1 0 011-1z"/>
+        </svg>
+      </button>
+      <!-- Focus: clock icon -->
+      <button id="focus-btn" tabindex="-1" class="icon-btn" title="Focus Mode">
+        <svg class="icon-svg" viewBox="0 0 20 20" fill="none">
+          <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M10 6v4l2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <button id="menu-btn" tabindex="-1" class="icon-btn menu-btn" title="Menu">
+        <svg viewBox="0 0 16 12" width="16" height="12" fill="currentColor">
+          <rect y="0" width="16" height="1.5" rx="0.75"/>
+          <rect y="5.25" width="16" height="1.5" rx="0.75"/>
+          <rect y="10.5" width="16" height="1.5" rx="0.75"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Bookmark Bar -->
+  <div id="bookmark-bar" class="bookmark-bar hidden">
+    <div id="bookmark-bar-items"></div>
+  </div>
+
+  <!-- Content Area -->
+  <div id="content-area"></div>
+
+  <!-- Pomodoro Overlay -->
+  <div id="pomodoro-overlay" class="pomodoro-overlay hidden">
+    <div class="pomodoro-card">
+      <div class="pomodoro-phase" id="pomodoro-phase">Focus</div>
+      <div class="pomodoro-time" id="pomodoro-time">25:00</div>
+      <div class="pomodoro-controls">
+        <button id="pomodoro-start" tabindex="-1" class="pom-btn pom-btn-primary">Start</button>
+        <button id="pomodoro-skip" tabindex="-1"  class="pom-btn">Skip</button>
+        <button id="pomodoro-reset" tabindex="-1" class="pom-btn">Reset</button>
+      </div>
+      <div class="pomodoro-sessions" id="pomodoro-sessions"></div>
+      <button id="pomodoro-close" tabindex="-1" class="pom-close" title="Close">✕</button>
+    </div>
+  </div>
+
+  <script src="../../node_modules/dompurify/dist/purify.min.js"></script>
+  <script src="../renderer.js"></script>
+</body>
+</html>

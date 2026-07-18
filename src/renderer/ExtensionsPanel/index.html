@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none';" />
+  <title>Extensions</title>
+  <link rel="stylesheet" href="../styles/ui.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="m-0 select-none overflow-hidden bg-transparent font-sans text-primary">
+  <div id="panel" class="flex h-screen flex-col border border-strong bg-surface">
+    <div class="flex items-center justify-between border-b border-subtle px-3.5 py-2.5">
+      <span class="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-secondary">Extensions</span>
+      <button id="close-btn" tabindex="-1" class="cursor-pointer border-0 bg-transparent p-0 text-[13px] leading-none text-tertiary hover:text-primary" title="Close">✕</button>
+    </div>
+
+    <div id="list" class="min-h-0 flex-1 overflow-y-auto"></div>
+
+    <!-- Footer: the way to get more extensions -->
+    <a id="store-link" href="#"
+       class="block border-t border-subtle px-3.5 py-2.5 text-[12px] font-medium text-accent no-underline hover:bg-hover">
+      Browse the Chrome Web Store ↗
+    </a>
+  </div>
+  <script src="panel.js"></script>
+</body>
+</html>
