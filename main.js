@@ -56,6 +56,14 @@ app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
 // an unsigned dev build; this suppresses it. (Our own password store encrypts
 // via Features/encryption.js, so nothing depends on the keychain.)
 app.commandLine.appendSwitch('use-mock-keychain');
+// Disable FedCM (the browser-native "Sign in with Google" flow). Chromium
+// exposes navigator.credentials.get({identity}) + window.IdentityCredential, so
+// Google Identity Services picks the FedCM path — but Electron doesn't render
+// the FedCM account-chooser UI, so the request hangs forever and "Continue with
+// Google" silently does nothing. Turning FedCM off makes GSI fall back to the
+// popup OAuth flow, which we DO support (window.open popups open a real window
+// with window.opener intact — see tabs.js setWindowOpenHandler).
+app.commandLine.appendSwitch('disable-features', 'FedCm');
 app.userAgentFallback = UserAgent.generate();
 // ── Imports ──────────────────────────────────────────────────────────────────
 const WindowManager = require('./features/window-manager');
