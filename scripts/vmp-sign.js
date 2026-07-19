@@ -65,7 +65,11 @@ function signPkg(dir) {
 // electron-builder afterPack hook (macOS/Linux only — too early on Windows,
 // see header comment; Windows goes through exports.sign below instead).
 exports.default = async function vmpSign(context) {
-  if (context.electronPlatformName === 'win32') return;
+  // Windows is signed later via exports.sign (after rcedit). Linux is skipped
+  // entirely: castlabs EVS only signs macOS .app / Windows .exe packages, and
+  // Linux Widevine (L3) doesn't use VMP signing — trying to sign a Linux build
+  // just errors with "No matching executable found".
+  if (context.electronPlatformName === 'win32' || context.electronPlatformName === 'linux') return;
   signPkg(context.appOutDir);
 };
 

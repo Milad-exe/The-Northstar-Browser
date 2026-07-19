@@ -1,13 +1,14 @@
 // IIFE: compiled as a classic <script>; the wrapper keeps this page's
 // top-level names out of the shared global scope.
 //
-// Firefox-style panel: clicking a row RUNS the extension (opens its popup /
-// fires its onClicked, anchored to the toolbar), the pin button moves it in or
-// out of the toolbar strip, and the footer links to the Chrome Web Store.
+// Management panel: each row pins/unpins the extension to the toolbar,
+// toggles it, opens options, or removes it. Extensions are RUN by clicking
+// their pinned toolbar icon — the row itself never activates, so aiming for a
+// control can't accidentally open a popup. The footer links to the Web Store.
 (() => {
     const listEl = document.getElementById('list');
 
-    const PIN_SVG = `<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><path d="M9.5 1.5l5 5-1.5 1.5-.75-.25L9.5 10.5l.25 2.75L8.5 14.5 5 11 2 14l-1-1 3-3-3.5-3.5 1.25-1.25 2.75.25 2.75-2.75-.25-.75L9.5 1.5z"/></svg>`;
+    const PIN_SVG = `<svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor"><path d="M9.5 1.5l5 5-1.5 1.5-.75-.25L9.5 10.5l.25 2.75L8.5 14.5 5 11 2 14l-1-1 3-3-3.5-3.5 1.25-1.25 2.75.25 2.75-2.75-.25-.75L9.5 1.5z"/></svg>`;
 
     function render(items) {
         listEl.textContent = '';
@@ -22,13 +23,8 @@
 
         for (const ext of items) {
             const row = document.createElement('div');
-            row.className = 'group flex cursor-pointer items-center gap-2.5 border-b border-subtle px-3.5 py-2.5 hover:bg-hover';
+            row.className = 'flex items-center gap-2.5 border-b border-subtle px-3.5 py-2.5';
             row.title = ext.description || ext.name;
-
-            // Row body click activates the extension — like Firefox's panel.
-            row.addEventListener('click', () => {
-                if (ext.enabled) window.extPanel.activate(ext.id);
-            });
 
             const icon = document.createElement('div');
             icon.className = 'h-5 w-5 flex-shrink-0';
@@ -56,18 +52,18 @@
             meta.appendChild(name); meta.appendChild(ver);
             row.appendChild(meta);
 
-            // Controls stop propagation so they don't activate the extension.
             const control = (el, handler) => {
                 el.addEventListener('click', (e) => { e.stopPropagation(); handler(); });
                 return el;
             };
 
-            // Pin / unpin (Firefox: "Pin to Toolbar")
+            // Pin / unpin — a real 26px button so it's an easy, unambiguous target.
             const pin = document.createElement('button');
             pin.tabIndex = -1;
-            pin.className = 'ext-pin cursor-pointer border-0 bg-transparent p-0.5'
-                + (ext.pinned ? ' pinned text-accent' : ' text-tertiary hover:text-primary');
-            pin.title = ext.pinned ? 'Unpin from toolbar' : 'Pin to toolbar';
+            pin.className = 'ext-pin flex h-[26px] w-[26px] flex-shrink-0 cursor-pointer items-center justify-center border-0 hover:bg-hover'
+                + (ext.pinned ? ' pinned text-accent' : ' text-tertiary');
+            pin.style.background = ext.pinned ? 'var(--active-bg)' : 'transparent';
+            pin.title = ext.pinned ? 'Pinned to toolbar — click to unpin' : 'Pin to toolbar';
             pin.innerHTML = PIN_SVG;
             control(pin, () => window.extPanel.setPinned(ext.id, !ext.pinned));
             row.appendChild(pin);
@@ -75,7 +71,7 @@
             if (ext.optionsUrl && ext.enabled) {
                 const opts = document.createElement('button');
                 opts.tabIndex = -1;
-                opts.className = 'cursor-pointer border-0 bg-transparent p-0 text-[12px] text-tertiary hover:text-primary';
+                opts.className = 'flex h-[26px] w-[22px] flex-shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent text-[13px] text-tertiary hover:text-primary';
                 opts.title = 'Extension options';
                 opts.textContent = '⚙';
                 control(opts, () => window.extPanel.openOptions(ext.id));
@@ -83,14 +79,14 @@
             }
 
             const toggle = document.createElement('div');
-            toggle.className = 'ext-toggle' + (ext.enabled ? ' on' : '');
+            toggle.className = 'ext-toggle flex-shrink-0' + (ext.enabled ? ' on' : '');
             toggle.title = ext.enabled ? 'Disable' : 'Enable';
             control(toggle, async () => { await window.extPanel.setEnabled(ext.id, !ext.enabled); refresh(); });
             row.appendChild(toggle);
 
             const rm = document.createElement('button');
             rm.tabIndex = -1;
-            rm.className = 'cursor-pointer border-0 bg-transparent p-0 text-[13px] leading-none text-tertiary hover:text-danger';
+            rm.className = 'flex h-[26px] w-[22px] flex-shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent text-[13px] leading-none text-tertiary hover:text-danger';
             rm.title = 'Remove extension';
             rm.textContent = '✕';
             control(rm, async () => { await window.extPanel.remove(ext.id); refresh(); });

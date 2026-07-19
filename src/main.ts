@@ -109,7 +109,10 @@ class Northstar {
             const savedTheme = this.windowManager.persistence.get('theme');
             nativeTheme.themeSource = (savedTheme === 'porcelain' || savedTheme === 'dune') ? 'light' : 'dark';
 
-            app.dock?.setIcon(path.join(__dirname, 'logo.png')); // macOS only
+            // No dock.setIcon: the bundle icon (icon.icns) is already the Northstar
+            // mark. Overriding it at runtime with a full-bleed PNG made the dock
+            // icon render edge-to-edge — larger than the padded bundle rendering —
+            // so it visibly "expanded" the moment the app finished launching.
 
             Menu.setApplicationMenu(null);
 

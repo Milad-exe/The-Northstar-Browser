@@ -19,14 +19,14 @@
     "dev": "node scripts/dev.js",
     "build": "npm run build:ts && npm run build:assets && npm run build:css",
     "build:ts": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json",
-    "build:css": "tailwindcss -i src/renderer/styles/ui.css -o app/renderer/styles/ui.css --minify",
+    "build:css": "tailwindcss -i src/renderer/styles/ui.css -o app/renderer/styles/ui.css",
     "build:assets": "node scripts/copy-assets.js",
     "watch": "tsc -p tsconfig.main.json --watch",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
-    "dist": "npm run build && electron-builder",
-    "dist:win": "npm run build && electron-builder --win",
-    "dist:mac": "npm run build && electron-builder --mac",
-    "dist:linux": "npm run build && electron-builder --linux",
+    "dist": "node scripts/dist.js",
+    "dist:win": "node scripts/dist.js win",
+    "dist:mac": "node scripts/dist.js mac",
+    "dist:linux": "node scripts/dist.js linux",
     "vmp-sign": "node scripts/vmp-sign.js node_modules/electron/dist",
     "test:permissions": "npm run build:ts && electron scripts/test-permissions.js",
     "smoke": "npm run build && node scripts/smoke.js"
@@ -38,7 +38,8 @@
       "mirror": "https://github.com/castlabs/electron-releases/releases/download/"
     },
     "productName": "Northstar",
-    "copyright": "Copyright © 2025 Milad Rakhshbahar",
+    "copyright": "Copyright \u00a9 2025 Milad Rakhshbahar",
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
     "directories": {
       "output": "dist"
     },
@@ -73,7 +74,8 @@
       "icon": "icons/icon.png",
       "target": [
         "AppImage"
-      ]
+      ],
+      "syncDesktopName": true
     },
     "nsis": {
       "oneClick": false,
