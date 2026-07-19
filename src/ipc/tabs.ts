@@ -6,8 +6,81 @@
  *         and session persistence mode.
  */
 
-import { Menu } from 'electron';
+import { Menu, net } from 'electron';
 import { sanitizeUrl } from '../features/url-security';
+
+// Favicon fetch cache: page/favicon URL → data-URL (or '' for a known failure).
+// Bounded; cleared wholesale when full. Lives for the process lifetime.
+const _faviconCache = new Map<string, string>();
+
+// Fetch one URL over Electron's net stack; resolve a data: URL or '' on failure.
+function fetchFaviconOnce(url: string): Promise<string> {
+    return new Promise((resolve) => {
+        let settled = false;
+        const done = (v: string) => { if (!settled) { settled = true; resolve(v); } };
+        try {
+            const req = net.request({ url, useSessionCookies: false });
+            const chunks: Buffer[] = [];
+            let total = 0;
+            req.on('response', (res: any) => {
+                const status = res.statusCode || 0;
+                const type = String(res.headers['content-type'] || res.headers['Content-Type'] || '');
+                if (status < 200 || status >= 300 || !type.includes('image')) {
+                    res.on('data', () => {}); res.on('end', () => done(''));
+                    return;
+                }
+                res.on('data', (c: Buffer) => {
+                    total += c.length;
+                    if (total > 512 * 1024) { try { req.abort(); } catch {} return done(''); }
+                    chunks.push(c);
+                });
+                res.on('end', () => {
+                    if (!chunks.length) return done('');
+                    const mime = type.split(';')[0].trim() || 'image/x-icon';
+                    done(`data:${mime};base64,${Buffer.concat(chunks).toString('base64')}`);
+                });
+                res.on('error', () => done(''));
+            });
+            req.on('error', () => done(''));
+            setTimeout(() => { try { req.abort(); } catch {} done(''); }, 6000);
+            req.end();
+        } catch { done(''); }
+    });
+}
+
+// Candidate favicon URLs to try in order. When handed Google's s2 service URL
+// (our last-resort fallback, which rate-limits under load), try the site's OWN
+// /favicon.ico first — more reliable and no third-party dependency.
+function faviconCandidates(url: string): string[] {
+    try {
+        const u = new URL(url);
+        if (/(^|\.)google\.com$/i.test(u.hostname) && u.pathname.includes('/s2/favicons')) {
+            const domain = (u.searchParams.get('domain') || u.searchParams.get('domain_url') || '')
+                .replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+            if (domain) return [`https://${domain}/favicon.ico`, url];
+        }
+    } catch {}
+    return [url];
+}
+
+// Fetch a favicon in the MAIN process and return it as a data: URL. The chrome
+// renderer is a file:// page; on some setups (notably Windows) loading a remote
+// favicon <img> straight from that origin fails, so the tab strip renders no
+// icons. Fetching here — same network stack, no file:// origin — is reliable
+// everywhere, cached, and the returned data URL can't itself fail to load.
+async function fetchFaviconDataUrl(url: string): Promise<string> {
+    if (!url || !/^https?:\/\//i.test(url)) return '';
+    const cached = _faviconCache.get(url);
+    if (cached !== undefined) return cached;
+    let result = '';
+    for (const cand of faviconCandidates(url)) {
+        result = await fetchFaviconOnce(cand);
+        if (result) break;
+    }
+    if (_faviconCache.size > 1000) _faviconCache.clear();
+    _faviconCache.set(url, result);
+    return result;
+}
 // Compact label for a per-tab history entry ("host/path…" like Firefox's list)
 function navEntryLabel(url) {
     if (!url || url === 'newtab') return 'New Tab';
@@ -497,6 +570,10 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
             return false;
         }
     });
+
+    // Fallback favicon loader for the tab strip — used when the renderer's own
+    // <img src=faviconUrl> fails to load (see renderer setFaviconFallback).
+    ipcMain.handle('favicon-fetch', (_e, url) => fetchFaviconDataUrl(url));
 }
 
 export { register };

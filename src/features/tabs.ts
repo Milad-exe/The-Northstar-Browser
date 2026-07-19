@@ -715,22 +715,6 @@ class Tabs {
         tab.webContents.on('will-navigate', blockDangerousNav);
         tab.webContents.on('will-redirect', blockDangerousNav);
 
-        // Route all window.open / target=_blank calls through our tab system instead
-        // of letting Electron open a new BrowserWindow.
-        tab.webContents.setWindowOpenHandler(({ url }) => {
-            try {
-                const proto = new URL(url).protocol;
-                if (proto === 'javascript:' || proto === 'data:' || proto === 'vbscript:') {
-                    return { action: 'deny' };
-                }
-            } catch {
-                return { action: 'deny' };
-            }
-            // Open safe URLs as a new tab in the same window, right after this one.
-            setImmediate(() => this.createLazyTab(url, url, false, false, true, true));
-            return { action: 'deny' };
-        });
-
         tab.webContents.on('did-navigate', (event, url) => {
             // Keep the view backing in sync: frosted (transparent) for internal
             // pages, opaque for web content so vibrancy doesn't bleed through.
@@ -793,8 +777,49 @@ class Tabs {
             isNavigatingProgrammatically = false;
         })
 
-        // All window.open / target="_blank" links open in a new tab, never a new BrowserWindow
-        tab.webContents.setWindowOpenHandler(({ url }) => {
+        // window.open / target="_blank" handling.
+        //
+        // target="_blank" links and plain window.open() calls open as a new tab in
+        // the same window — never a stray BrowserWindow.
+        //
+        // BUT genuine popups (a window.open() with a features string, or a popup
+        // disposition) MUST be allowed to open as a real popup window with the
+        // window.opener link intact. OAuth sign-in flows ("Sign in with Google",
+        // Facebook/Discord/Twitch login), payment sheets, and pop-out web games
+        // depend on that opener relationship — the popup posts its result back to
+        // the opener (postMessage) and closes itself (window.close()). Forcing
+        // those into a tab silently breaks login and leaves an orphaned tab that
+        // the page can never close.
+        tab.webContents.setWindowOpenHandler(({ url, disposition, features }) => {
+            // Block dangerous protocols outright, whatever the disposition.
+            try {
+                const proto = new URL(url).protocol;
+                if (proto === 'javascript:' || proto === 'data:' || proto === 'vbscript:') {
+                    return { action: 'deny' };
+                }
+            } catch {
+                return { action: 'deny' };
+            }
+
+            const isPopup = disposition === 'new-popup' ||
+                            (typeof features === 'string' && features.trim().length > 0);
+            if (isPopup) {
+                // Let Chromium open a real popup. It inherits the opener's session
+                // (so a private tab's popup stays in the private session), and the
+                // session-level permission/privacy handlers still apply.
+                return {
+                    action: 'allow',
+                    overrideBrowserWindowOptions: {
+                        autoHideMenuBar: true,
+                        webPreferences: {
+                            contextIsolation: true,
+                            nodeIntegration: false,
+                            sandbox: true,
+                        },
+                    },
+                };
+            }
+
             setImmediate(() => {
                 const isPriv = this.privateTabs.has(tabIndex);
                 const newIndex = this.createTab(tabIndex, false, isPriv);
@@ -916,7 +941,26 @@ class Tabs {
         })
         
         tab.webContents.on('did-start-loading', () => {
+            clearTimeout(tab._loadingCapTimer)
             this.sendLoadingState(tabIndex, true)
+        })
+
+        // DOMContentLoaded: the page is parsed and usable. Many sites then keep
+        // the network "loading" for 10-20s+ on non-essential third-party junk —
+        // "Sign in with Google" (accounts.google.com/gsi/client), reCAPTCHA, ad
+        // exchanges, error-tracker beacons — none of which affect the visible
+        // page. Don't leave the tab spinning that whole time: clear the loading
+        // indicator a short grace after dom-ready (unless did-stop-loading beat
+        // us to it). Matches when the page actually feels loaded.
+        tab.webContents.on('dom-ready', () => {
+            clearTimeout(tab._loadingCapTimer)
+            tab._loadingCapTimer = setTimeout(() => {
+                try {
+                    if (!tab.webContents.isDestroyed() && tab.webContents.isLoading()) {
+                        this.sendLoadingState(tabIndex, false)
+                    }
+                } catch {}
+            }, 3000)
         })
 
         tab.webContents.on('did-finish-load', () => {
@@ -925,6 +969,7 @@ class Tabs {
         })
 
         tab.webContents.on('did-stop-loading', () => {
+            clearTimeout(tab._loadingCapTimer)
             this.sendNavigationUpdate(tabIndex)
             this.sendLoadingState(tabIndex, false)
         })

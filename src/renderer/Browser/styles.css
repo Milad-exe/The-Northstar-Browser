@@ -500,15 +500,18 @@ html.tab-dragging * { user-select: none !important; -webkit-user-select: none !i
 .tab-indicator.clickable:hover { color: var(--text); background: var(--active-bg); }
 .tab-button.pinned .tab-indicator { display: none; }
 
-/* Loading tab: a thin monochrome spinner sits in the favicon slot. */
-.tab-button.loading .tab-favicon { visibility: hidden; }
-.tab-button.loading::before {
+/* Loading tab: a thin monochrome spinner sits in the favicon slot — but only
+   until the favicon resolves. Once we have an icon (.has-favicon) it stays
+   visible even while slow tail-end resources are still loading, so a page that
+   is already usable in ~1s doesn't sit spinning (icon hidden) for 20s+. */
+.tab-button.loading:not(.has-favicon) .tab-favicon { visibility: hidden; }
+.tab-button.loading:not(.has-favicon)::before {
   content: ''; position: absolute; left: 11px; top: 50%; margin-top: -6px;
   width: 12px; height: 12px; box-sizing: border-box; border-radius: 50%; /* a spinner must stay circular */
   border: 1.5px solid var(--border-2); border-top-color: var(--text-2);
   animation: tab-spin 0.7s linear infinite;
 }
-.tab-button.pinned.loading::before { left: 50%; margin-left: -6px; }
+.tab-button.pinned.loading:not(.has-favicon)::before { left: 50%; margin-left: -6px; }
 @keyframes tab-spin { to { transform: rotate(360deg); } }
 
 .tab-close {

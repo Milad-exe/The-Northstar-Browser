@@ -140,6 +140,7 @@ interface Bridge_tab {
     getButton: any;
     pin: any;
     toggleMute: any;
+    fetchFavicon: any;
     reorder: any;
     onTabCreated: any;
     onTabRemoved: any;

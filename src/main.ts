@@ -28,6 +28,32 @@ process.on('uncaughtException', (err) => {
     console.error('[main] uncaught exception (survived):', (err && err.stack) || err);
 });
 
+// Windows: tie the running process to the installed Start-menu/taskbar shortcut.
+// electron-builder's NSIS installer stamps that shortcut with the appId as its
+// AppUserModelID; without a matching setAppUserModelId() here Windows can't
+// associate the live window with it, so the taskbar groups it on its own and the
+// right-click jump list falls back to a stale/cached generic icon. Must be set
+// before any window is created. (appId — keep in sync with build.appId.)
+if (process.platform === 'win32') {
+    app.setAppUserModelId('com.northstar.browser');
+}
+
+// Single-instance lock — a browser must run as ONE process per profile.
+// Without it, a second launch (or a previous run that hasn't fully exited)
+// opens a rival process against the SAME profile directory, and the two fight
+// over the Cache / GPUCache / Service Worker locks. Chromium then logs
+// "Unable to move the cache: Access is denied (0x5)" / "Unable to create cache"
+// and runs with the HTTP disk cache DISABLED — so every resource is re-fetched
+// from the network (pages load slowly) and service-worker-backed sites
+// (WhatsApp, Outlook, YouTube, …) fail to initialise. The second instance
+// forwards its launch to the running one (which surfaces a window) and exits.
+// `--user-data-dir` overrides the profile, so each such profile locks
+// independently (used by the e2e harness). Must run before app.whenReady().
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+    app.quit();
+}
+
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
 // Use Chromium's built-in (mock) storage for its cookie/password encryption key
 // instead of the OS keychain. The keychain path makes macOS pop a "wants to use
@@ -69,6 +95,11 @@ class Northstar {
         this.windowManager = new WindowManager();
         this.registerIpc();
         this.initApp();
+        // Test seam — exposes internals to the Playwright harness only when
+        // NORTHSTAR_TEST=1. No-op (and not even referenced) in normal runs.
+        if (process.env.NORTHSTAR_TEST === '1') {
+            (global as any).__northstarTest = { wm: this.windowManager, focusMode, privacy, adBlocker };
+        }
     }
 
     registerIpc() {
@@ -227,6 +258,22 @@ class Northstar {
                     this.windowManager.createWindow();
                 }
             });
+
+            // A second launch (blocked by the single-instance lock) forwards here.
+            // Behave like a browser: surface an existing window, or open a new one.
+            app.on('second-instance', () => {
+                try {
+                    const primary = this.windowManager.getPrimaryWindow();
+                    const win = primary?.window;
+                    if (win && !win.isDestroyed()) {
+                        if (win.isMinimized()) win.restore();
+                        win.show();
+                        win.focus();
+                    } else {
+                        this.windowManager.createWindow();
+                    }
+                } catch { try { this.windowManager.createWindow(); } catch {} }
+            });
         });
 
         app.on('before-quit', () => {
@@ -250,4 +297,8 @@ class Northstar {
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
-new Northstar();
+// Only the instance that owns the single-instance lock builds the app; a second
+// launch has already been told to quit above (and forwarded via 'second-instance').
+if (gotSingleInstanceLock) {
+    new Northstar();
+}
