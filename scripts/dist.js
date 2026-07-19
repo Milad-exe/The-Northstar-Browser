@@ -76,13 +76,6 @@ function assertSigningReady() {
     }
 }
 
-// Compile TS + CSS + copy assets into app/ (electron-builder only packages app/).
-function buildWebApp() {
-    console.log('\n▸ Compiling app (tsc + tailwind + assets)…');
-    const r = spawnSync('npm', ['run', 'build'], { stdio: 'inherit', shell: HOST === 'win32' });
-    if (r.status !== 0) { console.error('✗ app build failed'); process.exit(1); }
-}
-
 // Watch this build's stdout/stderr for the vmp-sign hook's markers so the final
 // summary can report signing truthfully, without touching vmp-sign.js.
 async function buildWatchingSignature(platform, archNames) {
@@ -122,7 +115,6 @@ async function main() {
     if (!build.length) { console.error('\n✗ No requested platform is buildable on this host.'); process.exit(1); }
 
     assertSigningReady();
-    buildWebApp();
 
     const results = [];
     for (const key of build) {

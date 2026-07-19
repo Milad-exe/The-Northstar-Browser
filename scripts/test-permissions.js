@@ -13,7 +13,7 @@ const http = require('http');
 const INK = path.join(__dirname, '..');
 
 // ── Stub the doorhanger UI before permission-prompt requires it ─────────────
-const uiPath = require.resolve(path.join(INK, 'Features/permission-ui.js'));
+const uiPath = require.resolve(path.join(INK, 'features/permission-ui.js'));
 const promptLog = [];            // every prompt shown: {origin, action, checkbox}
 let responderQueue = [];         // scripted answers, FIFO
 const uiStub = {
@@ -39,8 +39,8 @@ if (process.platform === 'darwin' && systemPreferences) {
     systemPreferences.askForMediaAccess = async () => true;
 }
 
-const permissionPrompt = require(path.join(INK, 'app/features/permission-prompt.js'));
-const sitePermissions  = require(path.join(INK, 'app/features/site-permissions.js')).default;
+const permissionPrompt = require(path.join(INK, 'features/permission-prompt.js'));
+const sitePermissions  = require(path.join(INK, 'features/site-permissions.js'));
 
 // ── Tiny test framework ──────────────────────────────────────────────────────
 const results = [];
@@ -152,8 +152,8 @@ async function main() {
     const fs = require('fs');
     check('T7 store file written to disk', fs.existsSync(path.join(USERDATA, 'site-permissions.dat')));
     // fresh reader sees it (simulated restart)
-    delete require.cache[require.resolve(path.join(INK, 'Features/site-permissions.js'))];
-    const fresh = require(path.join(INK, 'app/features/site-permissions.js')).default;
+    delete require.cache[require.resolve(path.join(INK, 'features/site-permissions.js'))];
+    const fresh = require(path.join(INK, 'features/site-permissions.js'));
     check('T7 fresh process reads persisted allow', fresh.state(ORIGIN, 'camera') === 'allow', `state=${fresh.state(ORIGIN, 'camera')}`);
 
     // ── T8: block-after-allow via panel (stored) ─────────────────────────────

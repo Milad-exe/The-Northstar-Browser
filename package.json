@@ -13,25 +13,19 @@
   "license": "ISC",
   "author": "Milad Rakhshbahar",
   "type": "commonjs",
-  "main": "app/main.js",
+  "main": "main.js",
   "scripts": {
-    "start": "npm run build && electron .",
+    "start": "electron .",
     "dev": "node scripts/dev.js",
-    "build": "npm run build:ts && npm run build:assets && npm run build:css",
-    "build:ts": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json",
-    "build:css": "tailwindcss -i src/renderer/styles/ui.css -o app/renderer/styles/ui.css",
-    "build:assets": "node scripts/copy-assets.js",
-    "watch": "tsc -p tsconfig.main.json --watch",
-    "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
     "dist": "node scripts/dist.js",
     "dist:win": "node scripts/dist.js win",
     "dist:mac": "node scripts/dist.js mac",
     "dist:linux": "node scripts/dist.js linux",
     "vmp-sign": "node scripts/vmp-sign.js node_modules/electron/dist",
-    "test:permissions": "npm run build:ts && electron scripts/test-permissions.js",
-    "smoke": "npm run build && node scripts/smoke.js",
-    "test:e2e": "npm run build && node tests/e2e.js",
-    "test:e2e:quick": "npm run build && node tests/e2e.js --quick"
+    "test:permissions": "electron scripts/test-permissions.js",
+    "smoke": "node scripts/smoke.js",
+    "test:e2e": "node tests/e2e.js",
+    "test:e2e:quick": "node tests/e2e.js --quick"
   },
   "build": {
     "appId": "com.northstar.browser",
@@ -46,7 +40,12 @@
       "output": "dist"
     },
     "files": [
-      "app/**/*",
+      "main.js",
+      "app-paths.js",
+      "features/**/*",
+      "ipc/**/*",
+      "preload/**/*",
+      "renderer/**/*",
       "package.json",
       "logo.png",
       "logo-win.png",
@@ -91,12 +90,8 @@
     "tldts": "^7.4.2"
   },
   "devDependencies": {
-    "@tailwindcss/cli": "^4.3.3",
-    "@types/node": "^26.1.1",
     "electron": "github:castlabs/electron-releases#v38.8.6+wvcus",
     "electron-builder": "^26.15.3",
-    "playwright": "^1.61.1",
-    "tailwindcss": "^4.3.3",
-    "typescript": "^7.0.2"
+    "playwright": "^1.61.1"
   }
 }
