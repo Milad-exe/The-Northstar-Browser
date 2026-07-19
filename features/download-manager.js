@@ -22,6 +22,18 @@ class DownloadManager {
         this.handles = new Map(); // id → live Electron DownloadItem
         this.listeners = new Set();
         this.nextId = 1;
+        this._promptNext = false; // one-shot: next download shows a Save-As dialog
+    }
+    /**
+     * Download a URL and let the user choose where to save it via the native
+     * "Save As" dialog, instead of the silent auto-save to Downloads. Used by
+     * the "Save … As…" context-menu items.
+     */
+    saveAs(webContents, url) {
+        if (!webContents || webContents.isDestroyed() || !url) return;
+        this._promptNext = true;
+        try { webContents.downloadURL(url); }
+        catch { this._promptNext = false; }
     }
     /** Subscribe to item changes. fn(record|null) — null means "list changed, refetch". */
     onChanged(fn) { this.listeners.add(fn); }
@@ -38,8 +50,21 @@ class DownloadManager {
         session.on('will-download', (_event, item) => {
             const id = this.nextId++;
             const dir = app.getPath('downloads');
-            const savePath = uniquePath(dir, item.getFilename() || 'download');
-            item.setSavePath(savePath);
+            const filename = item.getFilename() || 'download';
+            const promptForPath = this._promptNext;
+            this._promptNext = false;
+            let savePath;
+            if (promptForPath) {
+                // "Save As…" — show the native save dialog. The real path isn't
+                // known until the user confirms, so we refresh it from
+                // item.getSavePath() on the first update / done event below.
+                item.setSaveDialogOptions({ defaultPath: path.join(dir, filename) });
+                savePath = path.join(dir, filename); // placeholder until confirmed
+            }
+            else {
+                savePath = uniquePath(dir, filename);
+                item.setSavePath(savePath);
+            }
             const rec = {
                 id,
                 filename: path.basename(savePath),
@@ -55,7 +80,15 @@ class DownloadManager {
             this.items.set(id, rec);
             this.handles.set(id, item);
             this._emit(rec);
+            const refreshPath = () => {
+                const actual = item.getSavePath();
+                if (actual && actual !== rec.savePath) {
+                    rec.savePath = actual;
+                    rec.filename = path.basename(actual);
+                }
+            };
             item.on('updated', (_e, state) => {
+                refreshPath();
                 rec.receivedBytes = item.getReceivedBytes();
                 rec.totalBytes = item.getTotalBytes();
                 rec.paused = item.isPaused();
@@ -63,6 +96,7 @@ class DownloadManager {
                 this._emit(rec);
             });
             item.once('done', (_e, state) => {
+                refreshPath();
                 rec.state = state; // completed | cancelled | interrupted
                 rec.receivedBytes = item.getReceivedBytes();
                 rec.paused = false;

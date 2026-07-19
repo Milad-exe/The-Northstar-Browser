@@ -778,21 +778,23 @@
             }
         }
         // ── URL loading ───────────────────────────────────────────────────────────
+        // Turn omnibox / dropped input into a loadable URL: pass through real
+        // URLs, http-ify bare domains, and send anything else to the search engine.
+        function formatToUrl(input) {
+            const text = String(input || '').trim();
+            if (!text) return '';
+            if (/^https?:\/\//i.test(text)) return text;
+            if (/^(file|about|data|blob):/i.test(text)) return text; // dropped file:// etc.
+            if (text.includes('.') && !/\s/.test(text)) return 'https://' + text;
+            const engines = {
+                google: 'https://www.google.com/search?q=',
+                duckduckgo: 'https://duckduckgo.com/?q=',
+                bing: 'https://www.bing.com/search?q=',
+            };
+            return (engines[getSearchEngine()] || engines.google) + encodeURIComponent(text);
+        }
         function loadUrlInActiveTab(url) {
-            let formatted = url;
-            if (!/^https?:\/\//i.test(url)) {
-                if (url.includes('.') && !url.includes(' ')) {
-                    formatted = 'https://' + url;
-                }
-                else {
-                    const engines = {
-                        google: 'https://www.google.com/search?q=',
-                        duckduckgo: 'https://duckduckgo.com/?q=',
-                        bing: 'https://www.bing.com/search?q=',
-                    };
-                    formatted = (engines[getSearchEngine()] || engines.google) + encodeURIComponent(url);
-                }
-            }
+            const formatted = formatToUrl(url);
             window.tab.loadUrl(activeTabIndex, formatted);
             return formatted;
         }
@@ -1925,34 +1927,62 @@
                     return -1;
                 return parseInt(after.dataset.index);
             };
-            // ── Drop text / URLs onto the tab bar to open a new tab ──────────────
-            function extractDropUrl(dt) {
+            // ── Drop links / images / files / text onto the tab bar → new tab(s) ──
+            // Firefox-style: a dropped URL or image opens in a new tab, OS files
+            // open as file://, and anything else (selected text/phrases) runs as a
+            // search in a new tab.
+            async function openDrop(dt) {
+                // 1) OS files (Explorer / Finder) → open each as a file:// URL.
+                const files = dt.files;
+                if (files && files.length) {
+                    let opened = 0;
+                    for (const f of files) {
+                        const p = window.urlUtils?.getPathForFile?.(f) || '';
+                        if (!p)
+                            continue;
+                        const norm = p.replace(/\\/g, '/').replace(/^\/+/, '');
+                        await window.tab.addLazy('file:///' + encodeURI(norm));
+                        opened++;
+                    }
+                    if (opened)
+                        return;
+                }
+                // 2) A dragged URL — link, image, address-bar text, or file:// URI.
                 const uriList = dt.getData('text/uri-list');
                 if (uriList) {
                     const first = uriList.split(/\r?\n/).map(s => s.trim()).find(s => s && !s.startsWith('#'));
-                    if (first)
-                        return first;
+                    if (first) {
+                        await window.tab.addLazy(formatToUrl(first));
+                        return;
+                    }
                 }
-                const text = dt.getData('text/plain');
-                if (text && text.trim() && isNaN(text.trim()))
-                    return text.trim();
-                return null;
+                // 3) Plain text — a URL opens, any other text searches.
+                const text = (dt.getData('text/plain') || '').trim();
+                if (text && isNaN(text))
+                    await window.tab.addLazy(formatToUrl(text));
             }
             tabBar.addEventListener('dragover', (e) => {
-                // Only accept external drops (not tab-reorder drags which carry numeric plain text)
+                // Accept external content drops. (Tab reordering is pointer-tracked,
+                // not HTML5 drag-and-drop, so it never reaches here.)
                 const types = e.dataTransfer.types;
-                if (types.includes('text/uri-list') || types.includes('text/plain') || types.includes('text/html')) {
+                if (types.includes('Files') || types.includes('text/uri-list') ||
+                    types.includes('text/plain') || types.includes('text/html')) {
                     e.preventDefault();
                     e.dataTransfer.dropEffect = 'copy';
                 }
             });
             tabBar.addEventListener('drop', async (e) => {
-                const url = extractDropUrl(e.dataTransfer);
-                if (!url)
+                const dt = e.dataTransfer;
+                const plain = (dt.getData('text/plain') || '').trim();
+                // Only handle genuine external content; a numeric-only payload is a
+                // stray id (e.g. a bookmark drag) — let it fall through untouched.
+                const hasContent = (dt.files && dt.files.length) ||
+                    dt.types.includes('text/uri-list') || (plain && isNaN(plain));
+                if (!hasContent)
                     return;
                 e.preventDefault();
                 e.stopPropagation();
-                await window.tab.addLazy(url);
+                await openDrop(dt);
             });
             // ── Scroll controls ───────────────────────────────────────────────────
             const tabScrollLeft = document.getElementById('tab-scroll-left');

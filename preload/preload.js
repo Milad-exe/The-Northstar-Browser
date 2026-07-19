@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 // This preload is shared by the browser chrome and by every tab — including
 // arbitrary WEB pages. The window.* bridges below (tabs, bookmarks, history,
 // settings, downloads, …) are for the chrome and internal file:// pages ONLY:
@@ -455,7 +455,12 @@ exposeInternal('urlUtils', {
         catch {
             return '';
         }
-    }
+    },
+    // OS path for a dropped File (webUtils replaces the removed File.path).
+    getPathForFile: (file) => {
+        try { return webUtils.getPathForFile(file) || ''; }
+        catch { return ''; }
+    },
 });
 // ── Hover preconnect ──────────────────────────────────────────────────────────
 // Warm DNS + TCP + TLS to a link's origin the moment the user hovers it

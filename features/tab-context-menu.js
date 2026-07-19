@@ -1,5 +1,6 @@
 const { clipboard, shell } = require('electron');
 const { sanitizeUrl, isSafeExternal } = require('./url-security');
+const downloadManager = require('./download-manager');
 class TabContextMenu {
     tab; // the TabView the menu was opened on
     tabManager; // Tabs instance
@@ -69,7 +70,7 @@ class TabContextMenu {
             this.sep();
             this.contextTemplate.push({
                 label: 'Save Page As…',
-                click: () => wc.downloadURL(currentUrl),
+                click: () => downloadManager.saveAs(wc, currentUrl),
             }, {
                 label: 'Print…',
                 click: () => wc.print(),
@@ -159,7 +160,7 @@ class TabContextMenu {
             click: () => clipboard.writeText(params.linkURL),
         }, {
             label: 'Save Link As…',
-            click: () => this.tab.webContents.downloadURL(params.linkURL),
+            click: () => downloadManager.saveAs(this.tab.webContents, params.linkURL),
         });
     }
     addImageItems(params) {
@@ -168,7 +169,7 @@ class TabContextMenu {
         this.sep();
         this.contextTemplate.push({
             label: 'Save Image As…',
-            click: () => this.tab.webContents.downloadURL(params.srcURL),
+            click: () => downloadManager.saveAs(this.tab.webContents, params.srcURL),
         }, {
             label: 'Copy Image Address',
             click: () => clipboard.writeText(params.srcURL),
@@ -209,7 +210,7 @@ class TabContextMenu {
             click: () => this.openInNewTab(params.srcURL),
         }, {
             label: `Save ${label} As…`,
-            click: () => this.tab.webContents.downloadURL(params.srcURL),
+            click: () => downloadManager.saveAs(this.tab.webContents, params.srcURL),
         }, {
             label: 'Copy Media Address',
             click: () => clipboard.writeText(params.srcURL),
