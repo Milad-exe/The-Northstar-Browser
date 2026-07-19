@@ -29,7 +29,9 @@
     "dist:linux": "node scripts/dist.js linux",
     "vmp-sign": "node scripts/vmp-sign.js node_modules/electron/dist",
     "test:permissions": "npm run build:ts && electron scripts/test-permissions.js",
-    "smoke": "npm run build && node scripts/smoke.js"
+    "smoke": "npm run build && node scripts/smoke.js",
+    "test:e2e": "npm run build && node tests/e2e.js",
+    "test:e2e:quick": "npm run build && node tests/e2e.js --quick"
   },
   "build": {
     "appId": "com.northstar.browser",
@@ -38,7 +40,7 @@
       "mirror": "https://github.com/castlabs/electron-releases/releases/download/"
     },
     "productName": "Northstar",
-    "copyright": "Copyright \u00a9 2025 Milad Rakhshbahar",
+    "copyright": "Copyright © 2025 Milad Rakhshbahar",
     "artifactName": "${productName}-${version}-${arch}.${ext}",
     "directories": {
       "output": "dist"
@@ -93,6 +95,7 @@
     "@types/node": "^26.1.1",
     "electron": "github:castlabs/electron-releases#v38.8.6+wvcus",
     "electron-builder": "^26.15.3",
+    "playwright": "^1.61.1",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2"
   }

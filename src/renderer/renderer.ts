@@ -2059,25 +2059,83 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let faviconEl = btn.querySelector('.tab-favicon');
         if (faviconUrl) {
-            if (!faviconEl) {
-                faviconEl = document.createElement('img');
-                faviconEl.className = 'tab-favicon';
-                btn.insertBefore(faviconEl, span);
+            if (!faviconEl || faviconEl.tagName !== 'IMG') {
+                const img = document.createElement('img');
+                img.className = 'tab-favicon';
+                if (faviconEl) faviconEl.replaceWith(img); else btn.insertBefore(img, span);
+                faviconEl = img;
             }
-            faviconEl.src     = faviconUrl;
-            faviconEl.alt     = '';
-            faviconEl.onerror = () => setFaviconFallback(faviconEl, faviconUrl);
+            // Only (re)load when the source actually changes — avoids re-fetch
+            // flicker on the many url-updated events a single page fires.
+            if (faviconEl.dataset.srcKey !== faviconUrl) {
+                faviconEl.dataset.srcKey = faviconUrl;
+                delete faviconEl.dataset.faviconRetried;
+                faviconEl.alt     = '';
+                // A remote favicon <img> can HANG (e.g. Google's rate-limited s2
+                // service) — it neither loads nor fires onerror, so the icon would
+                // stay hidden forever. Time out and route to the reliable main-
+                // process fetch, which also tries the site's own /favicon.ico.
+                const guard = setTimeout(() => {
+                    if (faviconEl.tagName === 'IMG' && !faviconEl.dataset.faviconRetried && !faviconEl.complete) {
+                        onFaviconError(index, faviconEl, faviconUrl);
+                    }
+                }, 3000);
+                faviconEl.onload  = () => { clearTimeout(guard); markFaviconResolved(index); };
+                faviconEl.onerror = () => { clearTimeout(guard); onFaviconError(index, faviconEl, faviconUrl); };
+                faviconEl.src     = faviconUrl;
+            }
         } else if (faviconEl) {
             faviconEl.remove();
+            btn.classList.remove('has-favicon');
         }
     }
 
-    function setFaviconFallback(el, url) {
+    // Reveal the favicon the instant it resolves. `has-favicon` lets the tab show
+    // its icon even while the page is still fetching slow tail-end resources —
+    // otherwise the CSS spinner keeps the icon hidden until did-stop-loading,
+    // which on some sites waits 20 s+ after the page is already usable (that was
+    // the "favicon sometimes doesn't show up" + "feels slow" bug).
+    function markFaviconResolved(index) {
+        tabs.get(index)?.classList.add('has-favicon');
+    }
+
+    // A remote favicon <img> failed to load. Before giving up to the letter
+    // placeholder, ask the main process to fetch it over the app's network stack
+    // and hand back a data: URL — this rescues tab icons on setups where the
+    // chrome's file:// origin can't load the remote image directly (Windows).
+    async function onFaviconError(index, el, url) {
+        if (!el || !url || el.dataset.faviconRetried) return setFaviconFallback(index, el);
+        el.dataset.faviconRetried = '1';
+        let dataUrl = '';
+        try { dataUrl = await window.tab.fetchFavicon?.(url); } catch {}
+        if (dataUrl && el.isConnected) {
+            el.onload  = () => markFaviconResolved(index);
+            el.onerror = () => setFaviconFallback(index, el); // data URL shouldn't fail, but be safe
+            el.src = dataUrl;
+        } else {
+            setFaviconFallback(index, el);
+        }
+    }
+
+    // Letter placeholder — derived from the PAGE host, not the favicon URL. The
+    // fallback service URL is https://www.google.com/s2/… so the old code showed
+    // "W" (from www.google.com) for every site whose icon failed to load.
+    function setFaviconFallback(index, el) {
         const div = document.createElement('div');
         div.className = 'tab-favicon default';
-        try { div.textContent = url ? new URL(url).hostname.charAt(0).toUpperCase() : '◉'; }
-        catch { div.textContent = '◉'; }
-        el.replaceWith(div);
+        let ch = '◉';
+        try {
+            const pageUrl = tabUrls.get(index) || '';
+            if (pageUrl && !['newtab', 'settings', 'bookmarks', 'history'].includes(pageUrl)) {
+                const host = new URL(/^https?:\/\//.test(pageUrl) ? pageUrl : 'https://' + pageUrl)
+                    .hostname.replace(/^www\./, '');
+                if (host) ch = host.charAt(0).toUpperCase();
+            }
+        } catch {}
+        div.textContent = ch;
+        if (el && el.isConnected) el.replaceWith(div);
+        else { const b = tabs.get(index); b?.querySelector('.tab-favicon')?.replaceWith(div); }
+        tabs.get(index)?.classList.add('has-favicon'); // a letter is still a resolved icon
     }
 
     function updateTabWidths(_total?: number) {
