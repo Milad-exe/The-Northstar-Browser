@@ -140,6 +140,4 @@ vite.config.ts.timestamp-*
 ink.code-workspace
 .DS_Store
 
-# Compiled output (built from src/ by npm run build)
-app/
 CLAUDE.md

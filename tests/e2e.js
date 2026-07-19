@@ -4,7 +4,7 @@
  *   node tests/e2e.js            # full suite
  *   node tests/e2e.js --quick    # skip the big site battery
  *
- * Launches the BUILT app (app/ must be compiled: `npm run build`) with the
+ * Launches the app (plain JS, no build step) with the
  * NORTHSTAR_TEST hook and drives the real UI + real tab pipeline. Verifies the
  * Firefox-inspired behaviours: omnibox URL/search detection, tab lifecycle,
  * window.open popups vs tabs, HTTPS upgrade, tracker blocking, permission
