@@ -786,6 +786,26 @@ class Tabs {
             });
             return { action: 'deny' };
         });
+        // Links opened from DevTools — middle-click / Ctrl-click a URL, or pick
+        // "Open in new tab" on one in the Console / Network / Elements / Sources
+        // panels. Electron surfaces these through 'devtools-open-url' (the
+        // DevTools frontend is a separate webContents, so they never reach the
+        // window-open handler above). Route them into a new tab like any link.
+        tab.webContents.on('devtools-open-url', (_event, url) => {
+            try {
+                const proto = new URL(url).protocol;
+                if (proto === 'javascript:' || proto === 'data:' || proto === 'vbscript:')
+                    return;
+            }
+            catch {
+                return;
+            }
+            setImmediate(() => {
+                const isPriv = this.privateTabs.has(tabIndex);
+                const newIndex = this.createTab(tabIndex, false, isPriv);
+                this.loadUrl(newIndex, url);
+            });
+        });
         tab.webContents.on('did-navigate-in-page', (event, url) => {
             if (!url.startsWith('file://') && !isNavigatingProgrammatically) {
                 const currentUrl = this.tabUrls.get(tabIndex);
