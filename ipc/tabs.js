@@ -272,6 +272,20 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
         try { t.resizeAllTabs(); } catch (e) { log.debug('tabs', 'applyWidthLive', e); }
         try { wd.window.webContents.send('sidebar-width-changed', width); } catch (e) { log.debug('tabs', 'applyWidthLive', e); }
     }
+    // A width change forces Chromium to relayout the whole document synchronously
+    // on the CPU — a wontfix limitation (electron #3615) that no throttle escapes,
+    // so a heavy page (Wikipedia) stutters when resized live. For those we HIDE the
+    // page for the duration of the drag (applyWidthBlank): the sidebar still resizes
+    // live over a blank card, and the one costly relayout happens once, on release,
+    // when the view is shown again. Light (internal) pages keep the live resize.
+    function applyWidthBlank(wd, width) {
+        const t = wd.tabs;
+        if (width === t.sidebarWidth) return;
+        t.sidebarWidth = width;
+        // No page setBounds — the view is hidden. Only the chrome sidebar tracks
+        // the cursor live; endResize resizes + reveals the page.
+        try { wd.window.webContents.send('sidebar-width-changed', width); } catch (e) { log.debug('tabs', 'applyWidthBlank', e); }
+    }
     function endResize(wd, width) {
         const t = wd?.tabs;
         if (!t || !t._sidebarResizing) return;
@@ -302,12 +316,35 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
             }
             catch (e) { log.debug('tabs', 'endResize', e); }
         }
+        // Reveal a page that was blanked for the drag — resizeAllTabs above already
+        // set its true width, so it comes back correctly sized (one relayout).
+        if (t._sidebarBlankTab) {
+            const blanked = t._sidebarBlankTab;
+            t._sidebarBlankTab = null;
+            try { if (blanked.webContents && !blanked.webContents.isDestroyed()) blanked.setVisible(true); }
+            catch (e) { log.debug('tabs', 'endResize reveal', e); }
+        }
     }
     ipcMain.handle('sidebar:resize-start', (_e) => {
         const wd = wm.getWindowByWebContents(_e.sender);
         const t = wd?.tabs;
         if (!t) return;
         t._sidebarResizing = true;
+        // Hide the active page for the drag and snap on release, rather than
+        // relayout it on every frame (which stutters on a heavy page — Chromium
+        // relayouts synchronously, a wontfix limitation; see applyWidthBlank). Done
+        // for EVERY tab regardless of weight: the blank-then-snap is uniform and
+        // never risks a laggy live resize, and predicting "heavy" reliably isn't
+        // possible (DOM node count is a poor proxy for relayout cost).
+        t._sidebarBlankTab = null;
+        try {
+            const tab0 = t.tabMap.get(t.activeTabIndex);
+            if (tab0 && tab0.webContents && !tab0.webContents.isDestroyed()) {
+                tab0.setVisible(false);
+                t._sidebarBlankTab = tab0;
+            }
+        }
+        catch (e) { log.debug('tabs', 'resize-start blank', e); }
         // The chrome and the page are separate native views. Once the cursor
         // crosses the sidebar↔page seam mid-drag, NEITHER the renderer's
         // pointermove NOR the page view's input-event is delivered to us (the OS
@@ -324,14 +361,17 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
         // event was missed. That, plus the fast-path events below, ends it.
         let lastX = null, lastMoveAt = Date.now(), movedOnce = false;
         const IDLE_MS = 480;
+        // Full 60Hz for cursor tracking. When the page is blanked (heavy) the tick
+        // only moves the chrome sidebar (cheap); a light page resizes live.
         const tick = () => {
             if (!t._sidebarResizing) return;
             try {
                 const pt = screen.getCursorScreenPoint();
-                const cb = wd.window.getContentBounds();
                 if (lastX === null || pt.x !== lastX) { lastX = pt.x; lastMoveAt = Date.now(); movedOnce = true; }
                 else if (movedOnce && Date.now() - lastMoveAt > IDLE_MS) { endResize(wd, t.sidebarWidth); return; }
-                applyWidthLive(wd, clampW(pt.x - cb.x, wd));
+                const cb = wd.window.getContentBounds();
+                const w = clampW(pt.x - cb.x, wd);
+                t._sidebarBlankTab ? applyWidthBlank(wd, w) : applyWidthLive(wd, w);
             }
             catch (e) { log.debug('tabs', 'resize poll', e); }
         };
@@ -416,8 +456,16 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
         t._menuWatch = null;
     });
     ipcMain.handle('sidebar:resize', (_e, w) => {
+        // The renderer drives the drag while the cursor is over the sidebar (the
+        // main-process poll takes over once it crosses onto the page). This path
+        // must honour the SAME blank-vs-live decision as the poll, or a heavy page
+        // resizes live here — laggy, and the view stays shown — before the poll
+        // ever runs (the exact "Wikipedia still laggy / shows the view" bug).
         const wd = wm.getWindowByWebContents(_e.sender);
-        if (wd?.tabs?._sidebarResizing) applyWidthLive(wd, clampW(w, wd));
+        const t = wd?.tabs;
+        if (!t?._sidebarResizing) return;
+        const width = clampW(w, wd);
+        t._sidebarBlankTab ? applyWidthBlank(wd, width) : applyWidthLive(wd, width);
     });
     ipcMain.handle('sidebar:resize-commit', (_e, w) => {
         endResize(wm.getWindowByWebContents(_e.sender), w);

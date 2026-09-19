@@ -1108,13 +1108,21 @@ html[data-tabbar="side"] .sidebar-foot {
    and the title slid left under the spinner ("text over the refresh icon").
    ::after leaves the column reserved (favicon hidden-but-present, or the
    placeholder), and the spinner sits over it. */
-.tab-button.loading .tab-favicon { visibility: hidden; }
+.tab-button.loading .tab-favicon { visibility: hidden; flex: 0 0 var(--icon); }
 .tab-button.loading::after {
-  content: ''; position: absolute; left: 12px; top: 50%; margin-top: -7px;
+  content: ''; position: absolute; top: 50%; margin-top: -7px;
+  /* Centre the 14px ring INSIDE the favicon column (which starts at the tab's
+     left padding and is --icon wide) rather than a fixed 12px — a fixed left
+     let the ring poke past a narrow column and graze the title's first glyph. */
+  left: calc(var(--sp-4, 8px) + var(--icon, 16px) / 2 - 7px);
   width: 14px; height: 14px; box-sizing: border-box; border-radius: 50%;
   border: 1.6px solid var(--border-2); border-top-color: var(--accent);
   animation: tab-spin 0.7s linear infinite;
   pointer-events: none;
+}
+/* The sidebar column indents its rows by --gutter instead of --sp-4. */
+html[data-tabbar="side"] .tab-button.loading::after {
+  left: calc(var(--gutter, 12px) + var(--icon, 16px) / 2 - 7px);
 }
 .tab-button.pinned.loading::after { left: 50%; margin-left: -7px; }
 @keyframes tab-spin { to { transform: rotate(360deg); } }
