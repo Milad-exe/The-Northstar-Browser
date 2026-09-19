@@ -14,6 +14,14 @@ const log = require('./log');
 const { isOverlayOf } = require('./overlay-registry');
 const overlayMenu = require('./overlay-menu');
 const appIcon = require('./app-icon');
+// Windows 11 (build 22000+) can draw the native Mica backdrop behind the window,
+// the closest thing to macOS's vibrancy — a subtle desktop-tinted translucency
+// under the chrome. Older Windows and Linux have no such material and keep a
+// solid shell. Enabling Mica needs a transparent window backgroundColor, so it
+// must be gated strictly: a transparent background with no material behind it is
+// a broken (see-through) window.
+const IS_WIN11 = process.platform === 'win32'
+    && parseInt((require('os').release().split('.')[2] || '0'), 10) >= 22000;
 class WindowManager {
     windows; // windowId → { id, window, tabs, shortcuts, menu, … overlays }
     nextWindowId;
@@ -272,11 +280,16 @@ class WindowManager {
             // another app, or after focus has moved into a page view. Browsers
             // deliver that first click, so this does too.
             acceptFirstMouse: true,
-            // macOS frosted-glass: the window material shows through the
-            // translucent chrome (renderer paints the chrome with alpha).
+            // Native window material shows through the translucent chrome (the
+            // renderer paints the chrome with alpha under [data-vibrancy]):
+            //   macOS      — NSVisualEffectView vibrancy
+            //   Windows 11 — Mica (needs a transparent backgroundColor)
+            //   otherwise  — a solid shell fill (no material available)
             ...(process.platform === 'darwin'
                 ? { vibrancy: 'under-window', visualEffectState: 'active', backgroundColor: '#00000000' }
-                : { backgroundColor: '#0e0f11' }), // --shell (themes.css)
+                : IS_WIN11
+                    ? { backgroundMaterial: 'mica', backgroundColor: '#00000000' }
+                    : { backgroundColor: '#0e0f11' }), // --shell (themes.css)
             webPreferences: {
                 preload: path.join(__dirname, "../preload/preload.js"),
                 // The chrome UI loads only trusted local files, and its preload

@@ -15,10 +15,13 @@ const exposeInternal = (name, api) => { if (INTERNAL)
 try {
     const isFile = location.protocol === 'file:';
     const isChrome = isFile && /\/Browser\/index\.html$/.test(location.pathname);
-    // Chrome + internal pages paint translucently over the window vibrancy.
+    // Chrome + internal pages paint translucently over the window's native
+    // material. macOS has vibrancy; Windows 11 (build 22000+) has Mica — both let
+    // the same translucent-shell CSS ([data-vibrancy]) show the material through.
     const isFrostable = isFile && /\/(Browser|Settings|History|Bookmarks)\/index\.html$/.test(location.pathname);
-    // macOS frosted-glass: flag frostable pages so their CSS goes translucent.
-    if (process.platform === 'darwin' && isFrostable) {
+    const win11 = process.platform === 'win32'
+        && parseInt((require('os').release().split('.')[2] || '0'), 10) >= 22000;
+    if ((process.platform === 'darwin' || win11) && isFrostable) {
         const mark = () => document.documentElement.setAttribute('data-vibrancy', 'true');
         if (document.documentElement)
             mark();
