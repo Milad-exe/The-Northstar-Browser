@@ -112,9 +112,10 @@ body {
 }
 .item:hover .secondary, .item.active .secondary { color: var(--text-2); }
 
-/* standard emphasis: matched text is thin, the completion is bold. */
-.strong { font-weight: 650; }
-.thin   { font-weight: 400; color: var(--text-2); }
+/* Emphasis (display-url.js emphasis): a page row bolds what you typed; a
+   search row bolds what it adds to it. */
+.strong { font-weight: 600; }
+.thin   { font-weight: 400; }
 .secondary .strong { color: var(--text-2); font-weight: 500; }
 .secondary .thin   { color: var(--text-3); font-weight: 400; }
 .item:hover .secondary .strong,

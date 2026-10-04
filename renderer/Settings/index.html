@@ -482,14 +482,14 @@
         <h2>Extensions</h2>
 
         <div class="card">
-          <div class="card-title">Chrome Web Store</div>
-          <div class="card-desc">Browse the store and use “Add to Chrome” to install, or paste a store link / extension ID below. Extensions run in normal tabs, not private ones.</div>
+          <div class="card-title">Extension store</div>
+          <div class="card-desc">Install from the store with its “Add” button, or paste a store link or extension ID below. Extensions run in normal tabs, not private ones.</div>
           <div class="action-row">
             <div>
-              <div class="row-label">Open the Chrome Web Store</div>
-              <div class="row-desc">Install extensions directly with their “Add to Chrome” button.</div>
+              <div class="row-label">Open the extension store</div>
+              <div class="row-desc">Opens in a new tab.</div>
             </div>
-            <button class="btn" id="btn-ext-store">Open Web Store</button>
+            <button class="btn" id="btn-ext-store">Open store</button>
           </div>
           <div class="ext-id-row">
             <input type="text" id="ext-id-input" class="ext-id-input" placeholder="Store link or 32-character extension ID">
@@ -526,28 +526,49 @@
         <h2>Data</h2>
 
         <div class="card">
-          <div class="card-title">Import from another browser</div>
-          <div class="card-desc">Bring your bookmarks, history and search engines over from Chrome, Edge, Firefox, Brave, Opera, Safari and more. Saved passwords import from a CSV export.</div>
-          <div class="btn-row">
-            <button class="btn" id="open-import">Import from another browser…</button>
+          <div class="card-title">Import</div>
+          <div class="toggle-row">
+            <div>
+              <div class="row-label">Import from another browser</div>
+              <div class="row-desc">Bookmarks, history and search engines from any browser installed on this computer.</div>
+            </div>
+            <button class="btn" id="open-import">Import…</button>
           </div>
         </div>
 
         <div class="card">
           <div class="card-title">Bookmarks</div>
-          <div class="card-desc">Import a bookmarks file from another browser — or take yours with you.</div>
-          <div class="btn-row">
-            <button class="btn" id="import-bookmarks">Import bookmarks…</button>
-            <button class="btn" id="export-bookmarks">Export bookmarks…</button>
+          <div class="toggle-row">
+            <div>
+              <div class="row-label">Import bookmarks</div>
+              <div class="row-desc">From an HTML bookmarks file another browser exported.</div>
+            </div>
+            <button class="btn" id="import-bookmarks">Import…</button>
+          </div>
+          <div class="toggle-row">
+            <div>
+              <div class="row-label">Export bookmarks</div>
+              <div class="row-desc">Save yours as an HTML file any browser can import.</div>
+            </div>
+            <button class="btn" id="export-bookmarks">Export…</button>
           </div>
         </div>
 
         <div class="card">
           <div class="card-title">Passwords</div>
-          <div class="card-desc">CSV with url, username and password columns — the format every browser and password manager exports.</div>
-          <div class="btn-row">
-            <button class="btn" id="import-passwords">Import passwords…</button>
-            <button class="btn" id="export-passwords">Export passwords…</button>
+          <div class="toggle-row">
+            <div>
+              <div class="row-label">Import passwords</div>
+              <div class="row-desc">From a CSV file with url, username and password columns — the format browsers and password managers export.</div>
+            </div>
+            <button class="btn" id="import-passwords">Import…</button>
+          </div>
+          <div class="toggle-row">
+            <div>
+              <div class="row-label">Export passwords</div>
+              <div class="row-desc">Saves a CSV file. Anyone who can open it can read your passwords.</div>
+            </div>
+            <button class="btn" id="export-passwords">Export…</button>
           </div>
           <div class="card-desc warn" id="key-protection">Checking how saved passwords are protected…</div>
         </div>
@@ -572,7 +593,7 @@
               <div class="row-label" data-i18n="settings.exportHistory">Export history</div>
               <div class="row-desc" data-i18n="settings.exportHistoryDesc">Save your browsing history as a file.</div>
             </div>
-            <button class="btn" id="export-history">Export history…</button>
+            <button class="btn" id="export-history">Export…</button>
           </div>
         </div>
 

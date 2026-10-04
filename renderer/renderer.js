@@ -2237,7 +2237,7 @@
                     }
                     const rm = document.createElement('button');
                     rm.className = 'ess-remove';
-                    rm.textContent = '×';
+                    rm.innerHTML = '<svg width="12" height="12" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208.49,191.51a12,12,0,0,1-17,17L128,145,64.49,208.49a12,12,0,0,1-17-17L111,128,47.51,64.49a12,12,0,0,1,17-17L128,111l63.51-63.52a12,12,0,0,1,17,17L145,128Z"/></svg>';
                     rm.title = 'Remove from Essentials';
                     rm.addEventListener('click', (e) => { e.stopPropagation(); window.essentials.remove(it.url, it.profile || null); });
                     tile.appendChild(rm);
@@ -3504,7 +3504,7 @@
                     startFolderRename(h, f.id);
                 }
             });
-            h.innerHTML = '<span class="folder-icon">📁</span><span class="folder-name"></span><span class="folder-count" aria-hidden="true"></span><button class="folder-del" title="Delete folder">×</button>';
+            h.innerHTML = '<span class="folder-icon">📁</span><span class="folder-name"></span><span class="folder-count" aria-hidden="true"></span><button class="folder-del" title="Delete folder" aria-label="Delete folder"><svg width="12" height="12" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208.49,191.51a12,12,0,0,1-17,17L128,145,64.49,208.49a12,12,0,0,1-17-17L111,128,47.51,64.49a12,12,0,0,1,17-17L128,111l63.51-63.52a12,12,0,0,1,17,17L145,128Z"/></svg></button>';
             h.addEventListener('click', (e) => {
                 if (h.classList.contains('renaming') || e.target.closest('.folder-del')) return;
                 if (h.dataset.suppressClick) return; // a drag just ended here

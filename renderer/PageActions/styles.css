@@ -31,7 +31,7 @@
   }
   .pa-btn svg { width: var(--icon); height: var(--icon); }
   .pa-btn:hover { background: var(--hover); color: var(--text); }
-  .pa-btn:focus-visible { outline: none; box-shadow: var(--ring), 0 0 0 3px var(--accent-wash); }
+  .pa-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
   /* Not applicable to this page — dimmed and inert rather than removed, so the
      row does not change width as you browse. That silent reflow is exactly what
      made the toolbar restless. */
@@ -55,7 +55,7 @@
     color: var(--text-2);
   }
   .pa-row:hover { background: var(--hover); color: var(--text); }
-  .pa-row:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-wash); }
+  .pa-row:focus-visible { outline: none; box-shadow: var(--focus-ring); }
   .pa-row-icon { display: flex; flex-shrink: 0; }
   .pa-row-icon svg { width: var(--icon); height: var(--icon); }
   .pa-label { font-size: var(--fs-body); }
@@ -71,7 +71,7 @@
     color: var(--text-2);
   }
   .pa-security:hover { background: var(--hover); }
-  .pa-security:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-wash); }
+  .pa-security:focus-visible { outline: none; box-shadow: var(--focus-ring); }
   /* Secure is NOT the accent. The accent is the identity colour — it marks the
      selected row and live state — and painting "this connection is fine" in it
      made a routine truth look like an alert, in exactly the red the danger

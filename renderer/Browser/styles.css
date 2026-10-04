@@ -370,6 +370,16 @@ html[data-tabbar="top"] #space-create:not(.hidden) {
    "you are here" faster and with less furniture. */
 html[data-tabbar="top"] .tab-button:not(.active) { background: transparent; }
 html[data-tabbar="top"] .tab-button:not(.active):hover { background: var(--hover); }
+/* A hairline between two resting tabs, as a native strip has: without it a
+   row of flat titles read as loose labels. It is painted as a background image
+   on the tab's leading edge (the pseudo-elements carry the slept/crashed and
+   split marks), and it drops out next to the active or hovered tab, whose fill
+   already separates it. Pinned tiles and folder members have their own shape. */
+html[data-tabbar="top"] .tab-button:not(.pinned):not(.in-folder):not(.active):not(:hover)
+  + .tab-button:not(.pinned):not(.in-folder):not(.active):not(:hover) {
+  background-image: linear-gradient(var(--border-2), var(--border-2));
+  background-size: 1px 16px; background-position: left center; background-repeat: no-repeat;
+}
 html[data-tabbar="top"] .tab-favicon { flex: 0 0 var(--icon); }
 html[data-tabbar="top"] .tab-button:not(.has-favicon)::before {
   content: ''; width: var(--icon); flex: 0 0 var(--icon);
@@ -884,6 +894,7 @@ html[data-tabbar="side"] .essentials:empty { display: none; }
 }
 .essential-tile:hover .ess-remove,
 .essential-tile:focus-within .ess-remove { display: flex; }
+.essential-tile .ess-remove svg { width: 8px; height: 8px; }
 .essential-tile .ess-remove:hover { color: var(--danger); }
 
 /* Tabs not in the active workspace are hidden from the strip. */
@@ -1492,7 +1503,7 @@ html[data-tabbar="side"]:not([data-compact="on"]) #utility-bar {
 .omni-action svg { width: var(--icon); height: var(--icon); }
 .omni-action:hover { background: var(--hover); color: var(--text); }
 .omni-action.active { background: var(--active-bg); color: var(--text); }
-.omni-action:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-wash); }
+.omni-action:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* The lock/search glyph is a real button (it opens site info), so it gets a
    button's reset, a hit area and a focus ring — it was a <span> that only a

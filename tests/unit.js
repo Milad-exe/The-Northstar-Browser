@@ -1117,6 +1117,19 @@ test('displayUrl shows host + first path segment', () => {
     assert.deepStrictEqual(rowText('Settings', 'settings'), { primary: 'Settings', secondary: 'settings' });
 });
 
+// Emphasis: one rule for the address-bar dropdown and the new-tab page.
+test('emphasis bolds the typed match on page rows, the completion on search rows', () => {
+    const { emphasis } = require(path.join(root, 'renderer/lib/display-url'));
+    const bold = (segs) => segs.filter(x => x.strong).map(x => x.text).join('|');
+    assert.strictEqual(bold(emphasis('Web browser - Wikipedia', 'wiki', 'match')), 'Wiki');
+    assert.strictEqual(bold(emphasis('wikipedia', 'wiki', 'completion')), 'pedia');
+    assert.strictEqual(bold(emphasis('Example', 'zzz', 'match')), '', 'no match → nothing bold on a page row');
+    assert.strictEqual(bold(emphasis('weather', 'zzz', 'completion')), 'weather', 'no match → all of a search row is new');
+    assert.strictEqual(emphasis('ABC', 'b', 'match').map(x => x.text).join(''), 'ABC', 'text is kept whole, case and all');
+    assert.deepStrictEqual(emphasis('', 'a', 'match'), []);
+    assert.strictEqual(bold(emphasis('Hello', '', 'completion')), '', 'empty query → nothing bold');
+});
+
 // ── CSS drift guard (ui-polish U1-8) ─────────────────────────────────────────
 // Raw values in component CSS bypass the token system (and reduced motion, for
 // durations). Durations must be tokens, full stop. Font sizes and radii are a

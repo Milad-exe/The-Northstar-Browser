@@ -61,8 +61,7 @@ html, body {
   user-select: text; -webkit-user-select: text;
 }
 .emoji-search:focus {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent),
-              0 0 0 3px var(--accent-wash);
+  box-shadow: var(--focus-field);
 }
 .emoji-pop-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; max-height: 200px; overflow-y: auto; }
 .emoji-opt {

@@ -13,33 +13,19 @@
         const SVG_TAB = ICONS.tab;
         const ENGINE_NAME = { google: 'Google', duckduckgo: 'DuckDuckGo', bing: 'Bing' };
         const isSearchType = (t) => t === 'action' || t === 'google' || t === 'duckduckgo' || t === 'bing';
-        // Show a readable URL, as Chrome/Firefox do: no scheme, no trailing slash.
-        const cleanUrl = (u) => String(u || '').replace(/^https?:\/\//i, '').replace(/\/+$/, '');
         /**
-         * standard emphasis: the part of the text matching what the user typed is
-         * de-emphasized (thin), and the rest — the completion — is bold. Makes it
-         * obvious at a glance what each suggestion adds to your query.
+         * Bold what matters (renderer/lib/display-url.js emphasis): on a search
+         * row, what the suggestion adds to your text; on a page row, the
+         * characters you typed. Shared with the new-tab page's suggestions.
          */
-        function highlight(text, query, cls) {
+        function highlight(text, query, cls, mode) {
             const frag = document.createDocumentFragment();
-            text = text || '';
-            const q = (query || '').toLowerCase();
-            const i = q ? text.toLowerCase().indexOf(q) : -1;
-            const push = (t, strong) => {
-                if (!t)
-                    return;
+            for (const seg of window.Northstar.emphasis(text, query, mode || 'match')) {
                 const s = document.createElement('span');
-                s.className = (strong ? 'strong' : 'thin') + (cls ? ' ' + cls : '');
-                s.textContent = t;
+                s.className = (seg.strong ? 'strong' : 'thin') + (cls ? ' ' + cls : '');
+                s.textContent = seg.text;
                 frag.appendChild(s);
-            };
-            if (i === -1) {
-                push(text, true);
-                return frag;
             }
-            push(text.slice(0, i), true);
-            push(text.slice(i, i + q.length), false);
-            push(text.slice(i + q.length), true);
             return frag;
         }
         // Favicons come from the local cache (sites you've visited) only — never a
@@ -122,7 +108,7 @@
                     main.appendChild(sec);
                 };
                 if (search) {
-                    primary.appendChild(highlight(item.query || '', query));
+                    primary.appendChild(highlight(item.query || '', query, '', 'completion'));
                     main.appendChild(primary);
                     if (item.type === 'action')
                         addSecondary('Search with ' + (ENGINE_NAME[engine] || 'Google'));
@@ -140,7 +126,7 @@
                     if (item.type === 'switch-tab')
                         addSecondary('Switch to tab');
                     else if (item.url)
-                        addSecondary(cleanUrl(item.url), { url: true });
+                        addSecondary(window.Northstar.displayUrl(item.url), { url: true });
                     el.title = item.url || '';
                 }
                 el.appendChild(main);

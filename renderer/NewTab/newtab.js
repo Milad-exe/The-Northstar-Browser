@@ -155,7 +155,15 @@
             main.className = 'ntp-sug-main';
             const title = document.createElement('span');
             title.className = 'ntp-sug-title';
-            title.textContent = text.primary;
+            // The characters you typed are bold, as in the address-bar
+            // dropdown (shared rule: display-url.js emphasis).
+            for (const seg of window.Northstar.emphasis(text.primary, input.value, 'match')) {
+                const s = document.createElement('span');
+                s.textContent = seg.text;
+                if (seg.strong)
+                    s.className = 'ntp-strong';
+                title.appendChild(s);
+            }
             main.appendChild(title);
             const secondary = r.kind === 'tab' ? KIND_LABEL.tab() : text.secondary;
             if (secondary) {

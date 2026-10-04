@@ -25,4 +25,4 @@ html, body {
 .hang-btn:hover { background: var(--active-bg); }
 .hang-btn.primary { background: var(--accent); color: var(--accent-ink); }
 .hang-btn.primary:hover { filter: brightness(1.08); }
-.hang-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-wash); }
+.hang-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }

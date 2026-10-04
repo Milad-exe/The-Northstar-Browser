@@ -65,7 +65,7 @@ html[data-rd-face="serif"] body { font-family: Georgia, "Iowan Old Style", "Time
   border-color: color-mix(in srgb, var(--accent) 50%, var(--rd-tool-border));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
 }
-.rd-tool:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-wash); }
+.rd-tool:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 #rd-close { margin-right: auto; font-size: 14px; }
 .rd-swatch { width: 24px; }
 .rd-swatch.light { background: #fff; }

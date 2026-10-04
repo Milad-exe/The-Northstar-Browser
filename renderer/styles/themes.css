@@ -154,6 +154,12 @@ html[data-private-tab="true"] {
   --accent-ink: #0b1c38;   /* text/glyph colour ON an accent fill */
   --ring: inset 0 0 0 0.5px var(--border);
   --ring-2: inset 0 0 0 0.5px var(--border-2);
+  /* Keyboard focus: a solid 2px accent ring set 2px off the control (a gap in
+     the page colour), as a native browser draws it. It replaced a soft accent
+     halo, which read as a glow rather than as "this has focus". Text fields
+     take the inset form: an accent edge on the field itself. */
+  --focus-ring: 0 0 0 2px var(--page), 0 0 0 4px var(--accent);
+  --focus-field: inset 0 0 0 2px var(--accent);
 
   /* Motion — Material 3 scale (see docs/chrome-ux/motion.md). --dur-1/--dur-2
      and --ease are the existing values; the rest are added for the chrome-feel
@@ -231,7 +237,7 @@ html[data-private-tab="true"] {
   }
   .toggle input:checked + .switch-track { background: var(--accent); box-shadow: none; }
   .toggle input:checked + .switch-track::after { transform: translateX(16px); background: #fff; }
-  .toggle input:focus-visible + .switch-track { box-shadow: 0 0 0 3px var(--accent-wash); }
+  .toggle input:focus-visible + .switch-track { box-shadow: var(--focus-ring); }
   .toggle input:disabled + .switch-track { opacity: 0.5; cursor: default; }
 }
 
@@ -254,12 +260,12 @@ html[data-private-tab="true"] {
   }
   .btn:hover { background: var(--hover); }
   .btn:disabled { opacity: 0.45; cursor: default; }
-  .btn:focus-visible { outline: none; box-shadow: var(--ring-2), 0 0 0 3px var(--accent-wash); }
+  .btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
   .btn svg { width: var(--icon); height: var(--icon); }
 
   .btn-primary { background: var(--accent); box-shadow: none; color: var(--accent-ink); font-weight: 600; }
   .btn-primary:hover { background: var(--accent); filter: brightness(1.06); }
-  .btn-primary:focus-visible { box-shadow: 0 0 0 3px var(--accent-wash); }
+  .btn-primary:focus-visible { box-shadow: var(--focus-ring); }
 
   .btn-ghost { background: transparent; color: var(--text-2); }
   .btn-ghost:hover { background: var(--hover); color: var(--text); }
@@ -287,7 +293,7 @@ html[data-private-tab="true"] {
     border: solid var(--accent-ink); border-width: 0 2px 2px 0;
     transform: rotate(45deg);
   }
-  .check-box:focus-visible { outline: none; box-shadow: var(--ring-2), 0 0 0 3px var(--accent-wash); }
+  .check-box:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 }
 
 /* ── Radio ─────────────────────────────────────────────────────────────────
@@ -304,6 +310,6 @@ html[data-private-tab="true"] {
     transition: box-shadow var(--dur-1) var(--ease);
   }
   .radio:checked { box-shadow: inset 0 0 0 5px var(--accent); }
-  .radio:focus-visible { outline: none; box-shadow: var(--ring-2), 0 0 0 3px var(--accent-wash); }
-  .radio:checked:focus-visible { box-shadow: inset 0 0 0 5px var(--accent), 0 0 0 3px var(--accent-wash); }
+  .radio:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+  .radio:checked:focus-visible { box-shadow: inset 0 0 0 5px var(--accent), var(--focus-ring); }
 }

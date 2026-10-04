@@ -109,7 +109,7 @@
   border: 3px solid #fff; box-shadow: 0 1px 6px rgba(0,0,0,0.55);
 }
 .te-dot:active { cursor: grabbing; }
-.te-dot:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-wash), 0 1px 6px rgba(0,0,0,0.55); }
+.te-dot:focus-visible { outline: none; box-shadow: var(--focus-ring), 0 1px 6px rgba(0,0,0,0.55); }
 /* The selected pool — the one the palette recolours and the arrows move — wears
    a ring so it is clear which dot a click acts on. */
 .te-dot.on { box-shadow: 0 0 0 3px var(--accent), 0 1px 6px rgba(0,0,0,0.55); }
@@ -288,7 +288,7 @@
 }
 .te-ctl-track input[type="range"]:focus-visible { outline: none; }
 .te-ctl-track input[type="range"]:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 3px var(--accent-wash);
+  box-shadow: var(--focus-ring);
 }
 
 /* Why a drag stopped painting. It sits where the change would have appeared,
