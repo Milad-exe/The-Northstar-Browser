@@ -71,8 +71,12 @@ class TabContextMenu {
         const currentUrl = wc.getURL ? wc.getURL() : '';
         const isRealPage = currentUrl && !currentUrl.startsWith('file://');
         this.sep();
+        // Shortcut hints (U1-1/U1-2): display only — a context menu never
+        // registers its accelerators; features/shortcuts.js owns the keys.
+        const mac = process.platform === 'darwin';
         this.contextTemplate.push({
             label: 'Back',
+            accelerator: mac ? 'Cmd+[' : 'Alt+Left',
             enabled: wc.navigationHistory?.canGoBack() ?? false,
             click: () => { try {
                 wc.navigationHistory.goBack();
@@ -80,6 +84,7 @@ class TabContextMenu {
             catch (e) { log.debug('tab-context-menu', 'addPageItems', e); } },
         }, {
             label: 'Forward',
+            accelerator: mac ? 'Cmd+]' : 'Alt+Right',
             enabled: wc.navigationHistory?.canGoForward() ?? false,
             click: () => { try {
                 wc.navigationHistory.goForward();
@@ -87,15 +92,18 @@ class TabContextMenu {
             catch (e) { log.debug('tab-context-menu', 'addPageItems', e); } },
         }, {
             label: 'Reload',
+            accelerator: 'CmdOrCtrl+R',
             click: () => wc.reload(),
         });
         if (isRealPage) {
             this.sep();
             this.contextTemplate.push({
                 label: 'Save page as…',
+                accelerator: 'CmdOrCtrl+S',
                 click: () => downloadManager.saveAs(wc, currentUrl),
             }, {
                 label: 'Print…',
+                accelerator: 'CmdOrCtrl+P',
                 click: () => wc.print(),
             }, {
                 label: 'View page source',
@@ -118,6 +126,7 @@ class TabContextMenu {
         this.sep();
         this.contextTemplate.push({
             label: 'Inspect element',
+            accelerator: 'CmdOrCtrl+Shift+I',
             click: () => this.tab.webContents.inspectElement(params.x, params.y),
         });
     }
@@ -136,6 +145,7 @@ class TabContextMenu {
         this.contextTemplate.push({
             label: 'Copy',
             role: 'copy',
+            accelerator: 'CmdOrCtrl+C',
             enabled: params.editFlags.canCopy,
         }, {
             label: `Search ${engine.name} for “${truncated}”`,
@@ -172,7 +182,8 @@ class TabContextMenu {
         if (!params.isEditable)
             return;
         this.sep();
-        this.contextTemplate.push({ label: 'Undo', role: 'undo', enabled: params.editFlags.canUndo }, { label: 'Redo', role: 'redo', enabled: params.editFlags.canRedo }, { type: 'separator' }, { label: 'Cut', role: 'cut', enabled: params.editFlags.canCut }, { label: 'Copy', role: 'copy', enabled: params.editFlags.canCopy }, { label: 'Paste', role: 'paste', enabled: params.editFlags.canPaste }, { label: 'Select all', role: 'selectAll' });
+        const redo = process.platform === 'darwin' ? 'CmdOrCtrl+Shift+Z' : 'CmdOrCtrl+Y';
+        this.contextTemplate.push({ label: 'Undo', role: 'undo', accelerator: 'CmdOrCtrl+Z', enabled: params.editFlags.canUndo }, { label: 'Redo', role: 'redo', accelerator: redo, enabled: params.editFlags.canRedo }, { type: 'separator' }, { label: 'Cut', role: 'cut', accelerator: 'CmdOrCtrl+X', enabled: params.editFlags.canCut }, { label: 'Copy', role: 'copy', accelerator: 'CmdOrCtrl+C', enabled: params.editFlags.canCopy }, { label: 'Paste', role: 'paste', accelerator: 'CmdOrCtrl+V', enabled: params.editFlags.canPaste }, { label: 'Select all', role: 'selectAll', accelerator: 'CmdOrCtrl+A' });
     }
     addLinkItems(params) {
         if (!params.linkURL)

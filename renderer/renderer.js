@@ -1871,17 +1871,17 @@
                 rows.push([sideNow ? 'Tabs on top' : 'Tabs on side',
                     () => window.northstarSettings.set('tabBarSide', sideNow ? 'top' : 'side')]);
                 rows.push(
-                    [T('chrome.newTab', 'New tab'), () => window.tab.newPage()],
+                    [T('chrome.newTab', 'New tab'), () => window.tab.newPage(), '', { accelerator: 'CmdOrCtrl+T' }],
                     ['New folder', newFolderInline],
                     ['sep'],
                     ['Select all tabs', () => selectAllTabs()],
-                    ['Reload selected tab', () => window.tab.reload(activeTabIndex)],
+                    ['Reload selected tab', () => window.tab.reload(activeTabIndex), '', { accelerator: 'CmdOrCtrl+R' }],
                     ['Bookmark selected tab…', () => {
                         const btn = tabs.get(activeTabIndex);
                         const title = btn?.querySelector('.tab-title')?.textContent || '';
                         if (currentTabUrl) window.browserBookmarks.add(currentTabUrl, title);
-                    }],
-                    ['Reopen closed tab', () => window.tabsUI.reopenClosed()],
+                    }, '', { accelerator: 'CmdOrCtrl+D' }],
+                    ['Reopen closed tab', () => window.tabsUI.reopenClosed(), '', { accelerator: 'CmdOrCtrl+Shift+T' }],
                     ['sep'],
                     /* The sidebar you right-clicked belongs to a space, so this
                        edits THAT space's theme — same as the space menu. Passing
@@ -2601,7 +2601,7 @@
                     ['New space…', () => openCreateSpace()],
                     ['New folder', () => newFolderInline()],
                     ['sep'],
-                    [T('chrome.newTab', 'New tab'), () => window.tab.newPage()],
+                    [T('chrome.newTab', 'New tab'), () => window.tab.newPage(), '', { accelerator: 'CmdOrCtrl+T' }],
                 ]);
             });
             document.getElementById('sb-settings')?.addEventListener('click', () => {
@@ -2786,138 +2786,143 @@
                 const idx = parseInt(index);
                 const isPinned = btn.classList.contains('pinned');
                 const curFolder = folderState.assign.get(idx) || null;
-                // Grouped as in the reference design doc; folder targets collapse
-                // into one submenu instead of a row per folder.
-                const rows = [[T('chrome.newTab', 'New tab'), () => window.tab.newPage()]];
+                /* ui-polish U1-2: 19 top-level rows → 11, with submenus.
+                     New tab
+                     ── Reload · Duplicate · Pin · Mute
+                     ── Add to essentials · Move to ▸ · Open in ▸ · Customise ▸
+                     ── Close · Close others ▸
+                   Bookmark tab… is Ctrl+D / the star; Select all tabs stays on the
+                   tab-bar background menu and Ctrl/Shift-click. Hints show the
+                   shortcut for the same action (they act on the active tab). */
+                const sel = selectionFor(idx);
+                const tabUrl = () => window.tab.getTabUrl(idx);
+                // Move to ▸ — folders, position, a window of its own.
+                const moveSub = [];
                 if (!isPinned) {
-                    const moves = folderState.folders
-                        .filter(f => f.id !== curFolder)
-                        .map(f => [f.name || 'Folder', () => window.folders.assign(idx, f.id)]);
-                    if (curFolder) moves.push(['sep'], ['Remove from folder', () => window.folders.assign(idx, null)]);
-                    if (moves.length) rows.push(['Move to folder', moves]);
+                    for (const f of folderState.folders.filter(f => f.id !== curFolder))
+                        moveSub.push([f.name || 'Folder', () => window.folders.assign(idx, f.id)]);
+                    if (curFolder) moveSub.push(['Remove from folder', () => window.folders.assign(idx, null)]);
+                    if (moveSub.length) moveSub.push(['sep']);
+                    moveSub.push(
+                        ['Move to top', () => {
+                            const first = [...tabsContainer.querySelectorAll('.tab-button:not(.pinned):not(.in-folder)')][0];
+                            if (first && first !== btn) tabsContainer.insertBefore(btn, first);
+                            window.tab.reorder([...tabsContainer.querySelectorAll('.tab-button')].map(el => +el.dataset.index));
+                            reportTabOrder();
+                        }],
+                        ['Move to bottom', () => {
+                            tabsContainer.appendChild(btn);
+                            window.tab.reorder([...tabsContainer.querySelectorAll('.tab-button')].map(el => +el.dataset.index));
+                            reportTabOrder();
+                        }],
+                        ['sep'],
+                    );
                 }
-                rows.push(
-                    ['sep'],
+                moveSub.push(['New window', async () => {
+                    const url = await tabUrl();
+                    window.dragdrop.detachToNewWindow(idx, e.screenX, e.screenY, url);
+                }]);
+                // Open in ▸ — a container, or split view.
+                const openInC = async (containerId) => {
+                    const url = await tabUrl();
+                    if (/^https?:/i.test(url || '')) window.tab.openInContainer(containerId, url);
+                };
+                const openSub = (_containersCache || []).map(c => [c.name, () => openInC(c.id)]);
+                /* Always offer to make one — an empty flyout looked broken.
+                   Creating a container here opens the tab in it straight away. */
+                openSub.push(['New container…', () => {
+                    promptForText('Name the container', '', async (name) => {
+                        const nm = (name || '').trim();
+                        if (!nm) return;
+                        const c = await window.containers.createNamed(nm);
+                        if (c?.id) openInC(c.id);
+                    });
+                }]);
+                if (splitPair && splitPair.includes(idx))
+                    openSub.push(['sep'], ['Close split view', () => window.tabsUI.closeSplit()]);
+                else if (idx !== activeTabIndex)
+                    openSub.push(['sep'], ['Split with the active tab', () => window.tabsUI.split(idx)]);
+                // Customise ▸ — label, icon, pinned home, unload.
+                const customSub = [
                     ['Change label…', () => startTabRename(btn, idx)],
                     ['Change icon…', () => openEmojiPicker(e.clientX, e.clientY,
                         (emo) => window.tab.setIcon(idx, emo), true)],
                     ...(btn.dataset.customLabel ? [['Reset label', () => window.tab.setLabel(idx, '')]] : []),
                     ...(btn.dataset.customIcon ? [['Reset icon', () => window.tab.setIcon(idx, '')]] : []),
-                    ['Reload tab', () => window.tab.reload(idx)],
-                    [btn.dataset.muted ? 'Unmute tab' : 'Mute tab', () => window.tab.toggleMute(idx)],
-                    ['sep'],
-                    [isPinned ? 'Unpin tab' : 'Pin tab', () => window.tab.pin(idx)],
-                    ['Unload tab', () => window.tab.unload(idx)],
                     ...(isPinned ? [
+                        ['sep'],
                         ['Edit pinned URL…', async () => {
                             const cur = await window.tab.getHome(idx);
                             startInlineEdit(btn, cur, (v) => window.tab.setHome(idx, v));
                         }],
                         ['Reset pinned tab', () => window.tab.resetPinned(idx)],
                     ] : []),
-                    ['Duplicate tab', async () => {
-                        const url = await window.tab.getTabUrl(idx);
+                    ['sep'],
+                    ['Unload tab', () => window.tab.unload(idx)],
+                ];
+                // Pinned tabs are workspace-scoped; promoting one to an Essential
+                // makes it global, so the pin is dropped with it. An essential's
+                // row is normally display:none (it lives as a tile), but "Add" on
+                // a tab that already is one would be a lie.
+                const essentialRow = btn.classList.contains('is-essential')
+                    ? ['Remove from essentials', async () => {
+                        const url = await tabUrl();
+                        if (/^https?:/i.test(url || '')) window.essentials.remove(url, null);
+                    }]
+                    : [isPinned ? 'Move to essentials' : 'Add to essentials', async () => {
+                        const url = await tabUrl();
+                        const title = btn.querySelector('.tab-title')?.textContent || '';
+                        if (!/^https?:/i.test(url || '')) return;
+                        const ok = await window.essentials.add(url, title, null);
+                        if (ok && isPinned) window.tab.pin(idx);
+                    }];
+                const rows = [
+                    [T('chrome.newTab', 'New tab'), () => window.tab.newPage(), '', { accelerator: 'CmdOrCtrl+T' }],
+                    ['sep'],
+                    ['Reload', () => window.tab.reload(idx), '', { accelerator: 'CmdOrCtrl+R' }],
+                    ['Duplicate', async () => {
+                        const url = await tabUrl();
                         const ni = await window.tab.add();
                         if (typeof ni !== 'number') return;
-                        // tabUrls holds TOKENS for internal pages ('newtab',
-                        // 'settings/privacy'), which are not loadable URLs — passing
-                        // one through sanitizeUrl lands on the 404 page. A fresh tab
-                        // already is the new-tab page.
+                        // tabUrls holds TOKENS for internal pages, which are not
+                        // loadable URLs; northstarUrlFor maps them.
                         const target = northstarUrlFor(url);
                         if (target) window.tab.loadUrl(ni, target);
-                    }],
+                    }, '', { accelerator: 'CmdOrCtrl+Shift+K' }],
+                    [isPinned ? 'Unpin' : 'Pin', () => window.tab.pin(idx), '', { accelerator: 'CmdOrCtrl+Shift+L' }],
+                    [btn.dataset.muted ? 'Unmute tab' : 'Mute tab', () => window.tab.toggleMute(idx)],
                     ['sep'],
-                    // Pinned tabs are workspace-scoped; promoting one to an
-                    // Essential makes it global, so the pin is dropped with it.
-                    /* Reflect whether THIS tab is already an essential. An
-                       essential's row is normally display:none (it lives as a
-                       tile), so the "Remove" variant is rarely reached from
-                       here — but "Add" on a tab that already is one would be a
-                       lie, and the button carries the is-essential class either
-                       way. */
-                    ...(btn.classList.contains('is-essential')
-                        ? [['Remove from essentials', async () => {
-                            const url = await window.tab.getTabUrl(idx);
-                            if (/^https?:/i.test(url || '')) window.essentials.remove(url, null);
-                        }]]
-                        : [[isPinned ? 'Move to essentials' : 'Add to essentials', async () => {
-                            const url = await window.tab.getTabUrl(idx);
-                            const title = btn.querySelector('.tab-title')?.textContent || '';
-                            if (!/^https?:/i.test(url || '')) return;
-                            const ok = await window.essentials.add(url, title, null);
-                            if (ok && isPinned) window.tab.pin(idx);
-                        }]]),
-                    ['Open in new container tab', (() => {
-                        const openInC = async (containerId) => {
-                            const url = await window.tab.getTabUrl(idx);
-                            if (/^https?:/i.test(url || '')) window.tab.openInContainer(containerId, url);
-                        };
-                        const sub = (_containersCache || []).map(c => [c.name, () => openInC(c.id)]);
-                        /* Always offer to make one, and say so when there are none
-                           — an empty flyout looked broken. Creating a container
-                           here opens the tab in it straight away. */
-                        if (sub.length) sub.push(['sep']);
-                        sub.push(['New container…', () => {
-                            promptForText('Name the container', '', async (name) => {
-                                const nm = (name || '').trim();
-                                if (!nm) return;
-                                const c = await window.containers.createNamed(nm);
-                                if (c?.id) openInC(c.id);
-                            });
-                        }]);
-                        return sub;
-                    })()],
-                    ['Move tab', [
-                        ['Move to Top', () => {
-                            const first = [...tabsContainer.querySelectorAll('.tab-button:not(.pinned):not(.in-folder)')][0];
-                            if (first && first !== btn) tabsContainer.insertBefore(btn, first);
-                            window.tab.reorder([...tabsContainer.querySelectorAll('.tab-button')].map(el => +el.dataset.index));
-                            reportTabOrder();
-                        }],
-                        ['Move to Bottom', () => {
-                            tabsContainer.appendChild(btn);
-                            window.tab.reorder([...tabsContainer.querySelectorAll('.tab-button')].map(el => +el.dataset.index));
-                            reportTabOrder();
-                        }],
-                    ]],
-                    ...(splitPair && splitPair.includes(idx)
-                        ? [['Close split view', () => window.tabsUI.closeSplit()]]
-                        : (idx !== activeTabIndex ? [['Split with the active tab', () => window.tabsUI.split(idx)]] : [])),
+                    essentialRow,
+                    ['Move to', moveSub],
+                    ['Open in', openSub],
+                    ['Customise', customSub],
                     ['sep'],
-                    ['Close duplicate tabs', async () => {
-                        const all = [...document.querySelectorAll('#tabs-container .tab-button:not(.ws-hidden)')];
-                        const seen = new Set();
-                        for (const b of all) {
-                            const u = await window.tab.getTabUrl(+b.dataset.index);
-                            if (!u || u === 'newtab') continue;
-                            if (seen.has(u)) window.tab.remove(+b.dataset.index);
-                            else seen.add(u);
-                        }
-                    }],
-                    ['Close multiple tabs', [
-                        ['Close other tabs', () => {
-                            for (const b of [...document.querySelectorAll('#tabs-container .tab-button:not(.ws-hidden):not(.pinned)')])
-                                if (+b.dataset.index !== idx) window.tab.remove(+b.dataset.index);
+                    // Neutral, not red: a closed tab comes back with Ctrl+Shift+T.
+                    [sel.length > 1 ? `Close ${sel.length} tabs` : 'Close',
+                        () => { for (const i of sel) window.tab.remove(i); clearSelection(); },
+                        '', sel.length > 1 ? {} : { accelerator: 'CmdOrCtrl+W' }],
+                    ['Close others', [
+                        ['Close duplicate tabs', async () => {
+                            const all = [...document.querySelectorAll('#tabs-container .tab-button:not(.ws-hidden)')];
+                            const seen = new Set();
+                            for (const b of all) {
+                                const u = await window.tab.getTabUrl(+b.dataset.index);
+                                if (!u || u === 'newtab') continue;
+                                if (seen.has(u)) window.tab.remove(+b.dataset.index);
+                                else seen.add(u);
+                            }
                         }],
                         ['Close tabs below', () => {
                             const all = [...document.querySelectorAll('#tabs-container .tab-button:not(.ws-hidden):not(.pinned)')];
                             const at = all.findIndex(b => +b.dataset.index === idx);
                             if (at >= 0) for (const b of all.slice(at + 1)) window.tab.remove(+b.dataset.index);
                         }],
+                        ['Close all but this', () => {
+                            for (const b of [...document.querySelectorAll('#tabs-container .tab-button:not(.ws-hidden):not(.pinned)')])
+                                if (+b.dataset.index !== idx) window.tab.remove(+b.dataset.index);
+                        }],
                     ]],
-                    ['Bookmark tab…', async () => {
-                        const url = await window.tab.getTabUrl(idx);
-                        const title = btn.querySelector('.tab-title')?.textContent || '';
-                        if (/^https?:/i.test(url || '')) window.browserBookmarks.add(url, title);
-                    }],
-                    ['sep'],
-                    ['Select all tabs', () => selectAllTabs()],
-                    ['sep'],
-                    [selectionFor(idx).length > 1 ? `Close ${selectionFor(idx).length} tabs` : 'Close tab',
-                        // Neutral, not red: a closed tab comes back with Ctrl+Shift+T.
-                        // Red is kept for what can't be undone (delete a space…).
-                        () => { for (const i of selectionFor(idx)) window.tab.remove(i); clearSelection(); }],
-                );
+                ];
                 openCtxMenu(e.clientX, e.clientY, rows);
             });
             // standard tab drag: pointer-tracked, and NOTHING moves until the

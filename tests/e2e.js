@@ -256,7 +256,7 @@ async function omniboxNavigate(page, text) {
             }, selector);
             await sleep(700);
             const menu = app.windows().find(p => { try { return p.url().includes('CtxMenu/index.html'); } catch { return false; } });
-            const rows = menu ? await menu.evaluate(() => [...document.querySelectorAll('.ctx-menu-item')].map(b => b.textContent.replace(/\s+/g, ' ').trim())) : [];
+            const rows = menu ? await menu.evaluate(() => [...document.querySelectorAll('.ctx-menu-item')].map(b => (b.querySelector('.row-title') || b).textContent.replace(/\s+/g, ' ').trim())) : [];
             if (menu) await menu.keyboard.press('Escape').catch(() => {});
             await sleep(300);
             return rows;
@@ -267,7 +267,8 @@ async function omniboxNavigate(page, text) {
         });
         await check('a tab row opens the tab menu', async () => {
             const rows = await ctxRows('.tab-button');
-            return rows.includes('Close tab') ? `${rows.length} items` : false;
+            // U1-2: the tab menu's close row is "Close" (its hint, Ctrl+W, sits in the trailing column).
+            return rows.includes('Close') ? `${rows.length} items` : false;
         });
         await check('the space pill and the foot avatar offer the same menu', async () => {
             const pill = await ctxRows('#space-header');
@@ -289,7 +290,7 @@ async function omniboxNavigate(page, text) {
                 const menu = app.windows().find(p => { try { return p.url().includes('CtxMenu/index.html'); } catch { return false; } });
                 if (!menu) return false;
                 const ok = await menu.evaluate((l) => {
-                    const b = [...document.querySelectorAll('.ctx-menu-item')].find(x => x.textContent.replace(/\s+/g, ' ').trim() === l);
+                    const b = [...document.querySelectorAll('.ctx-menu-item')].find(x => (x.querySelector('.row-title') || x).textContent.replace(/\s+/g, ' ').trim() === l);
                     if (!b) return false; b.click(); return true;
                 }, label);
                 await sleep(900);
