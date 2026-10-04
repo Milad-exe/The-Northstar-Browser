@@ -770,6 +770,7 @@ html[data-private-window="true"], html[data-private-tab="true"] {
   --fs-small: 13px;   /* secondary text, badges */
   --fs-body:  14px;   /* rows, fields, buttons — the browser's default */
   --fs-lg:    16px;   /* dialog titles */
+  --fs-display: 40px; /* system-page headline only (the error page) */
   --tracking: -0.01em;
 
   /* Elevation. A shadow means "this floats above the page" — a menu, the

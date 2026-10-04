@@ -397,6 +397,32 @@
     }
 
     /**
+     * The error page's copy for a Chromium net error code (did-fail-load):
+     * a plain-language title, then what to do. `key` names the i18n strings
+     * (error.<key>.title / .detail); title/detail are the English fallbacks.
+     */
+    const ERROR_COPY = {
+        notFound: ['This site can’t be found', 'Check the address for typos, or try again in a moment.'],
+        offline: ['You’re offline', 'Check your Wi-Fi or network cable, then try again.'],
+        timedOut: ['This site took too long to respond', 'It may be busy. Try again in a moment.'],
+        interrupted: ['The connection was interrupted', 'Try again. If it keeps happening, the site may be down.'],
+        redirects: ['This page keeps redirecting', 'Clearing this site’s cookies sometimes fixes it.'],
+        default: ['This page couldn’t load', 'Try again.'],
+    };
+    const ERROR_KEY_BY_CODE = {
+        '-105': 'notFound', '-3': 'notFound',
+        '-106': 'offline', '-2': 'offline', '-100': 'offline',
+        '-7': 'timedOut', '-118': 'timedOut',
+        '-102': 'interrupted', '-101': 'interrupted', '-6': 'interrupted',
+        '-310': 'redirects',
+    };
+    function errorCopy(code) {
+        const key = ERROR_KEY_BY_CODE[String(code)] || 'default';
+        const [title, detail] = ERROR_COPY[key];
+        return { key, title, detail };
+    }
+
+    /**
      * Apply a reorder of SOME tabs to the full order: the slots `partial`'s
      * members occupy in `full` are refilled in `partial`'s order, and every
      * other tab (another space's, an Essential's) stays exactly where it was.
@@ -450,6 +476,6 @@
         debounce, throttle, looksLikeUrl, normalizeUrl, linkScore, isLowValueMatch,
         cleanliness, urlDisplayParts, keywordEngine, searchUrl, toNavigableUrl,
         sidebarLimits, clampSidebarWidth, suggestionKey, reindexActive, preconnectOrigin,
-        ntpSuggestions, mostVisited, tabSearchRows, ntpTiles, tileUrl, mergeOrder,
+        ntpSuggestions, mostVisited, tabSearchRows, ntpTiles, tileUrl, mergeOrder, errorCopy,
     };
 });

@@ -4,11 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none';" />
-  <title>Can't reach this page</title>
+  <title>This page couldn’t load</title>
   <link rel="stylesheet" href="../styles/ui.css">
   <script src="../lib/i18n.js"></script>
+  <script src="../lib/util.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    /* Reset only what the page itself uses. A universal `* { padding: 0 }`
+       here outranked the layered shared .btn styles and left the buttons with
+       no padding. */
+    html, body, h1, p { margin: 0; padding: 0; }
     html, body {
       height: 100%; font-family: var(--font);
       background: var(--page); color: var(--text);
@@ -24,93 +28,68 @@
         linear-gradient(180deg, var(--surface-2) 0%, var(--surface) 44%, var(--page) 100%);
     }
 
-    .mark { position: absolute; top: 28px; left: 32px; color: var(--text-3); }
-
     .stage {
       position: relative; z-index: 1; height: 100%;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 0 40px; text-align: center;
+      padding: 0 40px; text-align: center; box-sizing: border-box;
     }
-    .bignum {
-      font-family: var(--font); font-weight: 800; font-size: clamp(96px, 16vw, 180px);
-      line-height: 0.9; letter-spacing: -0.04em; color: var(--text-3);
-    }
+    /* Plain language, no big status number: a network failure is not a 404. */
     .title {
-      font-size: clamp(20px, 2.6vw, 26px); font-weight: 700; letter-spacing: -0.02em;
-      margin-top: 18px; color: var(--text);
+      font-size: var(--fs-display); font-weight: 700; letter-spacing: -0.025em;
+      line-height: 1.1; color: var(--text); max-width: 720px;
     }
-    .detail { font-size: 14px; color: var(--text-2); margin-top: 10px; max-width: 460px; }
+    .detail { font-size: var(--fs-body); color: var(--text-2); margin-top: var(--sp-5); max-width: 460px; line-height: 1.5; }
     .url {
       font-family: var(--mono); font-size: var(--fs-body); color: var(--text-3);
-      margin-top: 8px; max-width: 560px; word-break: break-all;
+      margin-top: var(--sp-4); max-width: 560px; word-break: break-all;
       user-select: text; -webkit-user-select: text;
     }
-
-    .actions { display: flex; gap: 10px; margin-top: 28px; }
-    /* Buttons are shared — see SHARED CONTROLS in renderer/styles/ui.css. */
-
-    .foot {
-      position: absolute; left: 0; right: 0; bottom: 0; padding: 0 32px 22px;
-      display: flex; align-items: center; justify-content: space-between;
-      font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em; color: var(--text-3);
+    /* The raw Chromium error name, for people who want it. */
+    .code {
+      font-family: var(--mono); font-size: var(--fs-micro); color: var(--text-3);
+      margin-top: var(--sp-2); letter-spacing: 0.02em;
+      user-select: text; -webkit-user-select: text;
     }
+    .code:empty { display: none; }
+
+    .actions { display: flex; gap: var(--sp-4); margin-top: 28px; }
+    /* Buttons are shared — see SHARED CONTROLS in renderer/styles/ui.css. */
   </style>
 </head>
 <body>
   <div class="scene" aria-hidden="true"></div>
 
-  <div class="mark" aria-hidden="true">
-    <svg width="30" height="30" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="24" cy="24" r="15"/><path d="M12 24h24M24 24l9-9"/></svg>
-  </div>
-
   <main class="stage">
-    <div class="bignum" id="bignum">404</div>
-    <h1 class="title" id="title">Can't reach this page</h1>
-    <p class="detail" id="detail"></p>
+    <h1 class="title" id="title">This page couldn’t load</h1>
+    <p class="detail" id="detail">Try again.</p>
     <p class="url" id="url"></p>
+    <p class="code" id="code"></p>
     <div class="actions">
-      <button class="btn btn-ghost" id="btn-back" data-i18n="error.back">Go back</button>
       <button class="btn btn-primary" id="btn-retry" data-i18n="error.tryAgain">Try again</button>
+      <button class="btn btn-ghost" id="btn-back" data-i18n="error.back">Go back</button>
     </div>
   </main>
 
-  <div class="foot" aria-hidden="true">
-    <span>northstar.browser</span>
-    <span>true north, always</span>
-  </div>
-
   <script>
     try { window.Northstar.i18n.init((window.northstarSettings?.getSync() || {}).i18n || {}); window.Northstar.i18n.apply(document); } catch {}
+    const T = (k, f) => {
+      try { const v = window.Northstar?.i18n?.t(k); return (v && v !== k) ? v : f; }
+      catch { return f; }
+    };
     const params = new URLSearchParams(location.search);
     const failedUrl = params.get('url') || '';
     const code = params.get('code') || '';
     const desc = params.get('desc') || '';
 
     if (failedUrl) document.getElementById('url').textContent = failedUrl;
+    // ERR_NAME_NOT_RESOLVED etc. — only when it looks like one.
+    if (/^ERR_[A-Z_]+$/.test(desc)) document.getElementById('code').textContent = desc;
 
-    const messages = {
-      '-2':   ['No internet connection', 'Check your network connection and try again.'],
-      '-3':   ['Host not found', 'The DNS lookup for this site failed.'],
-      '-6':   ['Connection refused', 'The site actively refused the connection.'],
-      '-7':   ['Timed out', 'The connection took too long to respond.'],
-      '-21':  ['Network changed', 'Your network changed while loading. Try again.'],
-      '-100': ['No internet', 'There is no internet connection.'],
-      '-101': ['Connection refused', 'The site refused the connection.'],
-      '-102': ['Connection reset', 'The connection was reset.'],
-      '-105': ['Host not found', 'The DNS lookup for this site failed.'],
-      '-106': ['Internet disconnected', 'No internet connection is available.'],
-      '-109': ['Address unreachable', 'The address is not reachable.'],
-      '-118': ['Connection timed out', 'The connection timed out.'],
-      '-137': ['Network access denied', 'Your browser does not have network access.'],
-      '-300': ['Invalid URL', 'The URL is not valid.'],
-      '-310': ['Too many redirects', 'The page has too many redirects.'],
-      '-324': ['Empty response', 'The server sent an empty response.'],
-      '-501': ['Insecure connection', 'This site uses an insecure connection.'],
-    };
-
-    const [title, detail] = messages[code] || ["Can't reach this page", desc || 'Something went wrong loading this page.'];
+    // Plain-language copy per net error (renderer/lib/util.js errorCopy).
+    const copy = window.Northstar.util.errorCopy(code);
+    const title = T(`error.${copy.key}.title`, copy.title);
     document.getElementById('title').textContent = title;
-    document.getElementById('detail').textContent = detail;
+    document.getElementById('detail').textContent = T(`error.${copy.key}.detail`, copy.detail);
     document.title = title;
 
     // Use the tab's navigation API (available via preload) instead of window history

@@ -545,6 +545,23 @@ test('mergeOrder reorders a subset in place, other tabs keep their slots', () =>
     assert.deepStrictEqual(chromeUtil.mergeOrder([0, 1], []), [0, 1]);
 });
 
+// Error page copy (ui-polish U0-2): plain language, then what to do. Codes
+// are Chromium net errors (did-fail-load errorCode). No bare "404" here — a
+// network failure is not an HTTP status.
+test('errorCopy maps net error codes to plain-language copy', () => {
+    const c = (code) => chromeUtil.errorCopy(code);
+    for (const code of [-105, -3]) assert.strictEqual(c(code).title, 'This site can’t be found');
+    for (const code of [-106, -2, -100]) assert.strictEqual(c(code).title, 'You’re offline');
+    for (const code of [-7, -118]) assert.strictEqual(c(code).title, 'This site took too long to respond');
+    for (const code of [-102, -101, -6]) assert.strictEqual(c(code).title, 'The connection was interrupted');
+    assert.strictEqual(c(-310).title, 'This page keeps redirecting');
+    assert.strictEqual(c(-310).detail, 'Clearing this site’s cookies sometimes fixes it.');
+    assert.strictEqual(c(-999).title, 'This page couldn’t load', 'unknown → default');
+    assert.strictEqual(c('-105').key, 'notFound', 'string codes from the query string work');
+    assert.strictEqual(c(undefined).key, 'default');
+    for (const code of [-105, -106, -7, -102, -310, -1]) assert.ok(!/404/.test(c(code).title + c(code).detail));
+});
+
 test('mostVisited counts visits per page, newest-first ties, skips searches', () => {
     const h = [
         { url: 'https://a.com/', title: 'A' }, { url: 'https://b.com/', title: 'B' },
