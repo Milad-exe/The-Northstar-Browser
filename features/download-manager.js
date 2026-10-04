@@ -110,10 +110,23 @@ class DownloadManager {
             });
         });
     }
-    getAll() {
+    /** Records newest first. Private downloads only when asked for — a normal
+     *  window never lists them (private means silent). */
+    getAll({ includePrivate = false } = {}) {
         return Array.from(this.items.values())
+            .filter(r => includePrivate || !r.private)
             .sort((a, b) => b.startTime - a.startTime)
             .map(r => ({ ...r }));
+    }
+    /** Forget every private download once nothing private is open — the way a
+     *  private window's history goes with it. */
+    forgetPrivate() {
+        for (const [id, r] of [...this.items]) {
+            if (!r.private)
+                continue;
+            this.items.delete(id);
+            this.handles.delete(id);
+        }
     }
     hasActive() {
         for (const r of this.items.values()) {

@@ -66,17 +66,23 @@ function hidePanel(wd) {
     });
     return true;
 }
+// Private means silent: a window lists private downloads only if it has
+// something private open (a private window, or a private tab).
+const seesPrivate = (wd) => !!(wd && wd.tabs && (wd.tabs.isPrivateWindow || wd.tabs.privateTabs?.size > 0));
+const listFor = (wd) => downloadManager.getAll({ includePrivate: seesPrivate(wd) });
 function register(ipcMain, { wm }) {
     // Push every item change to all windows: chrome button + open panels.
     downloadManager.onChanged((record) => {
         for (const wd of wm.getAllWindows()) {
+            if (record.private && !seesPrivate(wd))
+                continue; // a normal window never hears about a private download
             try {
                 wd.window.webContents.send('downloads-changed', record);
             }
             catch (e) { log.debug('downloads', 'register', e); }
             if (wd.downloadsPanel) {
                 try {
-                    wd.downloadsPanel.webContents.send('downloads-data', downloadManager.getAll());
+                    wd.downloadsPanel.webContents.send('downloads-data', listFor(wd));
                 }
                 catch (e) { log.debug('downloads', 'register', e); }
             }
@@ -100,7 +106,16 @@ function register(ipcMain, { wm }) {
             }
         }
     });
-    ipcMain.handle('downloads-get', () => downloadManager.getAll());
+    ipcMain.handle('downloads-get', (e) => listFor(wm.getWindowByWebContents(e.sender)));
+    // When the last private window closes, its downloads are forgotten.
+    const forgetIfNoPrivate = () => setImmediate(() => {
+        try {
+            if (!wm.getAllWindows().some(seesPrivate))
+                downloadManager.forgetPrivate();
+        }
+        catch (e) { log.debug('downloads', 'forget private', e); }
+    });
+    app.on('browser-window-created', (_e, win) => win.once('closed', forgetIfNoPrivate));
     ipcMain.handle('downloads-action', (_e, action, id, confirmed) => {
         switch (action) {
             case 'cancel':
@@ -145,7 +160,7 @@ function register(ipcMain, { wm }) {
         }
         try {
             const view = await ensurePanel(wd);
-            const items = downloadManager.getAll();
+            const items = listFor(wd);
             view.setBounds(boundsFor(wd.window, anchor, items.length));
             view.webContents.send('downloads-data', items);
             view.setVisible(true);

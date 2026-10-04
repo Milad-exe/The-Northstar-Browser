@@ -1728,6 +1728,21 @@ test('openFile refuses a dangerous file until it is confirmed', () => {
     dm.items.delete(901); dm.items.delete(902);
 });
 
+// Private means silent (chrome-ux rule 8): a private download is listed only in
+// a window that has something private, and is forgotten once nothing private
+// is left open.
+test('private downloads stay out of normal windows and are forgotten', () => {
+    const dm = downloadManager;
+    dm.items.set(911, { id: 911, state: 'completed', filename: 'a.pdf', startTime: 2, private: false });
+    dm.items.set(912, { id: 912, state: 'completed', filename: 'secret.pdf', startTime: 3, private: true });
+    assert.deepStrictEqual(dm.getAll().map(r => r.id).filter(i => i > 900), [911], 'a normal window does not list private downloads');
+    assert.deepStrictEqual(dm.getAll({ includePrivate: true }).map(r => r.id).filter(i => i > 900), [912, 911]);
+    dm.forgetPrivate();
+    assert.ok(!dm.items.has(912), 'forgotten once nothing private is open');
+    assert.ok(dm.items.has(911), 'normal downloads stay');
+    dm.items.delete(911);
+});
+
 // ── Tab cycling stays within the active space ────────────────────────────────
 // The window keeps every space's tabs alive in one tabMap; cycling (Ctrl+Tab,
 // Ctrl+1–9) must never walk into another space's tabs — doing so switched the
