@@ -1033,6 +1033,37 @@ test('a width inside the band is left alone', () => {
     assert.strictEqual(chromeUtil.clampSidebarWidth(256, 1440), 256);
 });
 
+// ── CSS drift guard (ui-polish U1-8) ─────────────────────────────────────────
+// Raw values in component CSS bypass the token system (and reduced motion, for
+// durations). Durations must be tokens, full stop. Font sizes and radii are a
+// RATCHET: each file may hold at most the count it had when the guard landed —
+// fixing some lowers the number (then lower the baseline here); adding one
+// fails. Comments are stripped first; radius 0 / 50% are allowed.
+test('no new raw font sizes, radii or durations in component CSS', () => {
+    const BASELINE = { // file: [max raw font-size, max raw border-radius]
+        'renderer/Browser/styles.css': [30, 31],
+        'renderer/Menu/styles.css': [0, 0],
+        'renderer/CtxMenu/styles.css': [2, 0],
+        'renderer/NewTab/styles.css': [5, 3],
+        'renderer/Settings/styles.css': [4, 1],
+        'renderer/styles/surface.css': [1, 0],
+    };
+    // The focus-timer ring's dashoffset moves once per second: a clock, not motion.
+    const DURATION_ALLOW = [/stroke-dashoffset 1s linear/];
+    for (const [file, [maxFont, maxRadius]] of Object.entries(BASELINE)) {
+        const css = fs.readFileSync(path.join(root, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+        const fonts = (css.match(/font-size:\s*\d/g) || []).length;
+        const radii = (css.match(/border-radius:\s*(?!0[\s;]|0px|50%)\d/g) || []).length;
+        assert.ok(fonts <= maxFont, `${file}: ${fonts} raw font-size values (max ${maxFont}) — use --fs-*`);
+        assert.ok(radii <= maxRadius, `${file}: ${radii} raw border-radius values (max ${maxRadius}) — use --r-*`);
+        const decls = css.match(/(?:transition|animation)(?:-duration|-delay)?\s*:[^;}]*/g) || [];
+        const raw = decls.filter(d => /(^|[\s,(:])\d*\.?\d+m?s\b/.test(d) && !DURATION_ALLOW.some(re => re.test(d)));
+        assert.deepStrictEqual(raw, [], `${file}: raw durations — use --dur-* (${raw.join(' | ')})`);
+        const bez = css.match(/cubic-bezier\(/g) || [];
+        assert.strictEqual(bez.length, 0, `${file}: raw cubic-bezier — use --ease*`);
+    }
+});
+
 // ── color-scheme per theme (ui-polish U0-1) ──────────────────────────────────
 // Native controls (radios, scrollbars, pickers) follow `color-scheme`, not our
 // tokens. Without it a light theme kept dark-scheme natives and vice versa —
