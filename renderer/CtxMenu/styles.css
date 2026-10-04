@@ -13,14 +13,14 @@ html, body {
 #surface { position: fixed; inset: 0; }
 
 .ctx-menu {
-  position: fixed; z-index: 10; min-width: 190px; padding: 5px;
+  position: fixed; z-index: 10; min-width: 190px; padding: var(--sp-2);
   background: var(--surface); border: none; border-radius: var(--r-lg);
   /* Ring only — see .surface-card in renderer/styles/surface.css: overlay
      views clip at their bounds, so no panel draws --shadow-pop. */
   box-shadow: var(--ring-2);
-  /* Quick fade + scale in, from the top-left corner it's anchored to — the
-     native menu "pop" that makes it feel placed, not just switched on. Transform
-     is visual only, so place()'s offset-size clamping is unaffected. */
+  /* Quick fade + a ≤4px drop from the corner it's anchored to, so it feels
+     placed rather than switched on. Transform is visual only, so place()'s
+     offset-size clamping is unaffected. */
   transform-origin: top left;
   animation: ctx-in var(--dur-1) var(--ease-decel);
 }
@@ -29,22 +29,25 @@ html, body {
   to   { opacity: 1; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) { .ctx-menu { animation: none; } }
-.ctx-menu-item {
-  display: block; width: 100%; text-align: left; border: none; background: transparent;
-  padding: 0 var(--sp-3); min-height: var(--menu-row-h); border-radius: var(--r-md); color: var(--text);
-  font-family: var(--font); font-size: var(--fs-body); font-weight: 500;
-  letter-spacing: var(--tracking); cursor: pointer; white-space: nowrap;
-}
 .ctx-menu-item:hover,
 .ctx-menu-item.kbd-sel { background: var(--hover); }
 .ctx-menu-item:focus-visible {
   outline: none; box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent);
 }
+/* Row anatomy comes from .surface-row.menu-row (surface.css): one height, one
+   icon column, one trailing column across the app menu, context menus and the
+   space menu. Only the menu's own pieces are here. */
+.ctx-menu-item { white-space: nowrap; }
+.ctx-icon {
+  flex: 0 0 var(--icon); width: var(--icon); height: var(--icon);
+  display: flex; align-items: center; justify-content: center;
+  font-size: var(--fs-body); line-height: 1;
+}
+.ctx-trail { flex-shrink: 0; margin-left: auto; padding-left: var(--sp-4); display: flex; align-items: center; color: var(--text-3); }
+.ctx-trail.ctx-check { color: var(--text-2); }
 /* Underlined access-key letter (menu-bar dropdowns). */
 .ctx-menu-item u { text-decoration-thickness: 1px; text-underline-offset: 2px; }
 .ctx-menu-item.danger { color: var(--danger); }
-.ctx-menu-item.has-sub { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
-.ctx-sub-arrow { color: var(--text-3); font-size: 14px; line-height: 1; flex-shrink: 0; }
 .ctx-menu-sep { height: 1px; margin: var(--sp-2) var(--sp-3); background: color-mix(in srgb, var(--border) 80%, transparent); }
 
 /* Emoji picker variant */
@@ -87,5 +90,4 @@ html, body {
    ordinary rows and quietly lie. */
 .ctx-menu-item:disabled { opacity: 0.38; cursor: default; }
 .ctx-menu-item:disabled:hover { background: transparent; }
-.ctx-menu-item.is-checked { display: flex; align-items: center; }
-.ctx-check { display: flex; margin-left: auto; padding-left: var(--sp-4); color: var(--text-2); }
+

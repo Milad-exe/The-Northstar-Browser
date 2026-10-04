@@ -2556,9 +2556,12 @@
                 for (const p of (_spacesCache || [])) {
                     // The active space carries a trailing check ICON (the
                     // overlay draws it), not a "  ✓" glued onto the name.
-                    rows.push([`${p.emoji ? p.emoji + '  ' : ''}${p.name}`,
+                    // Emoji in the icon column, the space's number as its
+                    // Ctrl+Alt+N switch shortcut (P2-6) for the first nine.
+                    const n = (_spacesCache || []).indexOf(p) + 1;
+                    rows.push([p.name,
                         () => { if (p.id !== activeWorkspace) window.profiles.switch(p.id); },
-                        '', { checked: p.id === activeWorkspace }]);
+                        '', { checked: p.id === activeWorkspace, icon: p.emoji || '', accelerator: (n >= 1 && n <= 9 && p.id !== activeWorkspace) ? `CmdOrCtrl+Alt+${n}` : undefined }]);
                 }
                 if (rows.length)
                     rows.push(['sep']);
@@ -3466,8 +3469,16 @@
             const serialize = (rs) => rs.map((r) => {
                 if (r[0] === 'sep') return { sep: true };
                 const sub = Array.isArray(r[1]) ? r[1] : null;
-                // r[3] is optional row flags: { checked } draws a trailing check.
-                return { label: r[0], cls: r[2] || '', ...(r[3]?.checked ? { checked: true } : {}), ...(sub ? { sub: serialize(sub) } : {}) };
+                // r[3] is optional row flags: { checked } draws a trailing check,
+                // { accelerator } a shortcut hint, { icon } an emoji in the icon column.
+                const f = r[3] || {};
+                return {
+                    label: r[0], cls: r[2] || '',
+                    ...(f.checked ? { checked: true } : {}),
+                    ...(typeof f.accelerator === 'string' ? { accelerator: f.accelerator } : {}),
+                    ...(typeof f.icon === 'string' && f.icon ? { icon: f.icon } : {}),
+                    ...(sub ? { sub: serialize(sub) } : {}),
+                };
             });
             const resolve = (rs, path) => {
                 let cur = rs;

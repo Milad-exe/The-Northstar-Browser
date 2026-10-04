@@ -7,6 +7,8 @@
 // back as a path of indices ([2] or [4, 1]) that the chrome maps to its handler.
 (() => {
     const surface = document.getElementById('surface');
+    // Shortcut hints are formatted per platform (renderer/lib/keys.js).
+    const IS_MAC = /Mac/i.test(navigator.platform || navigator.userAgent || '');
     let chain = []; // menu elements, root first
     // The in-chrome menu bar opens its dropdowns with mnemonics on: each row gets
     // an underlined access-key letter and the keyboard drives the whole chain
@@ -74,48 +76,60 @@
             }
             const here = path.concat(i);
             const b = document.createElement('button');
-            /* `disabled` and `checked` come from Electron menu templates routed
-               through features/overlay-menu.js — a page or bookmark menu can
-               have a greyed row or a tick, and dropping them would have made
-               those menus lie. */
-            b.className = 'ctx-menu-item' + (r.cls ? ' ' + r.cls : '')
+            /* One row anatomy for every menu (ui-polish U1-1), shared with the
+               app menu via .surface-row.menu-row:
+                 [ icon column, always reserved ][ label ][ ONE trailing item ]
+               The trailing item is a check, a submenu chevron or a shortcut hint
+               — never more than one. `disabled` and `checked` come from Electron
+               templates routed through features/overlay-menu.js — a page or
+               bookmark menu can have a greyed row or a tick, and dropping them
+               would have made those menus lie. */
+            b.className = 'surface-row menu-row ctx-menu-item' + (r.cls ? ' ' + r.cls : '')
                 + (r.sub ? ' has-sub' : '') + (r.checked ? ' is-checked' : '');
             if (r.disabled)
                 b.disabled = true;
+            // Icon column: reserved even when empty, so every label shares one
+            // left edge. `icon` is TEXT (an emoji), never markup.
+            const ic = document.createElement('span');
+            ic.className = 'ctx-icon';
+            ic.setAttribute('aria-hidden', 'true');
+            if (r.icon) ic.textContent = r.icon;
+            b.appendChild(ic);
+            const lbl = document.createElement('span');
+            lbl.className = 'row-title ctx-label';
             if (useMnemonics && r.__ki >= 0) {
                 // Underline the access-key letter, built from text nodes so the
-                // label is never treated as markup. Wrapped in one span so a
-                // has-sub row (a flex container) keeps the label as a single unit
-                // beside its arrow, rather than scattering the fragments.
+                // label is never treated as markup.
                 b.dataset.key = r.__key;
-                const lbl = document.createElement('span');
-                lbl.className = 'ctx-label';
                 if (r.__ki > 0) lbl.appendChild(document.createTextNode(r.label.slice(0, r.__ki)));
                 const u = document.createElement('u');
                 u.textContent = r.label[r.__ki];
                 lbl.appendChild(u);
                 lbl.appendChild(document.createTextNode(r.label.slice(r.__ki + 1)));
-                b.appendChild(lbl);
             }
             else {
-                b.appendChild(document.createTextNode(r.label));
+                lbl.textContent = r.label;
             }
+            b.appendChild(lbl);
+            const trail = document.createElement('span');
+            trail.className = 'ctx-trail';
+            trail.setAttribute('aria-hidden', 'true');
             if (r.checked) {
-                // A check ICON in the trailing column (Phosphor `check`), never
-                // a text glyph.
-                const tick = document.createElement('span');
-                tick.className = 'ctx-check';
-                tick.setAttribute('aria-hidden', 'true');
-                tick.innerHTML = '<svg viewBox="0 0 256 256" width="14" height="14" fill="currentColor"><path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"/></svg>';
-                b.appendChild(tick);
+                // Phosphor `check`, 14px — an icon, never a text glyph.
+                trail.classList.add('ctx-check');
+                trail.innerHTML = '<svg viewBox="0 0 256 256" width="14" height="14" fill="currentColor"><path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"/></svg>';
                 b.setAttribute('aria-checked', 'true');
             }
-            if (r.sub) {
-                const ar = document.createElement('span');
-                ar.className = 'ctx-sub-arrow';
-                ar.textContent = '›';
-                b.appendChild(ar);
+            else if (r.sub) {
+                // Phosphor `caret-right`, 12px.
+                trail.classList.add('ctx-sub-arrow');
+                trail.innerHTML = '<svg viewBox="0 0 256 256" width="12" height="12" fill="currentColor"><path d="M184.49,136.49l-80,80a12,12,0,0,1-17-17L159,128,87.51,56.49a12,12,0,1,1,17-17l80,80A12,12,0,0,1,184.49,136.49Z"/></svg>';
             }
+            else if (r.accelerator && window.Northstar?.keys?.formatAccelerator) {
+                trail.classList.add('surface-kbd');
+                trail.textContent = window.Northstar.keys.formatAccelerator(r.accelerator, IS_MAC ? 'darwin' : 'win32');
+            }
+            if (trail.className !== 'ctx-trail') b.appendChild(trail);
             b.addEventListener('mouseenter', () => {
                 closeFrom(depth + 1);
                 if (!r.sub || !r.sub.length) return;

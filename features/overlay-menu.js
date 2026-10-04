@@ -51,6 +51,10 @@ function toRows(template) {
             row.disabled = true;
         if (item.type === 'checkbox' || item.type === 'radio')
             row.checked = !!item.checked;
+        // The shortcut hint (U1-1). The overlay formats it per platform with
+        // renderer/lib/keys.js formatAccelerator; only a string crosses IPC.
+        if (typeof item.accelerator === 'string' && item.accelerator)
+            row.accelerator = item.accelerator;
         const sub = item.submenu && (Array.isArray(item.submenu) ? item.submenu : item.submenu.items);
         if (sub && sub.length)
             row.sub = toRows(sub);

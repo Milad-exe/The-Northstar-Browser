@@ -40,19 +40,19 @@ body {
 
 /* The bookmark-bar row reads as a setting: a check appears where the shortcut
    hint would be, on the same right edge. */
-.check { width: 14px; height: 14px; flex-shrink: 0; margin-left: auto; position: relative; }
-.check.visible::after {
-  content: '✓'; position: absolute; right: 0; top: 50%; transform: translateY(-50%);
-  font-size: var(--fs-micro); line-height: 1; color: var(--text); font-weight: 700;
-}
+.check { width: 14px; height: 14px; flex-shrink: 0; margin-left: auto; color: var(--text-2); visibility: hidden; }
+.check.visible { visibility: visible; }
+/* The same Phosphor check icon the context menus use — never a text glyph. */
+.menu-row .check svg { width: 14px; height: 14px; opacity: 1; }
 
 /* ── Zoom ──────────────────────────────────────────────────────────────────
    A label on the left and −/value/+ on the right: the same row height, gutter
    and type as every other row, so it reads as one of them rather than as a
    widget parked in the menu. */
 .zoom-row {
-  display: flex; align-items: center; gap: var(--sp-4);
-  height: var(--row-h); padding: 0 var(--sp-3) 0 var(--sp-4);
+  /* Same gap and height as .surface-row.menu-row, so "Zoom" lines up. */
+  display: flex; align-items: center; gap: var(--sp-5);
+  height: var(--menu-row-h); padding: 0 var(--sp-3) 0 var(--sp-4);
 }
 /* The row has no icon, but it keeps the icon column so "Zoom" starts on the
    same left edge as every label above and below it. */

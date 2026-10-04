@@ -1033,6 +1033,30 @@ test('a width inside the band is left alone', () => {
     assert.strictEqual(chromeUtil.clampSidebarWidth(256, 1440), 256);
 });
 
+// ── Shortcut hint format (ui-polish U1-1) ────────────────────────────────────
+// One format for every menu: Ctrl+Shift+N on Windows/Linux, ⇧⌘N on macOS,
+// built from an Electron accelerator string in one place.
+test('formatAccelerator renders one hint format per platform', () => {
+    const { formatAccelerator: f } = require(path.join(root, 'renderer/lib/keys'));
+    assert.strictEqual(f('CmdOrCtrl+Shift+N', 'win32'), 'Ctrl+Shift+N');
+    assert.strictEqual(f('CmdOrCtrl+Shift+N', 'darwin'), '⇧⌘N');
+    assert.strictEqual(f('CmdOrCtrl+Alt+T', 'linux'), 'Ctrl+Alt+T');
+    assert.strictEqual(f('CmdOrCtrl+Alt+T', 'darwin'), '⌥⌘T');
+    assert.strictEqual(f('Shift+CmdOrCtrl+t', 'win32'), 'Ctrl+Shift+T', 'modifier order normalised, key upper-cased');
+    assert.strictEqual(f('Ctrl+Tab', 'darwin'), '⌃Tab');
+    assert.strictEqual(f('Alt+Left', 'win32'), 'Alt+←');
+    assert.strictEqual(f('CmdOrCtrl+Plus', 'win32'), 'Ctrl++');
+    assert.strictEqual(f('CmdOrCtrl+,', 'win32'), 'Ctrl+,');
+    assert.strictEqual(f('F11', 'win32'), 'F11');
+    assert.strictEqual(f('', 'win32'), '');
+    assert.strictEqual(f(null, 'win32'), '');
+    // Electron templates carry their accelerator into the overlay's rows.
+    const { toRows } = require(path.join(root, 'features/overlay-menu'));
+    const rows = toRows([{ label: 'Reload', accelerator: 'CmdOrCtrl+R' }, { label: 'Plain' }, { type: 'separator' }]);
+    assert.strictEqual(rows[0].accelerator, 'CmdOrCtrl+R');
+    assert.ok(!('accelerator' in rows[1]));
+});
+
 // ── displayUrl (ui-polish U1-5) ──────────────────────────────────────────────
 // Show meaning, not data: host + the first path segment, no scheme, www. or
 // query. One helper for the new-tab page, History and the address-bar dropdown.

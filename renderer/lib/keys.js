@@ -81,7 +81,9 @@
                 const ch = e.key.toLowerCase();
                 const from = (i === -1 ? 0 : i + 1);
                 const order = [...items.slice(from), ...items.slice(0, from)];
-                const hit = order.find(el => (el.textContent || '').trim().toLowerCase().startsWith(ch));
+                // Match the row's LABEL, not an icon column's emoji in front of it.
+                const labelOf = (el) => (el.querySelector('.row-title') || el).textContent || '';
+                const hit = order.find(el => labelOf(el).trim().toLowerCase().startsWith(ch));
                 if (hit) {
                     e.preventDefault();
                     focusAt(items, items.indexOf(hit));
@@ -94,5 +96,35 @@
             focusAt(items, 0);
     }
 
-    return { rows };
+    /**
+     * A shortcut HINT from an Electron accelerator string — one format for every
+     * menu (ui-polish U1-1): `Ctrl+Shift+N` on Windows/Linux, `⇧⌘N` on macOS
+     * (modifiers in the platform's order: ⌃⌥⇧⌘). Display only; binding lives in
+     * features/shortcuts.js.
+     */
+    const KEY_NAMES = { plus: '+', left: '←', right: '→', up: '↑', down: '↓', return: 'Enter', enter: 'Enter', esc: 'Esc', escape: 'Esc', space: 'Space', delete: 'Del', tab: 'Tab', pageup: 'PgUp', pagedown: 'PgDn' };
+    function formatAccelerator(acc, platform) {
+        const parts = String(acc || '').split('+').map(p => p.trim());
+        // A literal "+" key leaves an empty part ("Ctrl++"); keep it as the key.
+        if (parts.length > 1 && parts[parts.length - 1] === '' ) { parts.pop(); parts[parts.length - 1] = 'Plus'; }
+        if (!parts.length || !parts[0])
+            return '';
+        const mac = platform === 'darwin';
+        const mods = { ctrl: false, alt: false, shift: false, cmd: false };
+        let key = '';
+        for (const raw of parts) {
+            const p = raw.toLowerCase();
+            if (p === 'cmdorctrl' || p === 'commandorcontrol') mac ? (mods.cmd = true) : (mods.ctrl = true);
+            else if (p === 'cmd' || p === 'command' || p === 'meta' || p === 'super') mods.cmd = true;
+            else if (p === 'ctrl' || p === 'control') mods.ctrl = true;
+            else if (p === 'alt' || p === 'option' || p === 'altgr') mods.alt = true;
+            else if (p === 'shift') mods.shift = true;
+            else key = KEY_NAMES[p] || (raw.length === 1 ? raw.toUpperCase() : raw);
+        }
+        if (mac)
+            return (mods.ctrl ? '⌃' : '') + (mods.alt ? '⌥' : '') + (mods.shift ? '⇧' : '') + (mods.cmd ? '⌘' : '') + key;
+        return [mods.ctrl && 'Ctrl', mods.cmd && 'Win', mods.alt && 'Alt', mods.shift && 'Shift', key].filter(Boolean).join('+');
+    }
+
+    return { rows, formatAccelerator };
 });

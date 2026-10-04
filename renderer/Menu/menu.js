@@ -10,11 +10,11 @@
         catch (e) { window.northstarLog?.debug('menu', 'i18n: ' + e); }
         const api = window.electronAPI;
         const mac = api.platform === 'darwin';
-        const MOD = mac ? '⌘' : 'Ctrl ';
-        // Menu markup uses mac glyphs in data-sc (⇧, ⌥). On Windows/Linux those
-        // read wrong next to "Ctrl" — turn them into words.
-        const scLabel = (sc) => mac ? sc
-            : String(sc).replace(/⇧/g, 'Shift ').replace(/⌥/g, 'Alt ').replace(/↵/g, 'Enter');
+        // Shortcut hints in the ONE format every menu uses (U1-1):
+        // renderer/lib/keys.js formatAccelerator — Ctrl+Shift+N / ⇧⌘N. The
+        // markup's data-sc is the key after Cmd/Ctrl, with ⇧/⌥ for Shift/Alt.
+        const fmt = (acc) => window.Northstar.keys.formatAccelerator(acc, mac ? 'darwin' : 'win32');
+        const accOf = (sc) => 'CmdOrCtrl+' + String(sc).replace(/⇧/g, 'Shift+').replace(/⌥/g, 'Alt+');
         const close = async () => { try {
             await api.closeMenu();
         }
@@ -25,14 +25,14 @@
         catch (e) { window.northstarLog?.debug('menu', 'act: ' + e); } await close(); };
         // Fill keyboard-shortcut hints (platform-aware).
         document.querySelectorAll('.sc[data-sc]').forEach(el => {
-            el.textContent = MOD + scLabel(el.dataset.sc);
+            el.textContent = fmt(accOf(el.dataset.sc));
         });
         const histSc = document.getElementById('sc-history');
         if (histSc)
-            histSc.textContent = mac ? '⌘Y' : 'Ctrl H';
+            histSc.textContent = fmt(mac ? 'Cmd+Y' : 'Ctrl+H');
         const privTabSc = document.getElementById('sc-private-tab');
         if (privTabSc)
-            privTabSc.textContent = mac ? '⌘⌥T' : 'Ctrl Alt T';
+            privTabSc.textContent = fmt('CmdOrCtrl+Alt+T');
         // Reflect the bookmark-bar state as a checkmark.
         try {
             const settings = await api.getSettings();
