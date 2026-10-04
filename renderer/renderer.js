@@ -3803,6 +3803,7 @@
                     : d.muted && d.playing ? 'muted'
                         : (d.audible || d.playing) ? 'audio'
                             : null;
+            btn.classList.toggle('has-indicator', !!kind);
             if (!kind) {
                 el?.remove();
                 return;
@@ -3819,7 +3820,10 @@
                     window.tab.toggleMute(index);
                 });
                 el.addEventListener('mousedown', (e) => e.stopPropagation());
-                btn.insertBefore(el, btn.querySelector('.tab-title'));
+                // TRAILING, just before ✕, so every title in the list starts at
+                // the same x (ui-polish U0-4). Inserting it before the title
+                // indented a playing tab's title past its neighbours'.
+                btn.insertBefore(el, btn.querySelector('.tab-close'));
             }
             if (el.dataset.kind !== kind) {
                 el.dataset.kind = kind;

@@ -1122,14 +1122,25 @@ html[data-tabbar="side"] .sidebar-foot {
 .tab-button.active .tab-favicon { opacity: 1; }
 .tab-title { flex: 1; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
 
+/* Audio / muted / recording indicator — on the TRAILING side, before ✕, so a
+   playing tab's title starts where its neighbours' do. In the sidebar it holds
+   ✕'s slot at rest; on hover ✕ joins it (the speaker stays clickable to mute). */
 .tab-indicator {
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  width: 16px; height: 16px; margin: 0 -2px; color: var(--text-2);
+  width: 18px; height: 18px; color: var(--text-2);
 }
 .tab-indicator.rec { color: var(--danger); }
 .tab-indicator.clickable { cursor: pointer; }
 .tab-indicator.clickable:hover { color: var(--text); }
-.tab-button.pinned .tab-indicator { display: none; }
+html[data-tabbar="side"] .tab-button.has-indicator:not(:hover) .tab-close { display: none; }
+/* Top-strip pinned tiles have no room for a glyph: a 6px dot on the icon's
+   corner. (Sidebar pinned rows show their title, so they get the glyph.) */
+html[data-tabbar="top"] .tab-button.pinned .tab-indicator {
+  position: absolute; top: 5px; right: 5px; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--text-2); box-shadow: 0 0 0 1.5px var(--shell);
+}
+html[data-tabbar="top"] .tab-button.pinned .tab-indicator svg { display: none; }
+html[data-tabbar="top"] .tab-button.pinned .tab-indicator.rec { background: var(--danger); }
 
 /* Loading throbber (P1-1): an inline SVG <circle> ring in the favicon slot, not
    a ::after border-spinner. The no-favicon placeholder that reserves the icon
