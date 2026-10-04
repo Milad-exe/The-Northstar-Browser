@@ -13,10 +13,11 @@ body {
   background: transparent;
   font-size: var(--fs-body); color: var(--text);
   -webkit-font-smoothing: antialiased;
-  /* The overlay is sized to the exact content height (see menu.js reportHeight),
-     so the menu never needs to scroll — and a stray scrollbar on a floating
-     menu reads as broken. Belt to that braces. */
-  overflow: hidden;
+  /* The overlay is sized to the card's exact height (menu.js reportHeight), so
+     normally nothing scrolls. Only a window too short to hold the whole menu
+     trims the view (overlay-bounds) — then it scrolls rather than hiding the
+     last rows out of reach. */
+  overflow-x: hidden; overflow-y: auto;
 }
 
 .container { display: flex; flex-direction: column; }

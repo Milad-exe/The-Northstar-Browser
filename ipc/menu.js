@@ -9,8 +9,10 @@ const path = require('path');
 const { resolveAppFile } = require('../app-paths');
 const { WebContentsView } = require('electron');
 const { closeWindowMenu, closeFolderDropdown } = require('./utils');
-const { panelBounds, PANEL_RADIUS, W_SM } = require('../features/overlay-bounds');
-const MENU_WIDTH = W_SM;
+const { panelBounds, PANEL_RADIUS, W_MD } = require('../features/overlay-bounds');
+// W_MD (340): at W_SM "New private window" + its Ctrl+Shift+N hint truncated,
+// and a menu label never truncates (U1-3).
+const MENU_WIDTH = W_MD;
 // Rows (12 x --row-h) + the zoom row + four separators + the card's own
 // padding. Measured from the rendered card rather than guessed: an oversized
 // menu window is invisible but still swallows clicks below the card.
@@ -94,7 +96,7 @@ function register(ipcMain, { wm }) {
     // back to scrolling — but a normal one shows every row. MENU_HEIGHT is just
     // the first-paint guess before this arrives.
     ipcMain.on('menu-report-height', (_e, h) => {
-        const height = Math.max(0, Math.round(h || 0));
+        const height = Math.max(0, Math.ceil(h || 0)); // up, never down: a lost pixel clips the last row
         if (!height)
             return;
         for (const wd of wm.getAllWindows()) {

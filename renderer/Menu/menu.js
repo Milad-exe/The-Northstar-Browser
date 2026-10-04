@@ -82,9 +82,24 @@
         // just the card — sizing the overlay to only the card left the body's 4px
         // top/bottom padding overflowing the view, which showed as a scrollbar.
         // The menu must never scroll: it opens at its full height.
-        const reportHeight = () => { try { api.reportHeight?.(Math.ceil(document.documentElement.scrollHeight)); } catch (e) { window.northstarLog?.debug('menu', 'reportHeight: ' + e); } };
+        // Measure the CARD, not documentElement.scrollHeight: html/body are
+        // height:100% with overflow clipped, so scrollHeight only ever reported
+        // the view's own (first-guess) height — a card taller than that stayed
+        // clipped, its last row cut off (U1-3). Card bottom + the body's bottom
+        // padding, rounded UP so fractional display scaling never shaves a pixel.
+        const container = document.querySelector('.container');
+        const reportHeight = () => {
+            try {
+                const padBottom = parseFloat(getComputedStyle(document.body).paddingBottom) || 0;
+                api.reportHeight?.(Math.ceil(container.getBoundingClientRect().bottom + padBottom));
+            }
+            catch (e) { window.northstarLog?.debug('menu', 'reportHeight: ' + e); }
+        };
         requestAnimationFrame(reportHeight);
         try { document.fonts?.ready?.then(reportHeight); } catch (e) { window.northstarLog?.debug('menu', 'fonts: ' + e); }
+        // Rows added or relabelled later (a language change, extension items)
+        // re-report too.
+        try { new ResizeObserver(reportHeight).observe(container); } catch (e) { window.northstarLog?.debug('menu', 'ResizeObserver: ' + e); }
         // Left/Right work the zoom row from its single stop, the way a slider
         // row behaves in a native menu.
         document.getElementById('zoom-reset').addEventListener('keydown', (e) => {
