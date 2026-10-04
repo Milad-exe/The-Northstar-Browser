@@ -150,6 +150,8 @@
 .te-pal-arrow:hover:not(:disabled) { background: var(--surface-2, rgba(127,127,127,.14)); }
 .te-pal-arrow:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent); }
 .te-pal-arrow:disabled { opacity: .25; cursor: default; }
+/* Nothing to scroll → no arrows at all (ui-polish U2-4). */
+.te-palette-wrap.no-overflow .te-pal-arrow { display: none; }
 .te-sw {
   flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%;
   border: none; padding: 0; cursor: pointer;
@@ -225,7 +227,36 @@
 .te-ctl-val {
   font-family: var(--mono); font-size: var(--fs-micro); color: var(--text-3);
   text-align: right; font-variant-numeric: tabular-nums;
+  /* Words at the ends say what the slider does; the number is for while you
+     adjust it (ui-polish U2-4). Space stays reserved so nothing shifts. */
+  visibility: hidden;
 }
+.te-ctl.adjusting .te-ctl-val { visibility: visible; }
+/* The two ends, spelled out under the track. */
+.te-ends {
+  grid-column: 2; display: flex; justify-content: space-between;
+  margin-top: calc(var(--sp-2) * -1);
+  font-size: var(--fs-micro); color: var(--text-3); letter-spacing: var(--tracking);
+}
+/* The gradient field: a caption under it, and a hint inside until first use. */
+.te-caption { margin: var(--sp-2) 0 0; font-size: var(--fs-micro); color: var(--text-3); text-align: center; }
+.te-hint {
+  position: absolute; left: 50%; bottom: var(--sp-4); transform: translateX(-50%);
+  padding: var(--sp-1) var(--sp-4); border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--surface) 80%, transparent); color: var(--text-2);
+  font-size: var(--fs-micro); white-space: nowrap; pointer-events: none;
+  transition: opacity var(--dur-2) var(--ease);
+}
+.te-hint.gone { opacity: 0; }
+/* The tools say what they do while you point at them. */
+.te-tools button { position: relative; }
+.te-tools button[aria-label]:hover::after {
+  content: attr(aria-label); position: absolute; right: 0; bottom: calc(100% + 4px);
+  padding: var(--sp-1) var(--sp-3); border-radius: var(--r-sm);
+  background: var(--surface); box-shadow: var(--ring-2); color: var(--text);
+  font-size: var(--fs-micro); white-space: nowrap; pointer-events: none; z-index: 2;
+}
+@media (prefers-reduced-motion: reduce) { .te-hint { transition: none; } }
 .te-ctl-track {
   position: relative; display: block; height: 22px; min-width: 0;
   border-radius: var(--r-pill);

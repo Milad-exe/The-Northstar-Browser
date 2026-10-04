@@ -453,6 +453,7 @@
                 label.textContent = roleOf(i).name;
                 b.append(sw, label);
                 b.title = `${roleOf(i).name} · ${hex}`;
+                b.setAttribute('aria-label', `${roleOf(i).name}, ${hex}`);
                 b.addEventListener('click', () => {
                     setActiveDot(i);
                     el('te-dots')?.children[i]?.focus();
@@ -625,8 +626,9 @@
             const update = () => {
                 const max = host.scrollWidth - host.clientWidth - 1;
                 prev.disabled = host.scrollLeft <= 0;
-                // No overflow at all → nothing to scroll; both arrows rest disabled.
                 next.disabled = max <= 0 || host.scrollLeft >= max;
+                // No overflow at all → nothing to scroll: no arrows (ui-polish U2-4).
+                wrap.classList.toggle('no-overflow', max <= 0);
             };
             host.addEventListener('scroll', update, { passive: true });
             window.addEventListener('resize', update);
@@ -721,6 +723,64 @@
         bindRange('te-intensity', 'intensity', () => {});
         bindRange('te-grain', 'grain', () => {});
 
+        /* Words, not raw numbers (ui-polish U2-4): each slider gets its two
+           ends spelled out under the track, the number shows only while you
+           adjust it, and screen readers hear "36 — Darker to Lighter". Built
+           here so both copies of the markup (Settings, Theme panel) get it. */
+        const ENDS = {
+            'te-shade': ['Darker', 'Lighter'],
+            'te-intensity': ['Muted', 'Vivid'],
+            'te-grain': ['Smooth', 'Textured'],
+        };
+        const valueText = (id) => {
+            const input = el(id);
+            const [lo, hi] = ENDS[id];
+            return input ? `${input.value} — ${lo} to ${hi}` : '';
+        };
+        for (const id of Object.keys(ENDS)) {
+            const input = el(id);
+            const ctl = input?.closest('.te-ctl');
+            if (!ctl || ctl.querySelector('.te-ends'))
+                continue;
+            const ends = document.createElement('span');
+            ends.className = 'te-ends';
+            ends.setAttribute('aria-hidden', 'true');
+            for (const word of ENDS[id]) {
+                const w = document.createElement('span');
+                w.textContent = word;
+                ends.appendChild(w);
+            }
+            ctl.appendChild(ends);
+            input.setAttribute('aria-valuetext', valueText(id));
+            let quiet = null;
+            const adjusting = (on) => {
+                clearTimeout(quiet);
+                if (on) ctl.classList.add('adjusting');
+                else quiet = setTimeout(() => ctl.classList.remove('adjusting'), 700);
+            };
+            input.addEventListener('pointerdown', () => adjusting(true));
+            input.addEventListener('keydown', () => adjusting(true));
+            input.addEventListener('input', () => { adjusting(true); input.setAttribute('aria-valuetext', valueText(id)); adjusting(false); });
+            input.addEventListener('pointerup', () => adjusting(false));
+            input.addEventListener('blur', () => adjusting(false));
+        }
+        {
+            const canvas = el('te-canvas');
+            if (canvas && !canvas.parentNode.querySelector('.te-caption')) {
+                const cap = document.createElement('p');
+                cap.className = 'te-caption';
+                cap.textContent = 'Drag to pick the ground colour';
+                canvas.insertAdjacentElement('afterend', cap);
+                const hint = document.createElement('div');
+                hint.className = 'te-hint';
+                hint.setAttribute('aria-hidden', 'true');
+                hint.textContent = 'Drag a dot to move its colour';
+                canvas.appendChild(hint);
+                const done = () => { hint.classList.add('gone'); canvas.removeEventListener('pointerdown', done); };
+                canvas.addEventListener('pointerdown', done);
+            }
+        }
+
         function paintControls() {
             const set = (id, v) => {
                 const input = el(id);
@@ -732,6 +792,11 @@
             set('te-shade', seed.level);
             set('te-intensity', seed.intensity);
             set('te-grain', seed.grain);
+            for (const id of ['te-shade', 'te-intensity', 'te-grain']) {
+                const input = el(id);
+                if (input && input.hasAttribute('aria-valuetext'))
+                    input.setAttribute('aria-valuetext', valueText(id));
+            }
             const shade = el('te-shade-track');
             if (shade)
                 shade.style.background = rampCss(t => groundAt(t, seed.intensity));
