@@ -152,10 +152,7 @@ html[data-vibrancy="true"], html[data-vibrancy="true"] body {
 }
 .radio-row:first-of-type { margin-top: var(--sp-4); }
 
-.radio-row input[type="radio"] {
-  accent-color: var(--accent); width: 15px; height: 15px;
-  cursor: pointer; flex-shrink: 0; margin: 0;
-}
+
 .radio-label { font-size: var(--fs-body); color: var(--text); }
 
 /* ── Select ── */

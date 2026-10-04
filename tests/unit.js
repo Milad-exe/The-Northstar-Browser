@@ -1016,6 +1016,24 @@ test('a width inside the band is left alone', () => {
     assert.strictEqual(chromeUtil.clampSidebarWidth(256, 1440), 256);
 });
 
+// ── color-scheme per theme (ui-polish U0-1) ──────────────────────────────────
+// Native controls (radios, scrollbars, pickers) follow `color-scheme`, not our
+// tokens. Without it a light theme kept dark-scheme natives and vice versa —
+// the "unchecked radio looks checked" white disc (S1). Every derived theme's
+// sheet carries its own mode; the CSS-backed default declares dark on :root.
+test('each theme sheet declares its color-scheme', () => {
+    for (const t of themeRegistry.all()) {
+        const r = themeRegistry.resolve(t.id);
+        if (!r.css) continue; // CSS-backed: covered by the :root rule below
+        assert.ok(r.css.includes(`color-scheme:${r.mode}`), `${t.id} sheet says color-scheme:${r.mode}`);
+    }
+    for (const f of ['renderer/styles/themes.css', 'renderer/styles/ui.css']) {
+        const css = fs.readFileSync(path.join(root, f), 'utf8');
+        assert.ok(/:root\s*\{[^}]*color-scheme:\s*dark/.test(css), `${f} :root defaults to color-scheme: dark`);
+        assert.ok(/\.radio\s*\{[^}]*appearance:\s*none/.test(css), `${f} has the shared .radio control`);
+    }
+});
+
 // ── Palette contrast ─────────────────────────────────────────────────────────
 // A re-tone is easy to do by eye and easy to get wrong: the light themes had a
 // tertiary ink and an accent that fell under 3:1 on their own shell. These read

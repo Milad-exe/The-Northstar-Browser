@@ -216,7 +216,7 @@ function resolve(id) {
         const d = derive(derived.seed);
         return {
             id: derived.id, name: derived.name, mode: d.mode, kind: 'builtin',
-            tokens: d.tokens, css: toCss(d.tokens, `html[data-theme="${derived.id}"]`), icon: d.icon,
+            tokens: d.tokens, css: toCss(d.tokens, `html[data-theme="${derived.id}"]`, d.mode), icon: d.icon,
         };
     }
 
@@ -226,7 +226,7 @@ function resolve(id) {
             const d = derive(custom.seed);
             return {
                 id: custom.id, name: custom.name || 'Custom', mode: d.mode, kind: 'custom',
-                tokens: d.tokens, css: toCss(d.tokens, `html[data-theme="${cssEscape(custom.id)}"]`), icon: d.icon,
+                tokens: d.tokens, css: toCss(d.tokens, `html[data-theme="${cssEscape(custom.id)}"]`, d.mode), icon: d.icon,
             };
         }
     }

@@ -556,10 +556,14 @@ function derive(seed) {
     };
 }
 
-/** Serialise a token map into a CSS rule for insertCSS/`<style>`. */
-function toCss(tokens, selector = 'html[data-theme="custom"]') {
-    const body = Object.entries(tokens).map(([k, v]) => `${k}:${v}`).join(';');
-    return `${selector}{${body}}`;
+/** Serialise a token map into a CSS rule for insertCSS/`<style>`. `mode`
+ *  ('light'/'dark') adds `color-scheme`, so native controls — radios,
+ *  scrollbars, pickers — are drawn for the theme's mode, not the default's. */
+function toCss(tokens, selector = 'html[data-theme="custom"]', mode = null) {
+    const decls = Object.entries(tokens).map(([k, v]) => `${k}:${v}`);
+    if (mode === 'light' || mode === 'dark')
+        decls.push(`color-scheme:${mode}`);
+    return `${selector}{${decls.join(';')}}`;
 }
 
 /**

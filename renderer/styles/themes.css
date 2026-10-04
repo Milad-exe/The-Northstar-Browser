@@ -41,6 +41,9 @@
 :root {
   /* Slate (default) — the reference greys, read off the design images:
      true neutrals (R=G=B) on near-black, not the blue-shifted greys we had. */
+  /* Native controls (scrollbars, pickers) draw for this mode. Derived themes
+     emit their own color-scheme (theme-derive toCss). */
+  color-scheme: dark;
   --shell: #0a0a0b;
   --page: #121213;
   --bg: #050506;
@@ -277,4 +280,22 @@ html[data-private-tab="true"] {
     transform: rotate(45deg);
   }
   .check-box:focus-visible { outline: none; box-shadow: var(--ring-2), 0 0 0 3px var(--accent-wash); }
+}
+
+/* ── Radio ─────────────────────────────────────────────────────────────────
+   Drawn like .check-box rather than left to the native control, which painted
+   an unchecked radio as a filled white disc in dark themes (it looked
+   checked). Unchecked: a hollow ring. Checked: an accent dot in the ring. */
+@layer components {
+  .radio {
+    appearance: none; -webkit-appearance: none;
+    width: 16px; height: 16px; flex-shrink: 0; margin: 0;
+    border: none; border-radius: 50%;
+    background: transparent; box-shadow: var(--ring-2);
+    cursor: pointer;
+    transition: box-shadow var(--dur-1) var(--ease);
+  }
+  .radio:checked { box-shadow: inset 0 0 0 5px var(--accent); }
+  .radio:focus-visible { outline: none; box-shadow: var(--ring-2), 0 0 0 3px var(--accent-wash); }
+  .radio:checked:focus-visible { box-shadow: inset 0 0 0 5px var(--accent), 0 0 0 3px var(--accent-wash); }
 }
