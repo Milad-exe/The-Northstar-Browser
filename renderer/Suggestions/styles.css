@@ -84,11 +84,9 @@ body {
   overflow: hidden;
 }
 .item:hover { background: var(--hover); }
-/* The active row is the one Enter takes: accent-tinted, like the palette's. */
-.item.active {
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 26%, transparent);
-}
+/* The active row is the one Enter takes: a neutral selected fill. Red is kept
+   for focus and primary actions (accent discipline). */
+.item.active { background: var(--active-bg); }
 
 .item img.fav {
   width: var(--icon); height: var(--icon); border-radius: var(--r-xs); flex-shrink: 0;

@@ -386,8 +386,9 @@ input, textarea, select { user-select: text; -webkit-user-select: text; }
 .engine-row:first-of-type { border-top: none; }
 .engine-row .name { font-size: var(--fs-small); font-weight: 600; color: var(--text); }
 .engine-row .kw {
-  font-family: var(--mono); font-size: var(--fs-micro); color: var(--accent);
-  background: var(--accent-wash); padding: 1px 6px; border-radius: 4px;
+  /* A neutral chip: a keyword is information, not a selection or an action. */
+  font-family: var(--mono); font-size: var(--fs-micro); color: var(--text-2);
+  background: var(--surface-2); padding: 1px 6px; border-radius: var(--r-sm);
 }
 .engine-row .host { font-family: var(--mono); font-size: var(--fs-micro); color: var(--text-3); margin-left: auto; }
 .engine-row .del {

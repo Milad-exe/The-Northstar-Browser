@@ -2139,7 +2139,7 @@
                                 (emo) => window.essentials.setIcon(it.url, it.profile || null, emo), true)],
                             ['Bookmark…', () => window.browserBookmarks.add(it.url, it.title || '')],
                             ['sep'],
-                            ['Remove from essentials', () => window.essentials.remove(it.url, it.profile || null), 'danger'],
+                            ['Remove from essentials', () => window.essentials.remove(it.url, it.profile || null)], // re-addable: neutral
                         ]);
                     });
                     grid.appendChild(tile);
@@ -2910,7 +2910,9 @@
                     ['Select all tabs', () => selectAllTabs()],
                     ['sep'],
                     [selectionFor(idx).length > 1 ? `Close ${selectionFor(idx).length} tabs` : 'Close tab',
-                        () => { for (const i of selectionFor(idx)) window.tab.remove(i); clearSelection(); }, 'danger'],
+                        // Neutral, not red: a closed tab comes back with Ctrl+Shift+T.
+                        // Red is kept for what can't be undone (delete a space…).
+                        () => { for (const i of selectionFor(idx)) window.tab.remove(i); clearSelection(); }],
                 );
                 openCtxMenu(e.clientX, e.clientY, rows);
             });
