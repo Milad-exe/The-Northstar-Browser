@@ -218,6 +218,7 @@
     "perm.n.clipboard": "Portapapeles",
     "perm.n.midi": "Dispositivos MIDI",
     "perm.n.external": "Abrir aplicaciones",
-    "perm.n.generic": "Permiso"
+    "perm.n.generic": "Permiso",
+    "history.openNewTab": "Abrir en una pestaña nueva"
   }
 }

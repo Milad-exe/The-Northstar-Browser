@@ -76,12 +76,19 @@
 
             const text = document.createElement('div');
             text.className = 'text';
+            // Meaning, not data (ui-polish U2-5): the title, then host + first
+            // path segment — no https://, www. or query. The full URL is the
+            // row's tooltip. A missing title shows the host, the path below it.
+            const shown = window.Northstar?.rowText
+                ? window.Northstar.rowText(entry.title, entry.url)
+                : { primary: entry.title || host || 'Untitled', secondary: entry.url };
             const title = document.createElement('div');
             title.className = 'title';
-            title.textContent = entry.title || host || 'Untitled';
+            title.textContent = shown.primary || 'Untitled';
             const sub = document.createElement('div');
             sub.className = 'sub';
-            sub.textContent = entry.url;
+            sub.textContent = shown.secondary;
+            row.title = entry.url || '';
             text.append(title, sub);
             row.appendChild(text);
 
@@ -98,8 +105,23 @@
             time.textContent = i18n ? i18n.time(at) : at.toLocaleTimeString();
             row.appendChild(time);
 
+            // Open in a new tab (background), next to Remove.
+            const openNew = () => {
+                if (!entry.url) return;
+                try { window.browserBookmarks?.openInNewTab?.(entry.url, false); }
+                catch (err) { window.northstarLog?.debug('history', 'open in new tab: ' + err); }
+            };
+            const newTab = document.createElement('button');
+            newTab.className = 'row-action row-action-open';
+            newTab.title = T('history.openNewTab', 'Open in new tab');
+            newTab.setAttribute('aria-label', newTab.title);
+            newTab.innerHTML = '<svg width="14" height="14" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M228,104a12,12,0,0,1-24,0V69l-59.51,59.51a12,12,0,0,1-17-17L187,52H152a12,12,0,0,1,0-24h64a12,12,0,0,1,12,12Zm-44,24a12,12,0,0,0-12,12v64H52V84h64a12,12,0,0,0,0-24H48A20,20,0,0,0,28,80V208a20,20,0,0,0,20,20H176a20,20,0,0,0,20-20V140A12,12,0,0,0,184,128Z"/></svg>';
+            newTab.addEventListener('click', (e) => { e.stopPropagation(); openNew(); });
+            row.appendChild(newTab);
+
             const remove = document.createElement('button');
             remove.className = 'row-action';
+            remove.setAttribute('aria-label', T('history.remove', 'Remove from history'));
             remove.title = T('history.remove', 'Remove from history');
             remove.innerHTML = '<svg width="13" height="13" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208.49,191.51a12,12,0,0,1-17,17L128,145,64.49,208.49a12,12,0,0,1-17-17L111,128,47.51,64.49a12,12,0,0,1,17-17L128,111l63.51-63.52a12,12,0,0,1,17,17L145,128Z"/></svg>';
             remove.addEventListener('click', async (e) => {
@@ -121,7 +143,9 @@
                 else
                     window.electronAPI.navigateActiveTab(entry.url);
             };
-            row.addEventListener('click', open);
+            // Ctrl/Cmd-click or middle-click → a background tab, like a link.
+            row.addEventListener('click', (e) => { if (e.ctrlKey || e.metaKey) openNew(); else open(); });
+            row.addEventListener('auxclick', (e) => { if (e.button === 1) { e.preventDefault(); openNew(); } });
             row.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
             });

@@ -218,6 +218,7 @@
     "perm.n.clipboard": "Clipboard",
     "perm.n.midi": "MIDI devices",
     "perm.n.external": "Opening apps",
-    "perm.n.generic": "Permission"
+    "perm.n.generic": "Permission",
+    "history.openNewTab": "Open in new tab"
   }
 }

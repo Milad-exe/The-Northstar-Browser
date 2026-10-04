@@ -162,6 +162,8 @@
   .list-row:hover .row-action,
   .list-row:focus-within .row-action { opacity: 1; }
   .list-row .row-action:hover { background: var(--hover); color: var(--danger); }
+  /* Opening is not destructive: neutral hover. */
+  .list-row .row-action.row-action-open:hover { color: var(--text); }
 
   .page-empty {
     padding: calc(var(--sp-8) * 1.5) var(--sp-5);
