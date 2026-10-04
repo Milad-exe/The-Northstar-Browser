@@ -45,7 +45,7 @@
 @keyframes ntp-sug-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 .ntp-sug {
   display: flex; align-items: center; gap: var(--sp-5, 12px);
-  height: 40px; padding: 0 var(--sp-4, 10px);
+  height: var(--list-row-h); padding: 0 var(--sp-4, 10px);
   border-radius: var(--r-md, 10px); cursor: pointer; min-width: 0;
 }
 .ntp-sug.active { background: var(--hover); }
@@ -107,7 +107,7 @@
 .ntp-recent { display: flex; flex-direction: column; }
 .ntp-recent-row {
   display: flex; align-items: baseline; gap: var(--sp-5, 12px);
-  width: 100%; padding: var(--sp-4, 9px) var(--sp-5, 12px);
+  width: 100%; min-height: var(--list-row-h); padding: 0 var(--sp-5, 12px);
   border: none; border-radius: var(--r-md, 10px); cursor: pointer;
   background: transparent; color: var(--text); text-align: left;
   transition: background var(--dur-1) var(--ease);

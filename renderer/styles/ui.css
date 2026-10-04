@@ -748,11 +748,11 @@ html[data-private-window="true"], html[data-private-tab="true"] {
   --tabstrip-h: 44px;    /* (JS TAB_BAR_H)   top-mode tab strip */
   --card-radius: 12px;   /* (JS PAGE_RADIUS) page card corner */
 
-  /* Controls — three heights, no more */
+  /* Control and row heights */
   --row-h:     36px;     /* sidebar rows */
-  --menu-row-h: 42px;    /* rows in floating menus/panels and list items — a
-                            touch airier than the sidebar; the sidebar packs
-                            many tabs, a menu reads better with room to breathe */
+  --menu-row-h: 32px;    /* rows in menus: app menu, context menus, space menu */
+  --list-row-h: 36px;    /* rows in lists: new-tab page, address-bar dropdown,
+                            downloads/extensions panels, history */
   --control-h: 32px;     /* icon buttons */
   --field-h:   36px;     /* omnibox and text inputs */
   --icon:      18px;     /* glyph size inside a control */

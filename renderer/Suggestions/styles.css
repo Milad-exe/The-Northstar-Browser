@@ -74,9 +74,9 @@ body {
   display: flex; align-items: center; gap: var(--sp-4);
   padding: 0 var(--sp-4); margin: 1px 0;
   border-radius: var(--r-md);
-  /* The same row height as every list in the browser (--row-h). 40px rows
+  /* The same row height as every list in the browser (--list-row-h). 40px rows
      made a 6-row dropdown taller than most of the page behind it. */
-  min-height: var(--row-h);
+  min-height: var(--list-row-h);
   font-size: var(--fs-body); color: var(--text-2);
   letter-spacing: var(--tracking);
   cursor: pointer;

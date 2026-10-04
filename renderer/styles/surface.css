@@ -79,7 +79,7 @@
   /* ── Rows ───────────────────────────────────────────────────────────────── */
   .surface-row {
     display: flex; align-items: center; gap: var(--sp-5);
-    width: 100%; min-height: var(--menu-row-h);
+    width: 100%; min-height: var(--list-row-h); /* a list row; menus override below */
     padding: 0 var(--sp-4); border: none; border-radius: var(--r-md);
     background: transparent; color: var(--text);
     font-family: var(--font); font-size: var(--fs-body); font-weight: 500;
@@ -87,6 +87,8 @@
     text-align: left; cursor: pointer;
     transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
   }
+  /* Inside a menu (the app menu) a row is a menu row: denser. */
+  .surface-row.menu-row { min-height: var(--menu-row-h); }
   .surface-row:hover,
   .surface-row.is-active { background: var(--hover); }
   .surface-row.is-active { color: var(--text); }
