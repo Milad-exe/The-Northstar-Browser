@@ -806,11 +806,12 @@
                 hostCache = hostCache.slice(-400);
         };
         // ── Inline completion (ghost text) ────────────────────────────────────────
-        // The completion is NOT written into the input: typing "go" used to leave
-        // "google.com" selected in the bar, so Enter navigated somewhere the user
-        // never typed. Instead the remainder is painted dim after the caret and
-        // only becomes real text when the user accepts it (Tab, →, or clicking the
-        // matching suggestion row); Shift+Tab takes an accepted one back.
+        // The remainder is painted dim after the caret rather than written into
+        // the input. Tab / → make it real text, Shift+Tab takes that back.
+        // Enter goes to the completion, Chrome-style (chrome-ux P2-5, decided by
+        // Milad 2026-10-04): the top dropdown row becomes the completed address so
+        // the highlighted row is always what Enter runs. Shift+Enter searches the
+        // literal typed text instead (the search row sits right below).
         let ghostRest = ''; // the un-accepted remainder currently painted
         let ghostAccepted = null; // { typed, full } for Shift+Tab undo
         function clearGhost() {
@@ -1068,6 +1069,19 @@
             }
             if (e.key === 'ArrowLeft' || e.key === 'Home')
                 clearGhost();
+            // Shift+Enter with a completion painted searches exactly what was
+            // typed, ignoring the completion (P2-5). Only on the top row(s): an
+            // arrowed-to history row keeps its own meaning.
+            if (e.key === 'Enter' && e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && ghostRest) {
+                const item = currentSuggestions[activeSuggestionIndex];
+                if (!item || item.completion) {
+                    e.preventDefault();
+                    const typed = searchBar.value.trim();
+                    if (typed)
+                        commitNavigation(searchUrlFor(typed));
+                    return;
+                }
+            }
             // Alt+Enter opens the target in a NEW tab rather than the current one
             // (P0-8), as in Chrome/Firefox. A highlighted url row uses its url;
             // otherwise the bar text is resolved the same way a normal commit is.
@@ -1135,10 +1149,10 @@
                 if (e.key === 'Enter' && activeSuggestionIndex >= 0) {
                     e.preventDefault();
                     const item = currentSuggestions[activeSuggestionIndex];
-                    // The action/navigate row mirrors what is actually in the bar —
-                    // an unaccepted ghost completion must NOT be what loads.
+                    // The completion row loads the completed address (P2-5); the
+                    // typed row loads exactly what is in the bar.
                     if (item?.type === 'action' || item?.type === 'navigate') {
-                        const url = searchBar.value.trim();
+                        const url = item.completion ? item.query : searchBar.value.trim();
                         if (url)
                             commitNavigation(url);
                         return;
@@ -1161,7 +1175,7 @@
                 return;
             }
             if (e.key === 'Enter') {
-                const url = searchBar.value.trim();
+                const url = (searchBar.value + (ghostRest || '')).trim();
                 if (url)
                     commitNavigation(url);
             }
@@ -1300,13 +1314,19 @@
         // links = ≤8, see MAX_HEIGHT in ipc/suggestions.js) are identical however
         // the list was triggered.
         function assembleSuggestions(local, remoteRows) {
-            const { base, ghostKey, topDomain, rankedLinks } = local;
+            const { base, typedRow, ghostKey, topDomain, rankedLinks } = local;
             const merged = [base];
             const seenQuery = new Set([String(base.query).toLowerCase()]);
-            // The ghost-completed domain sits directly under the typed row, so the
-            // row you click is the completion you can see in the bar.
-            if (ghostKey)
+            if (base.completion) {
+                // The completion row is first; the typed text (search) is second.
+                merged.push(typedRow);
+                seenQuery.add(String(typedRow.query).toLowerCase());
+            }
+            else if (ghostKey) {
+                // A match whose ghost could not be painted (e.g. the text
+                // overflows) stays reachable as its own row.
                 merged.push(topDomain);
+            }
             // Search suggestions right under the heuristic row (max 3); skip
             // base-query dupes. Suggestions show ahead of history/bookmarks.
             let searchCount = 0;
@@ -1379,7 +1399,11 @@
             const ql = q.toLowerCase();
             currentQuery = q; // typed text drives the bold-completion highlighting
             // Immediate feedback before the local IPC resolves.
-            renderSuggestions([looksLikeUrl(q) ? { type: 'navigate', query: q } : { type: 'action', query: q }]);
+            // A ghost already painted from the host cache is the top row (P2-5).
+            const typedNow = looksLikeUrl(q) ? { type: 'navigate', query: q } : { type: 'action', query: q };
+            renderSuggestions(ghostRest && searchBar.value === q
+                ? [{ type: 'navigate', query: q + ghostRest, completion: true }, typedNow]
+                : [typedNow]);
             (async () => {
                 try {
                     // Over-fetch links so relevance scoring has enough candidates
@@ -1428,13 +1452,19 @@
                     const completed = topDomain ? computeAutofill(q, topDomain.url) : null;
                     if (completed && searchBar.value === q)
                         setGhost(q, completed.slice(q.length));
-                    const base = looksLikeUrl(q)
+                    // A painted completion (from this match or the host cache)
+                    // is what Enter runs, so it is the top row; the literal
+                    // search follows it (P2-5).
+                    const typedRow = looksLikeUrl(q)
                         ? { type: 'navigate', query: q }
                         : { type: 'action', query: q };
+                    const base = ghostRest && searchBar.value === q
+                        ? { type: 'navigate', query: q + ghostRest, completion: true }
+                        : typedRow;
                     const ghostKey = completed ? normalizeUrl(topDomain.url) : null;
                     // Carry remote rows through only while they match this query;
                     // otherwise they belong to an older keystroke and are dropped.
-                    syncResult = { q, ql, base, ghostKey, topDomain, rankedLinks };
+                    syncResult = { q, ql, base, typedRow, ghostKey, topDomain, rankedLinks };
                     const remoteRows = keptRemote.q === q ? keptRemote.rows : [];
                     renderSuggestions(assembleSuggestions(syncResult, remoteRows));
                     // Kick the throttled remote pass (private tabs fetch nothing).
