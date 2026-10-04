@@ -87,4 +87,5 @@ html, body {
    ordinary rows and quietly lie. */
 .ctx-menu-item:disabled { opacity: 0.38; cursor: default; }
 .ctx-menu-item:disabled:hover { background: transparent; }
-.ctx-check { margin-left: auto; padding-left: var(--sp-4); opacity: 0.75; }
+.ctx-menu-item.is-checked { display: flex; align-items: center; }
+.ctx-check { display: flex; margin-left: auto; padding-left: var(--sp-4); color: var(--text-2); }

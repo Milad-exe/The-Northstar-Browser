@@ -101,10 +101,14 @@
                 b.appendChild(document.createTextNode(r.label));
             }
             if (r.checked) {
+                // A check ICON in the trailing column (Phosphor `check`), never
+                // a text glyph.
                 const tick = document.createElement('span');
                 tick.className = 'ctx-check';
-                tick.textContent = '✓';
+                tick.setAttribute('aria-hidden', 'true');
+                tick.innerHTML = '<svg viewBox="0 0 256 256" width="14" height="14" fill="currentColor"><path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"/></svg>';
                 b.appendChild(tick);
+                b.setAttribute('aria-checked', 'true');
             }
             if (r.sub) {
                 const ar = document.createElement('span');

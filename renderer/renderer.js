@@ -2553,9 +2553,11 @@
                 const r = btn.getBoundingClientRect();
                 const rows = [];
                 for (const p of (_spacesCache || [])) {
-                    const mark = p.id === activeWorkspace ? '  ✓' : '';
-                    rows.push([`${p.emoji ? p.emoji + '  ' : ''}${p.name}${mark}`,
-                        () => { if (p.id !== activeWorkspace) window.profiles.switch(p.id); }]);
+                    // The active space carries a trailing check ICON (the
+                    // overlay draws it), not a "  ✓" glued onto the name.
+                    rows.push([`${p.emoji ? p.emoji + '  ' : ''}${p.name}`,
+                        () => { if (p.id !== activeWorkspace) window.profiles.switch(p.id); },
+                        '', { checked: p.id === activeWorkspace }]);
                 }
                 if (rows.length)
                     rows.push(['sep']);
@@ -3461,7 +3463,8 @@
             const serialize = (rs) => rs.map((r) => {
                 if (r[0] === 'sep') return { sep: true };
                 const sub = Array.isArray(r[1]) ? r[1] : null;
-                return { label: r[0], cls: r[2] || '', ...(sub ? { sub: serialize(sub) } : {}) };
+                // r[3] is optional row flags: { checked } draws a trailing check.
+                return { label: r[0], cls: r[2] || '', ...(r[3]?.checked ? { checked: true } : {}), ...(sub ? { sub: serialize(sub) } : {}) };
             });
             const resolve = (rs, path) => {
                 let cur = rs;
