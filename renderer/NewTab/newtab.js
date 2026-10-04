@@ -76,6 +76,22 @@
         return fav;
     }
 
+    // A suggestion row's icon: the address bar's glyph for the row type
+    // (renderer/lib/row-icons.js), swapped for the site's cached favicon.
+    function rowIcon(r) {
+        const img = document.createElement('img');
+        img.className = 'ntp-glyph';
+        img.alt = '';
+        const icons = window.Northstar.rowIcons || {};
+        img.src = r.kind === 'tab' ? icons.tab : r.kind === 'bookmark' ? icons.bkmk : r.kind === 'history' ? icons.hist : icons.globe;
+        const host = hostOf(r.url);
+        if (host && window.faviconCache?.get) {
+            window.faviconCache.get(host).then((data) => { if (data) img.src = data; })
+                .catch((e) => log('favicon: ' + e));
+        }
+        return img;
+    }
+
     // ── Data ──────────────────────────────────────────────────────────────────
     const flatBookmarks = (items, out = []) => {
         for (const it of items || []) {
@@ -130,17 +146,28 @@
             const on = rowKey(r) === activeKey;
             el.classList.toggle('active', on);
             el.setAttribute('aria-selected', on ? 'true' : 'false');
+            // Same anatomy as the address-bar dropdown (ui-polish U1-4):
+            // icon · title — secondary. A tab row's secondary says what Enter
+            // does; any other row's is its displayUrl (no scheme, www. or query).
+            const text = window.Northstar.rowText(r.title, r.url);
+            const main = document.createElement('span');
+            main.className = 'ntp-sug-main';
             const title = document.createElement('span');
             title.className = 'ntp-sug-title';
-            // No title → the address IS the label; don't print it twice.
-            title.textContent = r.title || r.url.replace(/^https?:\/\//, '');
-            const url = document.createElement('span');
-            url.className = 'ntp-sug-url';
-            url.textContent = r.title ? r.url : '';
-            const kind = document.createElement('span');
-            kind.className = 'ntp-sug-kind' + (r.kind === 'tab' ? ' is-tab' : '');
-            kind.textContent = KIND_LABEL[r.kind]();
-            el.append(favicon(r.url), title, url, kind);
+            title.textContent = text.primary;
+            main.appendChild(title);
+            const secondary = r.kind === 'tab' ? KIND_LABEL.tab() : text.secondary;
+            if (secondary) {
+                const sep = document.createElement('span');
+                sep.className = 'ntp-sug-sep';
+                sep.textContent = '—';
+                const url = document.createElement('span');
+                url.className = 'ntp-sug-url';
+                url.textContent = secondary;
+                main.append(sep, url);
+            }
+            el.title = r.url;
+            el.append(rowIcon(r), main);
             el.addEventListener('mousedown', (e) => e.preventDefault()); // keep focus in the field
             el.addEventListener('click', (e) => choose(r, e));
             el.addEventListener('auxclick', (e) => { if (e.button === 1) choose(r, e); });
@@ -436,12 +463,13 @@
             const row = document.createElement('button');
             row.className = 'ntp-recent-row';
             row.title = h.url;
+            const text = window.Northstar.rowText(h.title, h.url);
             const t = document.createElement('span');
             t.className = 'ntp-recent-title';
-            t.textContent = h.title || h.url.replace(/^https?:\/\//, '');
+            t.textContent = text.primary;
             const u = document.createElement('span');
             u.className = 'ntp-recent-url';
-            u.textContent = h.title ? (hostOf(h.url) || h.url) : '';
+            u.textContent = text.secondary;
             row.append(favicon(h.url), t, u);
             openable(row, h.url);
             recentList.appendChild(row);

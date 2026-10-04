@@ -34,9 +34,9 @@
     <span data-i18n="ntp.customise">Customise</span>
   </button>
   <div id="custom-panel" class="ntp-panel" role="dialog" aria-label="Customise" data-i18n-label="ntp.customise" hidden>
-    <label class="ntp-opt"><span data-i18n="ntp.showShortcuts">Shortcuts</span><input id="opt-shortcuts" type="checkbox" role="switch"></label>
-    <label class="ntp-opt"><span data-i18n="ntp.showRecent">Recent pages</span><input id="opt-recent" type="checkbox" role="switch"></label>
-    <label class="ntp-opt"><span data-i18n="ntp.minimal">Minimal — just the search field</span><input id="opt-minimal" type="checkbox" role="switch"></label>
+    <label class="ntp-opt"><span data-i18n="ntp.showShortcuts">Shortcuts</span><span class="toggle"><input id="opt-shortcuts" type="checkbox" role="switch"><span class="switch-track"></span></span></label>
+    <label class="ntp-opt"><span data-i18n="ntp.showRecent">Recent pages</span><span class="toggle"><input id="opt-recent" type="checkbox" role="switch"><span class="switch-track"></span></span></label>
+    <label class="ntp-opt"><span data-i18n="ntp.minimal">Minimal — just the search field</span><span class="toggle"><input id="opt-minimal" type="checkbox" role="switch"><span class="switch-track"></span></span></label>
     <button id="opt-restore" class="ntp-panel-btn" type="button" data-i18n="ntp.restoreHidden" hidden>Restore hidden shortcuts</button>
   </div>
 
@@ -55,6 +55,8 @@
 
   <script src="../lib/i18n.js"></script>
   <script src="../lib/util.js"></script>
+  <script src="../lib/display-url.js"></script>
+  <script src="../lib/row-icons.js"></script>
   <script src="newtab.js"></script>
 </body>
 </html>

@@ -1074,6 +1074,14 @@ test('displayUrl shows host + first path segment', () => {
     assert.strictEqual(displayUrl('not a url'), 'not a url');
     assert.strictEqual(displayUrl(''), '');
     assert.strictEqual(displayUrl(null), '');
+    // A row's two lines: title + displayUrl; no title → host as the title and
+    // the path as the secondary line (never the URL twice, never as a title).
+    const { rowText } = require(path.join(root, 'renderer/lib/display-url'));
+    assert.deepStrictEqual(rowText('Web browser', 'https://en.wikipedia.org/wiki/Web_browser?x=1'), { primary: 'Web browser', secondary: 'en.wikipedia.org/wiki' });
+    assert.deepStrictEqual(rowText('', 'https://www.youtube.com/watch?v=1'), { primary: 'youtube.com', secondary: '/watch' });
+    assert.deepStrictEqual(rowText('', 'https://example.com/'), { primary: 'example.com', secondary: '' });
+    assert.deepStrictEqual(rowText('https://example.com/a', 'https://example.com/a'), { primary: 'example.com', secondary: '/a' }, 'a URL-shaped title is not a title');
+    assert.deepStrictEqual(rowText('Settings', 'settings'), { primary: 'Settings', secondary: 'settings' });
 });
 
 // ── CSS drift guard (ui-polish U1-8) ─────────────────────────────────────────
@@ -1087,7 +1095,7 @@ test('no new raw font sizes, radii or durations in component CSS', () => {
         'renderer/Browser/styles.css': [30, 31],
         'renderer/Menu/styles.css': [0, 0],
         'renderer/CtxMenu/styles.css': [2, 0],
-        'renderer/NewTab/styles.css': [5, 3],
+        'renderer/NewTab/styles.css': [0, 0], // U1-4: all tokens now
         'renderer/Settings/styles.css': [4, 1],
         'renderer/styles/surface.css': [1, 0],
     };

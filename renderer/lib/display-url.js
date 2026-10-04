@@ -17,6 +17,7 @@
         module.exports = api;
     root.Northstar = root.Northstar || {};
     root.Northstar.displayUrl = api.displayUrl;
+    root.Northstar.rowText = api.rowText;
 })(typeof window !== 'undefined' ? window : globalThis, function () {
     'use strict';
 
@@ -37,5 +38,23 @@
         return seg ? `${host}/${seg}` : host;
     }
 
-    return { displayUrl };
+    /**
+     * A list row's two lines from a page's title and URL: the title, then
+     * displayUrl. With no real title (missing, or just the URL again) the host
+     * is the title and the path the secondary line — a URL is never a title.
+     */
+    function rowText(title, url) {
+        const d = displayUrl(url);
+        const t = String(title || '').trim();
+        if (t && t !== url && t !== d)
+            return { primary: t, secondary: d };
+        let host = '';
+        try { const u = new URL(url); if (/^https?:$/.test(u.protocol)) host = u.host.toLowerCase().replace(/^www\./, ''); }
+        catch { /* not a web URL */ }
+        if (!host)
+            return { primary: d || String(url || ''), secondary: '' };
+        return { primary: host, secondary: d.startsWith(host) ? d.slice(host.length) : d };
+    }
+
+    return { displayUrl, rowText };
 });
