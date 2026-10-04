@@ -357,9 +357,15 @@ module.exports = {
             const url = this.tabUrls.get(tabIndex) || '';
             log.error('tabs', `renderer gone for tab ${tabIndex}: ${details?.reason} (exit ${details?.exitCode})`);
             // Mark the row crashed (warning glyph, dimmed title); cleared by the
-            // next did-start-loading when the user reloads (P1-8).
-            try { this.mainWindow.webContents.send('tab-crashed', { index: tabIndex }); }
-            catch (e) { log.debug('tabs', 'tab-crashed', e); }
+            // next load the user starts (P1-8). Sent once the crash PAGE has
+            // loaded: sent before it, that page's own load cleared the mark at
+            // once and the glyph never showed.
+            const markCrashed = () => {
+                try { this.mainWindow.webContents.send('tab-crashed', { index: tabIndex }); }
+                catch (e) { log.debug('tabs', 'tab-crashed', e); }
+            };
+            try { tab.webContents.once('did-stop-loading', markCrashed); }
+            catch (e) { log.debug('tabs', 'tab-crashed wait', e); markCrashed(); }
             const params = new URLSearchParams({
                 url: url && url !== 'newtab' ? url : '',
                 reason: details?.reason || 'crashed',

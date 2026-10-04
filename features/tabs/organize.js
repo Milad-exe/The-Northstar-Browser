@@ -139,11 +139,18 @@ module.exports = {
         catch (e) { log.debug('organize', 'unloadTab', e); }
         tab.lazyLoaded = false;
         tab.lazyTitle = keep;
+        let restored = false;
         const restore = () => {
+            if (restored) return;
+            restored = true;
             tab._unloading = false;
             this.tabUrls.set(i, url);
             tab.lazyTitle = keep;
             this.sendTabUpdate(i, tab, url, keep);
+            // The row shows it is unloaded (dotted ring), like an automatically
+            // slept tab (P1-8). After the blank load, which would clear it.
+            try { this.mainWindow.webContents.send('tab-slept', { index: i }); }
+            catch (e) { log.debug('organize', 'tab-slept', e); }
         };
         try { tab.webContents.once('did-finish-load', restore); }
         catch (e) { log.debug('organize', 'restore', e); }

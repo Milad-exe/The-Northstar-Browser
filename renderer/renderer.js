@@ -87,6 +87,11 @@
         // closes never set this (Chrome's CloseTabSource::kFromNonUIEvent).
         let closingFreeze = false;
         function freezeTopStripClose() { if (!sideTabs()) closingFreeze = true; }
+        // While frozen, each closed tab's width is given back as trailing padding
+        // on the strip, so its scrollable width never shrinks: in an overflowing
+        // (scrolled) strip a shrink clamps scrollLeft and shifts every tab
+        // sideways, and the next ✕ would no longer be under the cursor.
+        let frozenPad = 0;
         // Tab insert/remove motion (P1-2). The enter animation is skipped for the
         // burst of rows created while the window boots (session restore) — a stagger
         // of fade-ins there just competes with first paint.
@@ -1641,6 +1646,8 @@
                 if (!closingFreeze)
                     return;
                 closingFreeze = false;
+                frozenPad = 0;
+                tabsContainer.style.paddingRight = '';
                 tabBar.classList.add('relayout-anim');
                 updateTabWidths(tabs.size);
                 updateScrollShadows();
@@ -3273,6 +3280,11 @@
             // Drop it from the map now so all logic treats the tab as gone; only
             // the DOM node lingers for the collapse animation.
             tabs.delete(index);
+            if (closingFreeze && !sideTabs() && btn.isConnected) {
+                const gap = parseFloat(getComputedStyle(tabsContainer).columnGap) || 0;
+                frozenPad += btn.offsetWidth + gap;
+                tabsContainer.style.paddingRight = frozenPad + 'px';
+            }
             if (prefersReducedMotion()) {
                 btn.remove();
                 return;
