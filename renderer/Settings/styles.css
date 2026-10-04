@@ -239,7 +239,7 @@ input[type="number"] {
   width: 76px; border: 1px solid var(--border-2); border-radius: var(--r-md);
   padding: 0 var(--sp-4); height: var(--field-h); font-family: var(--mono); font-size: var(--fs-body);
   color: var(--text); background: var(--bg); outline: none;
-  transition: border-color 0.12s; -moz-appearance: textfield;
+  transition: border-color var(--dur-1) var(--ease); -moz-appearance: textfield;
 }
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
@@ -283,7 +283,7 @@ input[type="number"]:focus { border-color: var(--text-3); }
   flex: 1; padding: 9px 12px; background: var(--bg);
   border: 1px solid var(--border-2); color: var(--text); border-radius: var(--r-md);
   font-family: var(--font); font-size: var(--fs-small); outline: none;
-  transition: border-color 0.12s;
+  transition: border-color var(--dur-1) var(--ease);
 }
 .ext-id-input:focus { border-color: var(--text-3); }
 .ext-id-input::placeholder { color: var(--text-3); }
@@ -357,7 +357,7 @@ input[type="number"]:focus { border-color: var(--text-3); }
   padding: 10px 18px; border-radius: var(--r-md);
   box-shadow: var(--shadow-pop);
   opacity: 0; pointer-events: none;
-  transition: opacity 0.2s, transform 0.2s; white-space: nowrap;
+  transition: opacity var(--dur-2) var(--ease), transform var(--dur-2) var(--ease); white-space: nowrap;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 

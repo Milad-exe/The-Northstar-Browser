@@ -150,7 +150,7 @@ html[data-tabbar="top"] #menu-bar { order: -1; }
 .wc-mac { gap: 8px; padding-left: 4px; padding-right: 8px; }
 .wc-mac .wc-btn {
   width: 12px; height: 12px; border-radius: 50%;
-  border: none; cursor: pointer; padding: 0; transition: filter 0.1s;
+  border: none; cursor: pointer; padding: 0; transition: filter var(--dur-1) var(--ease);
 }
 .wc-mac .wc-close    { background: #ff5f57; }
 .wc-mac .wc-minimize { background: #febc2e; }
@@ -162,7 +162,7 @@ html[data-tabbar="top"] #menu-bar { order: -1; }
   width: 44px; height: 42px; border: none;
   background: transparent; color: var(--text-2); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  transition: background 0.1s; padding: 0; border-radius: 0;
+  transition: background var(--dur-1) var(--ease); padding: 0; border-radius: 0;
 }
 .wc-win .wc-btn svg { width: 10px; height: 10px; pointer-events: none; }
 .wc-win .wc-btn:hover { background: var(--hover); color: var(--text); }
@@ -197,7 +197,7 @@ html.tab-dragging * { user-select: none !important; -webkit-user-select: none !i
   border: none; padding: 0; margin: 0; background: transparent; color: var(--text-2);
   cursor: pointer; font-size: 18px;
   display: flex; align-items: center; justify-content: center;
-  opacity: 0; pointer-events: none; transition: opacity 0.2s, width 0.2s;
+  opacity: 0; pointer-events: none; transition: opacity var(--dur-2) var(--ease), width var(--dur-2) var(--ease);
   z-index: 10; overflow: hidden; white-space: nowrap;
 }
 #tab-scroll-left  { background: linear-gradient(to right, var(--shell) 45%, transparent); }
@@ -1025,7 +1025,7 @@ html[data-tabbar="side"] .sidebar-foot {
   display: flex; align-items: center; justify-content: center; font-size: 18px;
   border: 1px solid var(--border); border-radius: 9px;
   background: var(--page); color: var(--text); cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
+  transition: background var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
 }
 .prf-emoji:hover { background: var(--hover); border-color: var(--border-2); }
 .prf-emoji.is-dot::before {
@@ -1073,7 +1073,7 @@ html[data-tabbar="side"] .sidebar-foot {
   background: var(--surface); border: 1px solid var(--border);
   box-shadow: var(--shadow-pop);
   font-size: 12px; color: var(--text); white-space: nowrap;
-  animation: iso-hint-in .18s ease-out;
+  animation: iso-hint-in var(--dur-2) var(--ease-decel);
 }
 .iso-hint.hidden { display: none; }
 .iso-hint-dot {
@@ -1193,7 +1193,7 @@ html[data-tabbar="side"] .tab-throbber {
   left: calc(var(--sp-4, 8px) + var(--icon, 16px) / 2 - var(--throbber-size) / 2);
   width: var(--throbber-size); height: var(--throbber-size); box-sizing: border-box;
   border: 1.5px dotted var(--discard-ring); border-radius: 50%;
-  pointer-events: none; animation: discard-ring-in 1s var(--ease) both;
+  pointer-events: none; animation: discard-ring-in calc(var(--dur-4) * 3) var(--ease) both; /* a deliberately slow fade; still 0 under reduced motion */
 }
 .tab-button.crashed .tab-favicon { visibility: hidden; }
 .tab-button.crashed .tab-title { color: var(--text-3); }
@@ -1219,7 +1219,7 @@ html[data-tabbar="side"] .tab-button.crashed::after {
   background: transparent; border: none; font-size: 13px; line-height: 1;
   color: var(--text-3); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  opacity: 0; transition: opacity 0.1s, color 0.1s, background 0.1s;
+  opacity: 0; transition: opacity var(--dur-1) var(--ease), color var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
 }
 .tab-close:focus-visible { opacity: 1; outline: 1px solid var(--accent); outline-offset: -1px; }
 .tab-button:hover .tab-close,
@@ -1235,7 +1235,7 @@ html[data-tabbar="side"] .tab-button.crashed::after {
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: none;
   color: var(--text-2); font-size: 18px; font-weight: 300;
-  cursor: pointer; transition: color 0.12s, background 0.12s; flex-shrink: 0;
+  cursor: pointer; transition: color var(--dur-1) var(--ease), background var(--dur-1) var(--ease); flex-shrink: 0;
 }
 #new-tab-btn:hover { color: var(--text); background: var(--hover); }
 .tab-add-label { display: none; }
@@ -1700,7 +1700,7 @@ browser-action-list::part(badge) {
   font-family: var(--font); font-size: 12px;
   color: var(--text-2); text-align: left;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  transition: background 0.1s, color 0.1s; position: relative;
+  transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease); position: relative;
 }
 .bookmark-overflow-item:hover,
 .bookmark-overflow-item.has-submenu-open { background: var(--active-bg); color: var(--text); }
@@ -1761,7 +1761,7 @@ html[data-tabbar="side"][data-compact="on"] #content-area { margin-left: var(--s
   border-radius: var(--r-md);
   background: var(--surface); border: 1px solid var(--border);
   cursor: pointer; flex-shrink: 0;
-  transition: border-color 0.15s; user-select: none;
+  transition: border-color var(--dur-2) var(--ease); user-select: none;
 }
 .pomodoro-pill.hidden { display: none; }
 .pomodoro-pill:hover { border-color: var(--border-2); }
@@ -1772,10 +1772,12 @@ html[data-tabbar="side"][data-compact="on"] #content-area { margin-left: var(--s
   stroke-width: 2.5; stroke-linecap: round;
   stroke-dasharray: 69.1; stroke-dashoffset: 0;
   transform: rotate(-90deg); transform-origin: 14px 14px;
-  transition: stroke-dashoffset 1s linear, stroke 0.3s;
+  /* stroke-dashoffset is a CLOCK — the ring moves once per second of the
+     timer — so it keeps its literal 1s linear; it is not decorative motion. */
+  transition: stroke-dashoffset 1s linear, stroke var(--dur-3) var(--ease);
 }
 .pill-ring-fill.break { stroke: var(--accent-2); }
-.pill-phase-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; transition: background 0.3s; }
+.pill-phase-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; transition: background var(--dur-3) var(--ease); }
 .pill-phase-dot.break { background: var(--accent-2); }
 .pill-time {
   font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;

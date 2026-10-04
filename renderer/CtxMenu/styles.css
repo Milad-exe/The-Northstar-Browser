@@ -22,10 +22,10 @@ html, body {
      native menu "pop" that makes it feel placed, not just switched on. Transform
      is visual only, so place()'s offset-size clamping is unaffected. */
   transform-origin: top left;
-  animation: ctx-in 120ms cubic-bezier(0.2, 0, 0, 1);
+  animation: ctx-in var(--dur-1) var(--ease-decel);
 }
 @keyframes ctx-in {
-  from { opacity: 0; transform: scale(0.97) translateY(-3px); }
+  from { opacity: 0; transform: translateY(-3px); } /* translate only: never scale a surface card */
   to   { opacity: 1; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) { .ctx-menu { animation: none; } }
