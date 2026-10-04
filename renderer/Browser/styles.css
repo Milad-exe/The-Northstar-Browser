@@ -444,11 +444,12 @@ html[data-tabbar="side"]:not([data-compact="on"]) .sidebar-resizer {
 .sidebar-resizer::after {
   content: ''; position: absolute; right: 4px; width: 3px;
   top: 50%; height: 48px; transform: translateY(-50%); border-radius: 3px;
-  /* Faintly visible at rest so the handle is discoverable (a 48px grip, not a
-     full-height line, so it reads as a handle rather than a border). */
-  background: var(--border-2); transition: background 0.12s;
+  /* Invisible at rest: a resting grip read as a stray mark on every window.
+     Hovering the band reveals it (the cursor already says "resize"); it goes
+     accent only while dragging. The hit band above is unchanged. */
+  background: transparent; transition: background var(--dur-1) var(--ease);
 }
-.sidebar-resizer:hover::after,
+.sidebar-resizer:hover::after { background: color-mix(in srgb, var(--text-3) 40%, transparent); }
 html.sidebar-resizing .sidebar-resizer::after { background: var(--accent); }
 /* An overlay menu is up: nothing in the chrome is a window-drag region, so a
    press on the (formerly draggable) tab strip / sidebar / omnibox reaches the
