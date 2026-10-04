@@ -809,6 +809,7 @@
             currentSuggestions = [];
             activeSuggestionIndex = -1;
             searchBar.setAttribute('aria-expanded', 'false'); // (P0-7)
+            announce(''); // nothing stale left in the live region once it's closed
         }
         // Pre-warm the connection to a highlighted suggestion's origin so Enter
         // starts hot. The decision of WHAT to warm is the pure preconnectOrigin
