@@ -5,10 +5,10 @@
  * (the metrics block at the end of both files is identical), and put any new
  * token in BOTH or it will have no effect at runtime.
  *
- * ONE ACCENT, FOUR GROUNDS. The accent is #e5484d — taken from the reference
- * design, where it marks the selected row and nothing else. --danger is kept
- * deliberately hotter and lighter than it: with a red identity colour, a
- * destructive row and a selected row must not read alike.
+ * ONE ACCENT, FOUR GROUNDS. The accent is a blue, tuned per mode (#7fb0ff on
+ * dark grounds, #1a62d6 on light — HOUSE_ACCENT in features/theme-derive.js).
+ * It marks selection, the primary action and focus, and nothing else. --danger
+ * is a red, so a destructive row can never be mistaken for a selected one.
  * The ground is what a theme is; the identity
  * colour does not change with it. Every ground is built the same way —
  * a deep, near-neutral shell, a page a step above it, wells a step below —
@@ -56,12 +56,18 @@
   --border-2: rgba(255,255,255,0.14);
   --hover: rgba(255,255,255,0.055);
   --active-bg: rgba(255,255,255,0.10);
-  --accent: #e5484d;
-  --accent-2: #c3363c;
-  --accent-wash: rgba(229,72,77,0.18);
+  --accent: #7fb0ff;
+  --accent-2: #5d95f2;
+  --accent-wash: rgba(127,176,255,0.20);
   --danger: #ff7a6e;
-  --font:      'Onest', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --mono:      'Geist Mono', 'SF Mono', ui-monospace, monospace;
+  /* The platform's own UI face, as a native browser uses: Segoe UI Variable
+     on Windows 11, San Francisco on macOS. A bundled display face (Onest) made
+     every label read as a web page pretending to be an app. --mono is the same
+     face with tabular figures for hosts, sizes, counts and shortcuts; --code is
+     the one true monospace, for text the user types as code (a URL template). */
+  --font:      'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --mono:      'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --code:      'Geist Mono', ui-monospace, 'Cascadia Mono', monospace;
 
   --radius:      10px;   /* tabs, buttons, rails */
   --radius-lg:   16px;   /* page card, panels */
@@ -134,7 +140,7 @@ html[data-private-tab="true"] {
   --fs-body:  14px;   /* rows, fields, buttons — the browser's default */
   --fs-lg:    16px;   /* dialog titles */
   --fs-display: 40px; /* system-page headline only (the error page) */
-  --tracking: -0.01em;
+  --tracking: 0;
 
   /* Elevation. A shadow means "this floats above the page" — a menu, the
      palette, a prompt. Anything embedded in the chrome or in a page (the page
@@ -145,7 +151,7 @@ html[data-private-tab="true"] {
        --ring        a real half-pixel hairline, drawn as a shadow so it never
                      takes part in layout the way a border does */
   --shadow-pop: 0 10px 30px rgba(0,0,0,0.28), 0 2px 6px rgba(0,0,0,0.18);
-  --accent-ink: #26090a;   /* text/glyph colour ON an accent fill */
+  --accent-ink: #0b1c38;   /* text/glyph colour ON an accent fill */
   --ring: inset 0 0 0 0.5px var(--border);
   --ring-2: inset 0 0 0 0.5px var(--border-2);
 

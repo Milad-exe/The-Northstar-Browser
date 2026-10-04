@@ -82,7 +82,7 @@
     width: 100%; min-height: var(--list-row-h); /* a list row; menus override below */
     padding: 0 var(--sp-4); border: none; border-radius: var(--r-md);
     background: transparent; color: var(--text);
-    font-family: var(--font); font-size: var(--fs-body); font-weight: 500;
+    font-family: var(--font); font-size: var(--fs-body); font-weight: 400;
     letter-spacing: var(--tracking);
     text-align: left; cursor: pointer;
     transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
@@ -156,7 +156,7 @@
     margin-top: var(--sp-2); padding: 0 var(--sp-5);
     border: none; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
     background: transparent; color: var(--text-2);
-    font-family: var(--font); font-size: var(--fs-body); font-weight: 500;
+    font-family: var(--font); font-size: var(--fs-body); font-weight: 400;
     letter-spacing: var(--tracking);
     text-align: left; cursor: pointer;
     transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);

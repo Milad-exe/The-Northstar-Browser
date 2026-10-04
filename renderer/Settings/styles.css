@@ -42,8 +42,9 @@ html[data-vibrancy="true"], html[data-vibrancy="true"] body {
 .sidebar-header { padding: var(--sp-7) var(--sp-5) var(--sp-5); }
 
 .sidebar-title {
-  font-size: var(--fs-micro); font-weight: 600;
-  letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3);
+  /* A page title, as a native settings page names itself — not a tracked,
+     upper-case micro label (that styling read as a developer template). */
+  font-size: var(--fs-lg); font-weight: 600; color: var(--text);
 }
 
 .nav-list {
@@ -133,8 +134,7 @@ html[data-vibrancy="true"], html[data-vibrancy="true"] body {
      26px page title above it. */
   grid-column: 1; grid-row: 1 / span 99;
   position: sticky; top: var(--sp-6);
-  font-size: var(--fs-small); font-weight: 600; letter-spacing: 0.06em;
-  text-transform: uppercase; color: var(--text-3);
+  font-size: var(--fs-body); font-weight: 600; color: var(--text);
   margin: 0; padding-top: 2px; line-height: 1.45;
 }
 /* A title directly followed by rows (no description between) still needs the
@@ -159,13 +159,13 @@ html[data-vibrancy="true"], html[data-vibrancy="true"] body {
 
 select {
   appearance: none;
-  background: var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888' stroke-width='1.5' stroke-linecap='round' fill='none'/%3E%3C/svg%3E") no-repeat right 12px center;
+  background: var(--page) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888' stroke-width='1.5' stroke-linecap='round' fill='none'/%3E%3C/svg%3E") no-repeat right 12px center;
   border: none; box-shadow: var(--ring-2); border-radius: var(--r-md);
   height: var(--field-h); padding: 0 36px 0 var(--sp-5); font-family: var(--font);
   font-size: var(--fs-body); color: var(--text); cursor: pointer;
   outline: none; transition: box-shadow var(--dur-1) var(--ease); min-width: 208px;
 }
-select:focus { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 0 3px var(--accent-wash); }
+select:focus { box-shadow: inset 0 0 0 2px var(--accent); }
 
 /* ── Toggle switch ── */
 .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-6); }
@@ -229,19 +229,18 @@ select:focus { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%,
 .duration-item label {
   display: block; font-size: var(--fs-micro); color: var(--text-3);
   margin-bottom: var(--sp-3); font-weight: 600;
-  letter-spacing: 0.1em; text-transform: uppercase;
 }
 .num-input-wrap { display: flex; align-items: center; gap: var(--sp-4); }
 
 input[type="number"] {
-  width: 76px; border: 1px solid var(--border-2); border-radius: var(--r-md);
+  width: 76px; border: none; box-shadow: var(--ring-2); border-radius: var(--r-md);
   padding: 0 var(--sp-4); height: var(--field-h); font-family: var(--mono); font-size: var(--fs-body);
-  color: var(--text); background: var(--bg); outline: none;
-  transition: border-color var(--dur-1) var(--ease); -moz-appearance: textfield;
+  color: var(--text); background: var(--page); outline: none;
+  transition: box-shadow var(--dur-1) var(--ease); -moz-appearance: textfield;
 }
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
-input[type="number"]:focus { border-color: var(--text-3); }
+input[type="number"]:focus { box-shadow: inset 0 0 0 2px var(--accent); }
 
 .unit { font-size: var(--fs-micro); color: var(--text-3); letter-spacing: 0.06em; }
 
@@ -403,10 +402,10 @@ input, textarea, select { user-select: text; -webkit-user-select: text; }
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 0 3px var(--accent-wash);
 }
 .text-input.kw { flex: 0 0 92px; font-family: var(--mono); }
-.text-input.url { flex: 2 1 220px; font-family: var(--mono); font-size: var(--fs-small); }
+.text-input.url { flex: 2 1 220px; font-family: var(--code); font-size: var(--fs-small); }
 .engine-hint { margin-top: var(--sp-4); margin-bottom: 0; }
 .engine-hint code {
-  font-family: var(--mono); font-size: var(--fs-micro);
+  font-family: var(--code); font-size: var(--fs-micro);
   background: var(--surface); padding: 1px 4px; border-radius: var(--r-xs);
 }
 

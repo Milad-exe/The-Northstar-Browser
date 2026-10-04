@@ -61,8 +61,9 @@
     function favicon(url) {
         const host = hostOf(url);
         const fav = document.createElement('span');
-        fav.className = 'ntp-fav';
-        fav.textContent = host ? host.charAt(0).toUpperCase() : '·';
+        // No cached favicon (yet): a neutral globe, not the host's initial.
+        fav.className = 'ntp-fav ntp-fav-globe';
+        fav.setAttribute('aria-hidden', 'true');
         if (host && window.faviconCache?.get) {
             window.faviconCache.get(host).then((data) => {
                 if (!data) return;

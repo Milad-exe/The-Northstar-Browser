@@ -24,7 +24,7 @@
  */
 const {
     derive, toCss, validate, toLch, fromLch, groundLevelFor,
-    WHEEL_L, DEFAULT_LEVEL, GROUND_CHROMA_MAX,
+    WHEEL_L, DEFAULT_LEVEL, GROUND_CHROMA_MAX, HOUSE_ACCENT,
 } = require('./theme-derive');
 const log = require('./log');
 
@@ -32,7 +32,7 @@ const log = require('./log');
    a theme is; the identity colour does not change with it." User themes may
    choose their own — it is their browser — but a built-in that shipped with a
    different accent would just be a different product. */
-const IDENTITY_ACCENT = '#e5484d';
+const IDENTITY_ACCENT = HOUSE_ACCENT; // { dark, light } — one blue, per mode
 
 /* `swatch` is what the Settings picker paints its miniature from. The four
    CSS-backed themes keep their values here because the only other copy is in a
@@ -40,7 +40,7 @@ const IDENTITY_ACCENT = '#e5484d';
    the ramp. Five colours, read off renderer/styles/themes.css. */
 const CSS_BACKED = [
     { id: 'default',   name: 'Slate',     mode: 'dark',  icon: { field: '#0a0a0b', mark: '#fafafa' },
-      swatch: { shell: '#0a0a0b', page: '#121213', bg: '#050506', text: '#fafafa', accent: '#e5484d', ownAccent: false } },
+      swatch: { shell: '#0a0a0b', page: '#121213', bg: '#050506', text: '#fafafa', accent: '#7fb0ff', ownAccent: false } },
 ];
 
 /** The five colours a picker miniature needs, from a full token set. */
@@ -48,14 +48,14 @@ function swatchOf(tokens) {
     return {
         shell: tokens['--shell'], page: tokens['--page'], bg: tokens['--bg'],
         text: tokens['--text'], accent: tokens['--accent'],
-        ownAccent: !sameHex(tokens['--accent'], IDENTITY_ACCENT),
+        ownAccent: !sameHex(tokens['--accent'], IDENTITY_ACCENT.dark)
+            && !sameHex(tokens['--accent'], IDENTITY_ACCENT.light),
     };
 }
 /* Does this theme carry an accent of its own, or the house one? The picker
    badges only the ones that do. Every built-in but Blocks shares IDENTITY_ACCENT
    by design, so badging all of them drew six identical red dots that said
-   nothing — and a small red disc on the shoulder of a swatch reads as an error
-   marker, not as a colour. */
+   nothing. */
 function sameHex(a, b) {
     const n = (h) => {
         const v = String(h || '').trim().replace('#', '').toLowerCase();
@@ -69,10 +69,10 @@ function sameHex(a, b) {
    and a theme you notice on the second day is a theme you turn off.
    Blocks is the exception, and says so. */
 const DERIVED = [
-    { id: 'fog',     name: 'Fog',     seed: { mode: 'light', base: '#e4e9ee', accent: IDENTITY_ACCENT, ink: '#16202b' } },
-    { id: 'harbour', name: 'Harbour', seed: { mode: 'dark',  base: '#141b23', accent: IDENTITY_ACCENT } },
-    { id: 'clay',    name: 'Clay',    seed: { mode: 'light', base: '#efeae2', accent: IDENTITY_ACCENT, ink: '#2b2419' } },
-    { id: 'dusk',    name: 'Dusk',    seed: { mode: 'dark',  base: '#17151d', accent: IDENTITY_ACCENT } },
+    { id: 'fog',     name: 'Fog',     seed: { mode: 'light', base: '#e4e9ee', accent: IDENTITY_ACCENT.light, ink: '#16202b' } },
+    { id: 'harbour', name: 'Harbour', seed: { mode: 'dark',  base: '#141b23', accent: IDENTITY_ACCENT.dark } },
+    { id: 'clay',    name: 'Clay',    seed: { mode: 'light', base: '#efeae2', accent: IDENTITY_ACCENT.light, ink: '#2b2419' } },
+    { id: 'dusk',    name: 'Dusk',    seed: { mode: 'dark',  base: '#17151d', accent: IDENTITY_ACCENT.dark } },
     /* Blocks. Primary-colour plastic — the one theme here that is not trying to
        get out of the way. It needs `vivid` because the ordinary chroma cap
        exists precisely to stop a ground looking like this; validate() still
@@ -162,27 +162,14 @@ function wheelSeedFor(t) {
        Rather than special-case that, ask the question directly, at the house
        intensity first and then at full — full pushes the same ground chroma
        into a smaller dot, which is what tips a theme like Harbour under the
-       line and buys back its exact red. */
+       line and buys back its exact accent. A one-dot copy is kept only when it
+       lands on the accent EXACTLY; otherwise the second dot carries it. */
     for (const intensity of [0.7, 1]) {
         const seed = attempt(intensity, null);
-        if (!target || accentMatches(seed, target))
+        if (!target || sameHex(derive(seed).tokens['--accent'], t.swatch.accent))
             return seed;
     }
     return attempt(0.7, target);
-}
-
-/** Does `seed` already derive an accent indistinguishable from `want`? */
-function accentMatches(seed, want) {
-    const got = toLch(derive(seed).tokens['--accent']);
-    if (!got)
-        return false;
-    // Shortest way round the wheel: 0 is the same hue, 180 is opposite.
-    const dh = Math.abs(((got.h - want.h + 540) % 360) - 180);
-    // A near-neutral has no hue worth comparing — atan2 on ~0 chroma is noise.
-    const hueMatters = got.C > 0.02 && want.C > 0.02;
-    return Math.abs(got.L - want.L) < 0.06
-        && Math.abs(got.C - want.C) < 0.04
-        && (!hueMatters || dh < 8);
 }
 
 /** Every theme, in the order the picker should show them. */

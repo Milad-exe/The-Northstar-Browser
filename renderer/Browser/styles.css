@@ -131,7 +131,7 @@ html[data-menubar="on"][data-platform="linux"] #window-controls {
   display: inline-flex; align-items: center;
   border: none; border-radius: var(--r-sm, 6px); background: transparent;
   color: var(--text); cursor: default;
-  font-family: var(--font); font-size: var(--fs-small); font-weight: 500;
+  font-family: var(--font); font-size: var(--fs-small); font-weight: 400;
   letter-spacing: var(--tracking);
 }
 .menu-bar-item:hover,
@@ -334,7 +334,7 @@ html[data-tabbar="top"] #space-create:not(.hidden) {
   border-radius: var(--r-md);
   background: transparent; border: none;
   color: var(--text-2);
-  font-family: var(--font); font-size: var(--fs-body); font-weight: 500;
+  font-family: var(--font); font-size: var(--fs-body); font-weight: 400;
   letter-spacing: var(--tracking);
   cursor: pointer;
   transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease),
@@ -542,7 +542,7 @@ html[data-tabbar="side"] .tab-button.active {
   background: var(--surface-2, var(--surface));
   box-shadow: var(--ring);
 }
-html[data-tabbar="side"] .tab-button.active .tab-title { font-weight: 600; }
+html[data-tabbar="side"] .tab-button.active .tab-title { font-weight: 500; }
 /* Split view: both on-screen tabs read as soft pills; the focused one is a touch
    brighter than its partner. */
 html[data-tabbar="side"] .tab-button.in-split:not(.active) {
@@ -574,6 +574,19 @@ html[data-tabbar="side"] .tab-favicon {
    into the icon column, so the list had two left edges. Reserve the column. */
 html[data-tabbar="side"] .tab-button:not(.has-favicon)::before {
   content: ''; width: var(--icon); flex: 0 0 var(--icon);
+}
+/* A new-tab page shows the app's mark in that column (both tab layouts). */
+.tab-button[data-home="1"]:not(.has-favicon)::before {
+  content: ''; width: var(--icon); height: var(--icon); flex: 0 0 var(--icon);
+  background: var(--text-2);
+  -webkit-mask: url('../assets/mark-mask.svg') center / contain no-repeat;
+          mask: url('../assets/mark-mask.svg') center / contain no-repeat;
+}
+/* No favicon: a globe glyph in the secondary ink, not a lettered tile. */
+html[data-tabbar] .tab-favicon.default.globe {
+  background: var(--text-2); border-radius: 0;
+  -webkit-mask: url('../assets/globe-mask.svg') center / contain no-repeat;
+          mask: url('../assets/globe-mask.svg') center / contain no-repeat;
 }
 html[data-tabbar="side"] .tab-favicon.default {
   display: flex; align-items: center; justify-content: center;
@@ -816,7 +829,7 @@ html[data-tabbar="side"] .tab-add-glyph {
 }
 html[data-tabbar="side"] .tab-add-label {
   display: block; min-width: 0;
-  font-size: var(--fs-body); font-weight: 500; letter-spacing: var(--tracking);
+  font-size: var(--fs-body); font-weight: 400; letter-spacing: var(--tracking);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 html[data-tabbar="side"] #new-tab-btn:hover { color: var(--text); background: var(--hover); }
@@ -1215,8 +1228,8 @@ html[data-tabbar="side"] .tab-button.crashed::after {
 
 .tab-close {
   flex-shrink: 0; margin-left: auto;
-  width: 18px; height: 18px; border-radius: 6px;
-  background: transparent; border: none; font-size: 13px; line-height: 1;
+  width: 20px; height: 20px; border-radius: var(--r-pill);
+  background: transparent; border: none; line-height: 1;
   color: var(--text-3); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   opacity: 0; transition: opacity var(--dur-1) var(--ease), color var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
@@ -1435,14 +1448,16 @@ html[data-tabbar="side"] .tab-button.crashed::after {
      the chrome for a reason — the URLs it holds are long. */
   width: 100%;
   display: flex; align-items: center; height: var(--control-h);
-  /* The field is a recessed well, not a raised card: it belongs to the shell,
-     and focus is carried by the accent ring rather than by lifting it. */
-  background: color-mix(in srgb, var(--bg) 85%, transparent);
-  border: none; box-shadow: var(--ring-2);
-  border-radius: var(--r-md); padding: 0 var(--sp-5); gap: var(--sp-4);
+  /* A tonal pill, the way a native address bar is drawn: one step of ink over
+     the shell in both modes, no hairline at rest. (It was a near-black well,
+     which on a dark ground read as a hole cut in the toolbar.) Focus lifts it to
+     the page colour with a solid accent edge. */
+  background: color-mix(in srgb, var(--text) 9%, var(--shell));
+  border: none; box-shadow: none;
+  border-radius: var(--r-pill); padding: 0 var(--sp-5) 0 var(--sp-4); gap: var(--sp-4);
   transition: background var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease);
 }
-.omnibox:hover:not(:focus-within) { background: var(--bg); }
+.omnibox:hover:not(:focus-within) { background: color-mix(in srgb, var(--text) 12%, var(--shell)); }
 /* Sidebar mode: the page card starts after the sidebar, so the toggle's column
    is exactly that wide and NAVIGATION begins where the card does. Compact mode
    hides the sidebar → the column falls back to its own width and the nav
@@ -1453,9 +1468,7 @@ html[data-tabbar="side"]:not([data-compact="on"]) #utility-bar {
 
 .omnibox:focus-within {
   background: var(--page);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent),
-    0 0 0 3px var(--accent-wash);
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 
 /* Page actions, at the field's trailing end. The divider is what makes it read
@@ -1561,7 +1574,7 @@ html[data-tabbar="side"]:not([data-compact="on"]) #utility-bar {
   /* padding:0 is load-bearing: the UA default (1px 2px) would offset the input's
      glyphs from the #omni-ghost / #url-display overlays painted at left:0. */
   width: 100%; padding: 0; background: transparent; border: none; outline: none;
-  font-family: var(--font); font-size: var(--fs-body); font-weight: 500;
+  font-family: var(--font); font-size: var(--fs-body); font-weight: 400;
   letter-spacing: -0.01em; color: var(--text);
 }
 #searchBar::placeholder { color: var(--text-3); }
@@ -1571,7 +1584,7 @@ html[data-tabbar="side"]:not([data-compact="on"]) #utility-bar {
 #omni-ghost {
   position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
   display: none; white-space: pre; overflow: hidden;
-  font-family: var(--font); font-size: var(--fs-body); font-weight: 500;
+  font-family: var(--font); font-size: var(--fs-body); font-weight: 400;
   letter-spacing: -0.01em; color: var(--text-3);
   pointer-events: none;
 }
@@ -1581,7 +1594,7 @@ html[data-tabbar="side"]:not([data-compact="on"]) #utility-bar {
 #url-display {
   position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
   display: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  font-family: var(--font); font-size: var(--fs-body); font-weight: 500;
+  font-family: var(--font); font-size: var(--fs-body); font-weight: 400;
   letter-spacing: -0.01em; color: var(--text-2);
   pointer-events: none;
 }
@@ -1668,7 +1681,7 @@ browser-action-list::part(badge) {
   display: flex; align-items: center; gap: var(--sp-3);
   padding: 0 var(--sp-4); height: var(--control-h);
   border: none; background: transparent; border-radius: var(--r-md);
-  cursor: pointer; font-family: var(--font); font-size: var(--fs-small); font-weight: 500;
+  cursor: pointer; font-family: var(--font); font-size: var(--fs-small); font-weight: 400;
   color: var(--text-2); white-space: nowrap; max-width: 160px;
   overflow: hidden; text-overflow: ellipsis;
   transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);

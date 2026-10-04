@@ -1775,10 +1775,19 @@
                 hideSuggestions();
                 setTimeout(() => { updateTabWidths(data.totalTabs); updateScrollShadows(); }, 10);
             });
+            // A new-tab page has no favicon of its own; the row shows the app's
+            // mark instead of an empty icon column (as a native browser does).
+            const markHomeTab = (index, url) => {
+                const btn = tabs.get(index);
+                if (btn)
+                    btn.dataset.home = (url === 'home' || url === 'newtab') ? '1' : '';
+            };
             window.tab.onTabSwitched((_e, data) => {
                 activeTabIndex = data.index;
-                if (data.url)
+                if (data.url) {
                     tabUrls.set(data.index, data.url);
+                    markHomeTab(data.index, data.url);
+                }
                 setActiveTab(data.index);
                 updateReloadButton();
                 updateSearchBarUrl(data.url || '');
@@ -1797,8 +1806,10 @@
                 }
             });
             window.tab.onUrlUpdated((_e, data) => {
-                if (data.url)
+                if (data.url) {
                     tabUrls.set(data.index, data.url);
+                    markHomeTab(data.index, data.url);
+                }
                 if (data.private !== undefined)
                     tabPrivate.set(data.index, !!data.private);
                 if (data.index === activeTabIndex) {
@@ -2881,7 +2892,10 @@
             const closeBtn = document.createElement('button');
             closeBtn.className = 'tab-close';
             closeBtn.tabIndex = -1;
-            closeBtn.innerHTML = '×';
+            // A drawn X (Phosphor), not the × character: the glyph sat off-centre
+            // and changed weight with the font.
+            closeBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208.49,191.51a12,12,0,0,1-17,17L128,145,64.49,208.49a12,12,0,0,1-17-17L111,128,47.51,64.49a12,12,0,0,1,17-17L128,111l63.51-63.52a12,12,0,0,1,17,17L145,128Z"/></svg>';
+            closeBtn.setAttribute('aria-label', 'Close tab');
             // mousedown (not click) so the freeze is set before the removal's
             // relayout runs; the pointer is still over the strip (P1-3).
             closeBtn.addEventListener('mousedown', (e) => { if (e.button === 0) freezeTopStripClose(); });
@@ -4069,8 +4083,9 @@
                 setFaviconFallback(index, el);
             }
         }
-        // Letter placeholder — derived from the PAGE host, not the favicon URL, so
-        // a site whose /favicon.ico fails still shows its own initial.
+        // Placeholder for a page with no usable favicon: a neutral globe, as a
+        // native browser draws. (It was the host's initial in a grey tile, which
+        // read as a missing asset rather than as "this site has no icon".)
         // A user-set icon replaces the favicon entirely and is re-applied after
         // any favicon update, so navigation cannot overwrite it.
         function applyCustomTabIcon(index, icon) {
@@ -4092,21 +4107,10 @@
         }
         function setFaviconFallback(index, el) {
             const div = document.createElement('div');
-            div.className = 'tab-favicon default';
-            let ch = '◉';
-            try {
-                const pageUrl = tabUrls.get(index) || '';
-                if (pageUrl && !['newtab', 'settings', 'bookmarks', 'history'].includes(pageUrl)) {
-                    const host = new URL(/^https?:\/\//.test(pageUrl) ? pageUrl : 'https://' + pageUrl)
-                        .hostname.replace(/^www\./, '');
-                    if (host)
-                        ch = host.charAt(0).toUpperCase();
-                }
-            }
-            catch (e) { window.northstarLog?.debug('renderer', 'setFaviconFallback: ' + e); }
+            div.className = 'tab-favicon default globe';
+            div.setAttribute('aria-hidden', 'true');
             const custom = tabs.get(index)?.dataset.customIcon;
             if (custom) return applyCustomTabIcon(index, custom);
-            div.textContent = ch;
             if (el && el.isConnected)
                 el.replaceWith(div);
             else {

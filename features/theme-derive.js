@@ -336,7 +336,7 @@ function rolesFromColors(seed) {
        whatever rounding left behind, so boosting it produced a mustard accent
        from a neutral pick. A colourless choice gets the house accent instead. */
     const accent = pick.C < 0.02
-        ? '#e5484d'
+        ? HOUSE_ACCENT[dark ? 'dark' : 'light']
         : fromLch({
             L: Math.min(band[1], Math.max(band[0], pick.L)),
             C: Math.max(0.12, pick.C),
@@ -345,11 +345,19 @@ function rolesFromColors(seed) {
     return { base, accent, picked, intensity };
 }
 
+/* The house accent: one blue, tuned per mode the way a native browser tunes
+   its own — a deep blue that carries white text on light grounds, a light blue
+   that carries dark text on dark ones. One hue, two lightnesses: the same
+   colour reads as the same colour, but each clears its ground. It replaced a
+   red (#e5484d) that made every focus ring and switched-on toggle read as an
+   error. */
+const HOUSE_ACCENT = { dark: '#7fb0ff', light: '#1a62d6' };
+
 function derive(seed) {
     const mode = seed && seed.mode === 'light' ? 'light' : 'dark';
     const wheel = seed && Array.isArray(seed.colors) ? rolesFromColors(seed) : null;
     const ground = toLch(wheel ? wheel.base : (seed && seed.base)) || { L: 0.2, C: 0, h: 0 };
-    const accentLch = toLch(wheel ? wheel.accent : (seed && seed.accent)) || { L: 0.62, C: 0.19, h: 25 };
+    const accentLch = toLch(wheel ? wheel.accent : (seed && seed.accent)) || toLch(HOUSE_ACCENT[mode]);
     const vivid = !!(seed && seed.vivid);
     const [lo, hi] = (vivid ? VIVID_L_WINDOW : L_WINDOW)[mode];
     const L0 = Math.min(hi, Math.max(lo, ground.L));
@@ -616,5 +624,5 @@ module.exports = {
     derive, toCss, validate, groundLevelFor, gradientCss, positionsFor,
     // exported for tests and for the icon renderer
     toLch, fromLch, contrast, luminance, hexToRgb, rgbToHex, RAMP, L_WINDOW, rolesFromColors,
-    WHEEL_L, GROUND_L, DEFAULT_LEVEL, GROUND_CHROMA_MAX, DEFAULT_POS,
+    WHEEL_L, GROUND_L, DEFAULT_LEVEL, GROUND_CHROMA_MAX, DEFAULT_POS, HOUSE_ACCENT,
 };
