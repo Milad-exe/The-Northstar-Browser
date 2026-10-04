@@ -1955,3 +1955,22 @@ html[data-tabbar="side"] .tab-button.multi-selected { box-shadow: inset 0 0 0 1.
 }
 .notice-actions { display: flex; align-items: center; gap: var(--sp-2); flex: none; }
 .notice-bar .btn-sm { height: 26px; padding: 0 10px; font-size: var(--fs-small); }
+
+/* ── Hover label (ui-polish U1-7) ─────────────────────────────────────────────
+   The chrome's own tooltip — see renderer/lib/hover-label.js. Placed by JS so
+   it never lands on the page card; pointer-events off so it never steals a
+   hover. Line 2 (a tab's host) is quieter. */
+.hover-label {
+  position: fixed; z-index: 1000; pointer-events: none;
+  max-width: 320px; padding: var(--sp-2) var(--sp-4);
+  background: var(--surface); color: var(--text); box-shadow: var(--ring-2);
+  border-radius: var(--r-sm);
+  font-family: var(--font); font-size: var(--fs-small); line-height: 1.35;
+  opacity: 0; transition: opacity var(--dur-1) var(--ease-decel);
+}
+.hover-label.shown { opacity: 1; }
+.hover-label[hidden] { display: none; }
+.hover-label-line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hover-label-sub { color: var(--text-3); font-size: var(--fs-micro); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .hover-label { transition: none; } }
+

@@ -1057,6 +1057,29 @@ test('formatAccelerator renders one hint format per platform', () => {
     assert.ok(!('accelerator' in rows[1]));
 });
 
+// ── Hover label placement (ui-polish U1-7) ───────────────────────────────────
+// The chrome's own hover label replaces OS tooltips. The page is a native view
+// stacked OVER the chrome, so a label must never land on the page card — it
+// would be hidden. Try below, above, left, right; first that fits wins.
+test('placeHoverLabel keeps the label in the chrome, off the page card', () => {
+    const { placeHoverLabel: place } = require(path.join(root, 'renderer/lib/hover-label'));
+    const vp = { width: 1200, height: 800 };
+    const card = { left: 260, top: 48, right: 1192, bottom: 792 };     // side mode: page right of a 256px sidebar
+    const size = { width: 120, height: 24 };
+    // A sidebar button: below is free chrome.
+    let r = place({ left: 20, top: 100, right: 52, bottom: 132 }, size, vp, card, 6);
+    assert.strictEqual(r.side, 'below'); assert.strictEqual(r.y, 138);
+    // A toolbar button over the card's top edge: below/above blocked → beside it.
+    r = place({ left: 900, top: 10, right: 932, bottom: 42 }, size, vp, card, 6);
+    assert.strictEqual(r.side, 'left', 'falls back to the side, inside the bar');
+    assert.ok(r.x + size.width <= 900 - 6 + 0.01 && r.y + size.height <= 48, 'stays above the card');
+    // Near the viewport edge: x is clamped inside it.
+    r = place({ left: 0, top: 100, right: 20, bottom: 120 }, { width: 200, height: 24 }, vp, null, 6);
+    assert.ok(r.x >= 4, 'clamped to the left edge');
+    // Nowhere fits → null (the caller shows nothing rather than a hidden label).
+    assert.strictEqual(place({ left: 600, top: 400, right: 640, bottom: 440 }, size, vp, { left: 0, top: 0, right: 1200, bottom: 800 }, 6), null);
+});
+
 // ── displayUrl (ui-polish U1-5) ──────────────────────────────────────────────
 // Show meaning, not data: host + the first path segment, no scheme, www. or
 // query. One helper for the new-tab page, History and the address-bar dropdown.

@@ -364,6 +364,35 @@
         initReaderAndPip();
         initProfiles();
         initEssentials();
+        initHoverLabel();
+        // ─────────────────────────────────────────────────────────────────────────
+        // Hover label (ui-polish U1-7) — the chrome's own tooltip, replacing OS
+        // tooltips (renderer/lib/hover-label.js). Tabs get title + host, but
+        // only where the title can be cut short: the top strip and compact mode
+        // (sidebar rows already show it in full). Everything else shows its
+        // former `title`. It never lands on the page card (a native view drawn
+        // over the chrome would hide it).
+        // ─────────────────────────────────────────────────────────────────────────
+        function initHoverLabel() {
+            const hl = window.Northstar?.hoverLabel;
+            if (!hl) return;
+            const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
+            hl.init({
+                content(el) {
+                    const tab = el.closest('#tabs-container .tab-button');
+                    if (!tab || el.closest('.tab-close, .tab-indicator')) return undefined; // controls inside a tab: their own tip
+                    const de = document.documentElement;
+                    if (de.dataset.tabbar !== 'top' && de.dataset.compact !== 'on') return null;
+                    const title = tab.querySelector('.tab-title')?.textContent || '';
+                    const url = String(tabUrls.get(parseInt(tab.dataset.index, 10)) || '');
+                    return [title, /^https?:/i.test(url) ? hostOf(url) : ''];
+                },
+                avoid: () => {
+                    const r = document.getElementById('content-area')?.getBoundingClientRect();
+                    return r && r.width && r.height ? r : null;
+                },
+            });
+        }
         // ─────────────────────────────────────────────────────────────────────────
         // Window controls
         // ─────────────────────────────────────────────────────────────────────────

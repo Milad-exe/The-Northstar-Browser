@@ -814,6 +814,7 @@ html[data-private-window="true"], html[data-private-tab="true"] {
 
   /* Timing read by JS via getComputedStyle where needed */
   --hovercard-delay: 300ms;
+  --tooltip-delay: 500ms;   /* the chrome's hover label (ui-polish U1-7) */
   --autoclose-partial: 5s;
 
 }
