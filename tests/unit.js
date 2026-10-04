@@ -1033,6 +1033,25 @@ test('a width inside the band is left alone', () => {
     assert.strictEqual(chromeUtil.clampSidebarWidth(256, 1440), 256);
 });
 
+// ── displayUrl (ui-polish U1-5) ──────────────────────────────────────────────
+// Show meaning, not data: host + the first path segment, no scheme, www. or
+// query. One helper for the new-tab page, History and the address-bar dropdown.
+test('displayUrl shows host + first path segment', () => {
+    const { displayUrl } = require(path.join(root, 'renderer/lib/display-url'));
+    assert.strictEqual(displayUrl('https://www.youtube.com/watch?v=abc123&t=9'), 'youtube.com/watch');
+    assert.strictEqual(displayUrl('https://github.com/anthropics/claude/pull/12'), 'github.com/anthropics');
+    assert.strictEqual(displayUrl('http://example.com/'), 'example.com');
+    assert.strictEqual(displayUrl('https://example.com'), 'example.com');
+    assert.strictEqual(displayUrl('https://en.wikipedia.org/wiki/Web_browser#History'), 'en.wikipedia.org/wiki');
+    assert.strictEqual(displayUrl('https://www.example.com/%E2%9C%93/x'), 'example.com/✓', 'segments are decoded');
+    assert.strictEqual(displayUrl('https://WWW.Example.COM/A'), 'example.com/A', 'host lowercased, path kept');
+    assert.strictEqual(displayUrl('http://localhost:3000/app'), 'localhost:3000/app', 'port kept');
+    assert.strictEqual(displayUrl('northstar://settings'), 'northstar://settings', 'non-web left alone');
+    assert.strictEqual(displayUrl('not a url'), 'not a url');
+    assert.strictEqual(displayUrl(''), '');
+    assert.strictEqual(displayUrl(null), '');
+});
+
 // ── CSS drift guard (ui-polish U1-8) ─────────────────────────────────────────
 // Raw values in component CSS bypass the token system (and reduced motion, for
 // durations). Durations must be tokens, full stop. Font sizes and radii are a
