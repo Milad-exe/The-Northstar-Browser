@@ -148,7 +148,6 @@ html[data-vibrancy="true"], html[data-vibrancy="true"] body {
 .radio-row {
   display: flex; align-items: center; gap: var(--sp-4);
   min-height: var(--row-h); cursor: pointer;
-  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 .radio-row:first-of-type { margin-top: var(--sp-4); }
 
@@ -170,11 +169,11 @@ select:focus { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%,
 
 /* ── Toggle switch ── */
 .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-6); }
-/* Stacked toggle rows inside a card read as a list, divided by hairlines. */
-.card .toggle-row + .toggle-row {
-  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  padding-top: var(--sp-5); margin-top: var(--sp-5);
-}
+/* Rows inside a section are spaced, not ruled: one rule between sections
+   (.card), none between its rows (ui-polish U1-6). */
+.card .toggle-row + .toggle-row,
+.card .toggle-row + .card-desc + .toggle-row { margin-top: var(--sp-6); }
+.card .toggle-row + .card-desc { margin-top: var(--sp-6); }
 .toggle-row > div:first-child { max-width: 78%; }
 .row-label { font-size: var(--fs-body); font-weight: 500; color: var(--text); }
 .row-desc { font-size: var(--fs-small); color: var(--text-2); margin-top: 2px; line-height: 1.45; }
@@ -182,8 +181,7 @@ select:focus { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%,
 /* Tracking-protection "blocked this session" stat. */
 .privacy-stat {
   display: flex; align-items: baseline; gap: var(--sp-4);
-  margin: 4px 0 18px; padding-bottom: 16px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  margin: 4px 0 18px; padding-bottom: var(--sp-4);
 }
 .privacy-stat-num { font-size: 26px; font-weight: 650; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .privacy-stat-label { font-size: var(--fs-small); color: var(--text-2); }
@@ -250,7 +248,7 @@ input[type="number"]:focus { border-color: var(--text-3); }
 /* ── Action row ── */
 .action-row {
   display: flex; align-items: center; justify-content: space-between; gap: var(--sp-6);
-  padding-top: var(--sp-5); border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  padding-top: var(--sp-5);
 }
 
 /* Destructive actions keep the shared button shape and only change colour —
@@ -260,12 +258,12 @@ input[type="number"]:focus { border-color: var(--text-3); }
 /* ── Clear browsing data ── */
 .cbd-range-row {
   display: flex; align-items: center; justify-content: space-between;
-  gap: var(--sp-6); padding: var(--sp-4) 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  gap: var(--sp-6); padding: var(--sp-4) 0;
 }
 .cbd-range { min-width: 160px; }
 .cbd-check {
   display: flex; align-items: flex-start; gap: var(--sp-4);
-  padding: var(--sp-4) 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent); cursor: pointer;
+  padding: var(--sp-4) 0; cursor: pointer;
 }
 /* The checkbox is shared — see SHARED CONTROLS in ui.css. */
 .cbd-check .check-box { margin-top: 1px; }
@@ -288,13 +286,8 @@ input[type="number"]:focus { border-color: var(--text-3); }
 .ext-id-input:focus { border-color: var(--text-3); }
 .ext-id-input::placeholder { color: var(--text-3); }
 
-.ext-error {
-  display: none; margin-top: 12px; padding: 9px 12px; border-radius: var(--r-md);
-  font-size: var(--fs-small); color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 9%, transparent);
-  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
-}
-.ext-error.show { display: block; }
+.ext-error { display: none; margin-top: var(--sp-5); }
+.ext-error.show { display: flex; }
 
 /* ── Passwords ── */
 .pw-list { display: flex; flex-direction: column; }
@@ -418,8 +411,29 @@ input, textarea, select { user-select: text; -webkit-user-select: text; }
 }
 
 .btn-row { display: flex; gap: var(--sp-4); flex-wrap: wrap; }
-.card-desc.warn { color: var(--text-2); margin-top: 12px; margin-bottom: 0; }
-.card-desc.warn.risk { color: var(--danger); }
+.card-desc.warn { color: var(--text-2); margin-top: var(--sp-5); margin-bottom: 0; }
+
+/* ── Inline notice (ui-polish U1-6) ──
+   Replaces red paragraphs: an icon, neutral text, an optional link. A warning
+   is tinted --chip-warn; red stays for destructive buttons only. */
+.notice {
+  display: flex; align-items: flex-start; gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-5); border-radius: var(--r-md);
+  background: var(--hover); box-shadow: var(--ring-2);
+  font-size: var(--fs-small); line-height: 1.45; color: var(--text);
+}
+.notice::before {
+  content: ''; flex: 0 0 16px; width: 16px; height: 16px; margin-top: 1px;
+  background: var(--text-2);
+  /* Phosphor "info" */
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M108,84a16,16,0,1,1,16,16A16,16,0,0,1,108,84Zm128,44A108,108,0,1,1,128,20,108.12,108.12,0,0,1,236,128Zm-24,0a84,84,0,1,0-84,84A84.09,84.09,0,0,0,212,128Zm-72,36.68V132a20,20,0,0,0-20-20,12,12,0,0,0-4,23.32V168a20,20,0,0,0,20,20,12,12,0,0,0,4-23.32Z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.notice.is-warn { background: var(--chip-warn); box-shadow: none; }
+.notice.is-warn::before {
+  background: var(--chip-warn-ink);
+  /* Phosphor "warning" */
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M236.8,188.09,149.35,36.22h0a24.76,24.76,0,0,0-42.7,0L19.2,188.09a23.51,23.51,0,0,0,0,23.72A24.35,24.35,0,0,0,40.55,224h174.9a24.35,24.35,0,0,0,21.33-12.19A23.51,23.51,0,0,0,236.8,188.09ZM120,104a8,8,0,0,1,16,0v40a8,8,0,0,1-16,0Zm8,88a12,12,0,1,1,12-12A12,12,0,0,1,128,192Z'/%3E%3C/svg%3E");
+}
 
 .zoom-list { display: flex; flex-direction: column; gap: var(--sp-3); margin-bottom: 14px; }
 .zoom-row {

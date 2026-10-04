@@ -194,9 +194,18 @@
     "notice.makeDefault": "Make default",
     "notice.notNow": "Not now",
     "notice.captivePortal": "This network needs you to sign in.",
-    "settings.startupEmpty": "Start with an empty window",
+    "settings.startupEmpty": "Open the new-tab page",
     "settings.startupRestore": "Restore previous session",
     "settings.tabsSidebar": "In a sidebar",
-    "settings.tabsTop": "Across the top"
+    "settings.tabsTop": "Across the top",
+    "settings.defaultEngine": "Default search engine",
+    "settings.defaultEngineDesc": "Used in the address bar for search queries",
+    "settings.interfaceLanguage": "Interface language",
+    "settings.interfaceLanguageDesc": "The browser's own menus and pages. Web pages are unaffected.",
+    "settings.keepHistory": "Keep history for",
+    "settings.keepHistoryDesc": "Older visits are discarded.",
+    "settings.exportHistory": "Export history",
+    "settings.exportHistoryDesc": "Save your browsing history as a file.",
+    "settings.blocking": "Blocking"
   }
 }

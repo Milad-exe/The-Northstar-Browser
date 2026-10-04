@@ -640,15 +640,15 @@
                 const mode = await window.userData.keyProtection();
                 if (mode === 'os-keychain') {
                     el.textContent = 'Saved passwords are encrypted with a key held in your operating system\u2019s secure store.';
-                    el.classList.remove('risk');
+                    el.classList.remove('notice', 'is-warn');
                 }
                 else if (mode === 'file') {
                     el.textContent = 'Your operating system\u2019s secure store is unavailable, so the encryption key is protected by file permissions only. Anyone with access to your user account could read saved passwords.';
-                    el.classList.add('risk');
+                    el.classList.add('notice', 'is-warn'); // a warning notice, not red text
                 }
                 else {
                     el.textContent = 'The encryption key could not be read.';
-                    el.classList.add('risk');
+                    el.classList.add('notice', 'is-warn'); // a warning notice, not red text
                 }
             }
             catch {

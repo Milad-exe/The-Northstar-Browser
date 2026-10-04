@@ -194,9 +194,18 @@
     "notice.makeDefault": "Hacer predeterminado",
     "notice.notNow": "Ahora no",
     "notice.captivePortal": "Esta red requiere que inicies sesión.",
-    "settings.startupEmpty": "Empezar con una ventana vacía",
+    "settings.startupEmpty": "Abrir la página de nueva pestaña",
     "settings.startupRestore": "Restaurar la sesión anterior",
     "settings.tabsSidebar": "En una barra lateral",
-    "settings.tabsTop": "En la parte superior"
+    "settings.tabsTop": "En la parte superior",
+    "settings.defaultEngine": "Buscador predeterminado",
+    "settings.defaultEngineDesc": "Se usa en la barra de direcciones para las búsquedas",
+    "settings.interfaceLanguage": "Idioma de la interfaz",
+    "settings.interfaceLanguageDesc": "Los menús y páginas del propio navegador. Las páginas web no cambian.",
+    "settings.keepHistory": "Conservar el historial",
+    "settings.keepHistoryDesc": "Las visitas más antiguas se descartan.",
+    "settings.exportHistory": "Exportar historial",
+    "settings.exportHistoryDesc": "Guarda tu historial de navegación en un archivo.",
+    "settings.blocking": "Bloqueo"
   }
 }

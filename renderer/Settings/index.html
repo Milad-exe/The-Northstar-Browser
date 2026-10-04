@@ -63,7 +63,7 @@
           <div class="card-title">On startup</div>
           <label class="radio-row">
             <input type="radio" class="radio" name="startup" value="new-tab">
-            <span class="radio-label" data-i18n="settings.startupEmpty">Start with an empty window</span>
+            <span class="radio-label" data-i18n="settings.startupEmpty">Open the new-tab page</span>
           </label>
           <label class="radio-row">
             <input type="radio" class="radio" name="startup" value="restore">
@@ -73,8 +73,11 @@
 
         <div class="card">
           <div class="card-title">Search engine</div>
-          <div class="card-desc">Used in the address bar for search queries</div>
-          <div class="select-row">
+          <div class="toggle-row">
+            <div>
+              <div class="row-label" data-i18n="settings.defaultEngine">Default search engine</div>
+              <div class="row-desc" data-i18n="settings.defaultEngineDesc">Used in the address bar for search queries</div>
+            </div>
             <select id="search-engine"></select>
           </div>
           <!-- Any engine can carry a keyword: type it, a space, then the query
@@ -91,8 +94,10 @@
 
         <div class="card">
           <div class="card-title">Default browser</div>
-          <div class="card-desc" id="default-browser-state">Checking…</div>
-          <button class="btn" id="make-default">Set Northstar as default</button>
+          <div class="toggle-row">
+            <div><div class="row-desc" id="default-browser-state">Checking…</div></div>
+            <button class="btn" id="make-default">Set Northstar as default</button>
+          </div>
         </div>
 
         <div class="card">
@@ -137,8 +142,11 @@
 
         <div class="card">
           <div class="card-title">Language</div>
-          <div class="card-desc">Language of the browser's own interface. Web pages are unaffected.</div>
-          <div class="select-row">
+          <div class="toggle-row">
+            <div>
+              <div class="row-label" data-i18n="settings.interfaceLanguage">Interface language</div>
+              <div class="row-desc" data-i18n="settings.interfaceLanguageDesc">The browser's own menus and pages. Web pages are unaffected.</div>
+            </div>
             <select id="language-select"></select>
           </div>
           <div class="card-desc" id="language-note"></div>
@@ -246,19 +254,6 @@
         </div>
 
         <div class="card">
-          <div class="toggle-row">
-            <div>
-              <div class="row-label">Bookmark bar</div>
-              <div class="row-desc">Show saved bookmarks below the address bar</div>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="bookmark-bar-toggle">
-              <span class="switch-track"></span>
-            </label>
-          </div>
-        </div>
-
-        <div class="card">
           <div class="card-title">Tabs</div>
           <div class="card-desc">Where your tabs live. You can also toggle this with Ctrl/Cmd+Shift+S.</div>
           <label class="radio-row">
@@ -287,7 +282,17 @@
 
         <div class="card">
           <div class="card-title">Toolbar</div>
-          <div class="card-desc">Choose which buttons appear in the toolbar</div>
+          <div class="toggle-row">
+            <div>
+              <div class="row-label">Bookmark bar</div>
+              <div class="row-desc">Show saved bookmarks below the address bar</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="bookmark-bar-toggle">
+              <span class="switch-track"></span>
+            </label>
+          </div>
+          <div class="card-desc toolbar-buttons-desc">Choose which buttons appear in the toolbar</div>
           <div class="toggle-row" data-tb="extensions">
             <div><div class="row-label">Extensions</div></div>
             <label class="toggle"><input type="checkbox" class="tb-toggle" data-key="extensions"><span class="switch-track"></span></label>
@@ -325,6 +330,7 @@
         <p class="section-desc">Configure distraction blocking and Pomodoro timer durations.</p>
 
         <div class="card">
+          <div class="card-title" data-i18n="settings.blocking">Blocking</div>
           <div class="toggle-row">
             <div>
               <div class="row-label">Distraction blocking</div>
@@ -504,7 +510,7 @@
               <button class="btn" id="btn-ext-crx">Install .crx…</button>
             </div>
           </div>
-          <div class="ext-error" id="ext-error"></div>
+          <div class="ext-error notice is-warn" id="ext-error" role="status"></div>
         </div>
 
         <div class="card">
@@ -548,8 +554,11 @@
 
         <div class="card">
           <div class="card-title">History</div>
-          <div class="card-desc">How long browsing history is kept before it is discarded.</div>
-          <div class="select-row">
+          <div class="toggle-row">
+            <div>
+              <div class="row-label" data-i18n="settings.keepHistory">Keep history for</div>
+              <div class="row-desc" data-i18n="settings.keepHistoryDesc">Older visits are discarded.</div>
+            </div>
             <select id="history-days">
               <option value="7">7 days</option>
               <option value="30">30 days</option>
@@ -558,7 +567,11 @@
               <option value="0">Until the entry limit</option>
             </select>
           </div>
-          <div class="btn-row">
+          <div class="toggle-row">
+            <div>
+              <div class="row-label" data-i18n="settings.exportHistory">Export history</div>
+              <div class="row-desc" data-i18n="settings.exportHistoryDesc">Save your browsing history as a file.</div>
+            </div>
             <button class="btn" id="export-history">Export history…</button>
           </div>
         </div>
