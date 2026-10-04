@@ -93,3 +93,17 @@
         close();
     }, true);
 })();
+// Overlay enter/exit motion (P1-6): fade the card in on show, play the close
+// fade on hide then let main hide the view. No-ops cleanly if the bits are
+// missing (card stays visible), and collapses under reduced motion.
+(function () {
+    try {
+        var card = document.getElementById('panel');
+        var SA = window.Northstar && window.Northstar.surfaceAnim;
+        if (card && SA && window.overlayAnim) {
+            window.overlayAnim.onEnter(function () { SA.enterCard(card); });
+            window.overlayAnim.onLeave(function () { SA.exitCard(card, function () { window.overlayAnim.leaveDone(); }); });
+        }
+    }
+    catch (e) { /* animation is non-essential */ }
+})();

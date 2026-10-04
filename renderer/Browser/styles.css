@@ -96,6 +96,13 @@ html[data-vibrancy="true"] #content-area {
 /* Settings → Appearance → Toolbar can remove items entirely. */
 .user-hidden { display: none !important; }
 
+/* Screen-reader-only: present to assistive tech, invisible and zero-size to
+   layout. Used by #omni-live (the omnibox's aria-live announcer). */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
 /* ── Menu bar (Firefox-style Alt bar; frameless Windows only) ───────────────
    A full-width strip at the very top holding the eight menus. Hidden until Alt
    is tapped; when shown it reflows the page card down through the shared
@@ -334,6 +341,28 @@ html[data-tabbar="top"] #space-create:not(.hidden) {
               box-shadow var(--dur-1) var(--ease);
   white-space: nowrap; flex-shrink: 1;
   position: relative;
+}
+/* Tab enter (P1-2): a new row grows in with a scale+fade. Transform-based, so
+   no sibling layout jump and no fight with the inline widths updateTabWidths
+   sets in the top strip. The transition only exists while .tab-enter-active is
+   on, so it never slows a drag (which also drives transform). Collapses to
+   instant under reduced motion (--dur-2 → 0). */
+.tab-button.tab-enter { opacity: 0; transform: scale(0.82); }
+.tab-button.tab-enter-active {
+  transition: opacity var(--dur-2) var(--ease-decel), transform var(--dur-2) var(--ease-decel);
+}
+/* Leaving rows (P1-2) collapse their own box; sized inline by JS. Hide the
+   overflow so the label/✕ don't spill while the row shrinks. */
+.tab-button.leaving { overflow: hidden; pointer-events: none; }
+
+/* After a close-freeze (P1-3), the one re-layout on mouseleave animates the
+   survivors to their new widths. Scoped to a transient class so ordinary
+   resizes and drag-reorders stay instant. Collapses under reduced motion
+   (--dur-2 → 0). */
+#tab-bar.relayout-anim .tab-button {
+  transition: width var(--dur-2) var(--ease), min-width var(--dur-2) var(--ease),
+              max-width var(--dur-2) var(--ease), background var(--dur-1) var(--ease),
+              color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
 }
 .tab-button:hover { background: var(--hover); color: var(--text); }
 /* Inactive tabs carry nothing — no fill, no outline. Boxing every tab is what
@@ -1087,7 +1116,7 @@ html[data-tabbar="side"] .sidebar-foot {
 .tab-favicon {
   width: var(--icon); height: var(--icon); flex-shrink: 0;
   border-radius: var(--r-xs); object-fit: cover;
-  opacity: 0.9; transition: opacity var(--dur-1) var(--ease);
+  opacity: 0.9; transition: opacity var(--dur-1) var(--ease), transform var(--dur-3) var(--ease-decel);
 }
 .tab-button:hover .tab-favicon,
 .tab-button.active .tab-favicon { opacity: 1; }
@@ -1102,30 +1131,75 @@ html[data-tabbar="side"] .sidebar-foot {
 .tab-indicator.clickable:hover { color: var(--text); }
 .tab-button.pinned .tab-indicator { display: none; }
 
-/* Loading spinner in the favicon slot. Drawn on ::after, NOT ::before: the
-   no-favicon placeholder that reserves the icon column uses ::before, and an
-   element has only one — when the spinner claimed ::before the column collapsed
-   and the title slid left under the spinner ("text over the refresh icon").
-   ::after leaves the column reserved (favicon hidden-but-present, or the
-   placeholder), and the spinner sits over it. */
-.tab-button.loading .tab-favicon { visibility: hidden; flex: 0 0 var(--icon); }
-.tab-button.loading::after {
-  content: ''; position: absolute; top: 50%; margin-top: -7px;
-  /* Centre the 14px ring INSIDE the favicon column (which starts at the tab's
-     left padding and is --icon wide) rather than a fixed 12px — a fixed left
-     let the ring poke past a narrow column and graze the title's first glyph. */
-  left: calc(var(--sp-4, 8px) + var(--icon, 16px) / 2 - 7px);
-  width: 14px; height: 14px; box-sizing: border-box; border-radius: 50%;
-  border: 1.6px solid var(--border-2); border-top-color: var(--accent);
-  animation: tab-spin 0.7s linear infinite;
-  pointer-events: none;
+/* Loading throbber (P1-1): an inline SVG <circle> ring in the favicon slot, not
+   a ::after border-spinner. The no-favicon placeholder that reserves the icon
+   column uses ::before, and an element has only one pseudo of each — when the
+   spinner claimed one the column collapsed and the title slid left under it
+   ("text over the refresh icon"). An inline SVG overlays the reserved column
+   instead, so the column stays put and the ring sits over it. Centred INSIDE
+   the column (which starts at the row's left padding and is --icon wide), never
+   at a fixed px, so a narrow column can't push the ring onto the title. */
+.tab-throbber {
+  position: absolute; top: 50%; margin-top: calc(var(--throbber-size) / -2);
+  left: calc(var(--sp-4, 8px) + var(--icon, 16px) / 2 - var(--throbber-size) / 2);
+  width: var(--throbber-size); height: var(--throbber-size); pointer-events: none;
+  animation: thr-rot var(--throbber-rotate) linear infinite;
 }
-/* The sidebar column indents its rows by --gutter instead of --sp-4. */
-html[data-tabbar="side"] .tab-button.loading::after {
-  left: calc(var(--gutter, 12px) + var(--icon, 16px) / 2 - 7px);
+html[data-tabbar="side"] .tab-throbber {
+  left: calc(var(--gutter, 12px) + var(--icon, 16px) / 2 - var(--throbber-size) / 2);
 }
-.tab-button.pinned.loading::after { left: 50%; margin-left: -7px; }
-@keyframes tab-spin { to { transform: rotate(360deg); } }
+.tab-button.pinned .tab-throbber { left: 50%; margin-left: calc(var(--throbber-size) / -2); }
+.tab-throbber circle {
+  fill: none; stroke: var(--throbber-load); stroke-width: var(--throbber-stroke);
+  stroke-linecap: round; stroke-dasharray: 1 100; /* r=7 → C≈44 */
+  animation: thr-arc calc(var(--throbber-arc) * 2) var(--ease-spin) infinite;
+}
+.tab-button.waiting .tab-throbber circle { stroke: var(--throbber-wait); }
+@keyframes thr-rot { to { transform: rotate(360deg); } }
+@keyframes thr-arc {
+  0%   { stroke-dasharray: 1 100;  stroke-dashoffset: 0; }
+  50%  { stroke-dasharray: 33 100; stroke-dashoffset: -5; }  /* 33/44 ≈ 270° */
+  100% { stroke-dasharray: 1 100;  stroke-dashoffset: -44; }
+}
+/* Favicon handoff. Waiting: no icon yet, column reserved. Loading: the icon
+   sits INSIDE the ring (a circle of --icon − 2·stroke − 2). Loaded: the
+   throbber element is removed and the icon scales back to full over --dur-3 —
+   the "pop" (the transform transition lives on .tab-favicon above). */
+.tab-button.waiting .tab-favicon { visibility: hidden; flex: 0 0 var(--icon); }
+.tab-button.loading:not(.waiting) .tab-favicon {
+  flex: 0 0 var(--icon);
+  transform: scale(calc((var(--icon) - 2 * var(--throbber-stroke) - 2) / var(--icon)));
+}
+
+/* Slept / crashed row states (P1-8). The throbber is an inline SVG now, so
+   ::after is free for these static marks. Both centre on the icon column the
+   same way the throbber does. A row is slept OR crashed, never both, and either
+   clears the moment the tab next loads (setTabLoading). */
+.tab-button.slept .tab-favicon { opacity: 0.75; }
+.tab-button.slept::after {
+  content: ''; position: absolute; top: 50%; margin-top: calc(var(--throbber-size) / -2);
+  left: calc(var(--sp-4, 8px) + var(--icon, 16px) / 2 - var(--throbber-size) / 2);
+  width: var(--throbber-size); height: var(--throbber-size); box-sizing: border-box;
+  border: 1.5px dotted var(--discard-ring); border-radius: 50%;
+  pointer-events: none; animation: discard-ring-in 1s var(--ease) both;
+}
+.tab-button.crashed .tab-favicon { visibility: hidden; }
+.tab-button.crashed .tab-title { color: var(--text-3); }
+.tab-button.crashed::after {
+  content: '⚠'; position: absolute; top: 50%; margin-top: calc(var(--throbber-size) / -2);
+  left: calc(var(--sp-4, 8px) + var(--icon, 16px) / 2 - var(--throbber-size) / 2);
+  width: var(--throbber-size); height: var(--throbber-size);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; line-height: 1; color: var(--danger); pointer-events: none;
+}
+/* The sidebar indents rows by --gutter rather than --sp-4. */
+html[data-tabbar="side"] .tab-button.slept::after,
+html[data-tabbar="side"] .tab-button.crashed::after {
+  left: calc(var(--gutter, 12px) + var(--icon, 16px) / 2 - var(--throbber-size) / 2);
+}
+.tab-button.pinned.slept::after,
+.tab-button.pinned.crashed::after { left: 50%; margin-left: calc(var(--throbber-size) / -2); }
+@keyframes discard-ring-in { from { opacity: 0; } to { opacity: 1; } }
 
 .tab-close {
   flex-shrink: 0; margin-left: auto;
@@ -1413,6 +1487,21 @@ html[data-tabbar="side"]:not([data-compact="on"]) #utility-bar {
 .omnibox[data-omni="search"]   .oi-search   { display: block; }
 .omnibox[data-omni="secure"]   .oi-secure   { display: block; }
 .omnibox[data-omni="insecure"] .oi-insecure { display: block; }
+.omnibox[data-omni="internal"] .oi-internal { display: block; }
+.omnibox[data-omni="internal"] .omni-icon { color: var(--text-3); }
+
+/* "Not secure" chip (P2-1): lives inside the field, before the input, so it
+   shrinks the input via flex rather than sitting over the text. #url-display
+   and #omni-ghost measure from .omni-input's own box, so they stay aligned. */
+.omni-chip {
+  display: none; flex-shrink: 0; align-self: center;
+  font-size: var(--fs-micro); font-weight: 600; line-height: 1;
+  padding: 3px 7px; border-radius: var(--r-sm); white-space: nowrap;
+  background: var(--chip-warn); color: var(--chip-warn-ink);
+}
+.omnibox[data-omni="insecure"] .omni-chip { display: inline-flex; }
+/* While typing, the field is about the query, not the page — drop the chip. */
+.omnibox:focus-within .omni-chip { display: none; }
 /* A secure site gets a QUIET lock, not an accent-coloured one: the accent is
    red in the default theme, so a valid https lock read as a warning and was
    indistinguishable from the insecure (--danger) state. Neutral for secure —
@@ -1481,6 +1570,23 @@ browser-action-list::part(badge) {
 }
 .downloads-btn.has-new .downloads-dot { display: block; }
 .downloads-btn.downloading .icon-svg { opacity: 0.6; }
+/* Progress ring around the icon while a download runs (P1-4). A conic-gradient
+   disc masked to a thin ring; --dl-progress (0..1) is the arc. The indeterminate
+   variant (no content-length) spins a fixed arc at the throbber's rate. Applies
+   to whichever download button the layout shows. */
+#sb-downloads { position: relative; }
+.downloads-btn.dl-active::after,
+#sb-downloads.dl-active::after {
+  content: ''; position: absolute; inset: 3px; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(var(--accent) calc(var(--dl-progress, 0) * 1turn), var(--border-2) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
+          mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
+}
+.downloads-btn.dl-indeterminate::after,
+#sb-downloads.dl-indeterminate::after {
+  background: conic-gradient(from 0deg, transparent 0 270deg, var(--accent) 270deg 360deg);
+  animation: thr-rot var(--throbber-rotate) linear infinite;
+}
 
 /* Phosphor pairs a LINE weight and a FILL weight as two different drawings, not
    one path with a fill toggled — so an icon that has an on-state carries both

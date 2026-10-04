@@ -155,7 +155,27 @@
                 }
                 row.appendChild(actions);
                 if (item.state === 'completed') {
-                    row.addEventListener('click', () => window.overlayDownloads.action('open-file', item.id));
+                    if (item.dangerous) {
+                        // Executable/script (P1-5): a warning row that takes two
+                        // deliberate clicks. The first arms "Keep and open?"; only
+                        // the second sends the confirmed open. Opening is refused
+                        // in main without that flag, so this is belt-and-braces.
+                        row.classList.add('dangerous');
+                        row.title = T('downloads.dangerousHint', 'This type of file can harm your device. Only open it if you trust the source.');
+                        row.addEventListener('click', () => {
+                            if (row.dataset.armed === '1') {
+                                window.overlayDownloads.action('open-file', item.id, true);
+                            }
+                            else {
+                                row.dataset.armed = '1';
+                                status.textContent = T('downloads.keepAndOpen', 'Keep and open?');
+                                status.classList.add('warn');
+                            }
+                        });
+                    }
+                    else {
+                        row.addEventListener('click', () => window.overlayDownloads.action('open-file', item.id));
+                    }
                 }
                 listEl.appendChild(row);
             });
@@ -171,4 +191,18 @@
         window.overlayDownloads.onData(render);
         window.overlayDownloads.getAll().then(render).catch(() => { });
     })();
+})();
+// Overlay enter/exit motion (P1-6): fade the card in on show, play the close
+// fade on hide then let main hide the view. No-ops cleanly if the bits are
+// missing (card stays visible), and collapses under reduced motion.
+(function () {
+    try {
+        var card = document.getElementById('panel');
+        var SA = window.Northstar && window.Northstar.surfaceAnim;
+        if (card && SA && window.overlayAnim) {
+            window.overlayAnim.onEnter(function () { SA.enterCard(card); });
+            window.overlayAnim.onLeave(function () { SA.exitCard(card, function () { window.overlayAnim.leaveDone(); }); });
+        }
+    }
+    catch (e) { /* animation is non-essential */ }
 })();

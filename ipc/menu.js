@@ -141,13 +141,12 @@ function register(ipcMain, { wm }) {
     });
     // Click coordinates from the chrome renderer — close floating panels
     // if the click landed outside their bounds.
-    // The overflow menu's New Tab raises the palette, like every other
+    // The overflow menu's New Tab opens the new-tab page, like every other
     // user-facing new-tab entry point.
     ipcMain.handle('menu-new-tab', (_e) => {
         const wd = wm.getWindowByWebContents(_e.sender);
-        // No fallback tab: the palette is how a tab gets made, and a blank one
-        // is not the consolation prize (this browser has none).
-        try { return require('./palette').openFor(wd); }
+        // New tab → the new-tab page (P2 pivot: replaces the Palette).
+        try { return wd.tabs ? wd.tabs.openInternalPage('home') : false; }
         catch { return false; }
     });
     // ── In-chrome menu bar (the Firefox-style Alt bar on frameless Windows) ─────

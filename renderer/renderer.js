@@ -80,6 +80,21 @@
         let tabUrls = new Map(); // tabIndex → url string
         let tabPrivate = new Map(); // tabIndex → boolean (private flag)
         let tabLoading = new Set(); // tabIndexes currently loading
+        // Top-strip close freeze (P1-3): while the pointer is still over the strip
+        // after a mouse close, keep every tab its current width so the NEXT tab's
+        // ✕ slides under the cursor — repeated clicks close consecutive tabs. The
+        // strip re-lays out once, animated, on mouseleave. Keyboard/programmatic
+        // closes never set this (Chrome's CloseTabSource::kFromNonUIEvent).
+        let closingFreeze = false;
+        function freezeTopStripClose() { if (!sideTabs()) closingFreeze = true; }
+        // Tab insert/remove motion (P1-2). The enter animation is skipped for the
+        // burst of rows created while the window boots (session restore) — a stagger
+        // of fade-ins there just competes with first paint.
+        const chromeBootAt = Date.now();
+        const prefersReducedMotion = () => {
+            try { return matchMedia('(prefers-reduced-motion: reduce)').matches; }
+            catch (e) { return false; }
+        };
         // Only the active workspace's tabs are shown in the strip.
         function filterTabsByWorkspace() {
             for (const [idx, btn] of tabs) {
@@ -97,8 +112,8 @@
         // ── Shared helpers (renderer/lib/util.js) ─────────────────────────────────
         // Bound here, above the init sequence: anything declared after it is TDZ
         // while init runs (see CLAUDE.md invariant 2).
-        const { debounce, looksLikeUrl, normalizeUrl, linkScore, isLowValueMatch,
-                cleanliness, urlDisplayParts } = window.Northstar.util;
+        const { debounce, throttle, looksLikeUrl, normalizeUrl, linkScore, isLowValueMatch,
+                cleanliness, urlDisplayParts, reindexActive, preconnectOrigin } = window.Northstar.util;
         // ── Settings (synchronous) ────────────────────────────────────────────────
         let settings = {};
         try {
@@ -416,7 +431,7 @@
                     window.tab.reload(activeTabIndex);
                 releaseFocusToPage(reloadBtn);
             });
-            addBtn.addEventListener('click', () => window.palette.open());
+            addBtn.addEventListener('click', () => window.tab.newPage());
             window.addEventListener('click', (e) => {
                 if (menuOpen)
                     window.electronAPI.windowClick({ x: e.clientX, y: e.clientY });
@@ -533,6 +548,8 @@
                 clearGhost();
                 updateUrlDisplay();
                 updateOmniboxIcon();
+                preconnectEngine(); // (P0-4) warm the search engine on focus
+
                 if (userTyping) {
                     if (searchBar.value.trim())
                         updateSuggestions();
@@ -543,7 +560,10 @@
                     searchBar.select();
                 }
                 else {
-                    if (currentTabUrl && searchBar.value !== currentTabUrl)
+                    // On the new-tab page (or a blank tab) the bar stays empty and
+                    // ready; otherwise focus shows the current URL, selected (P2).
+                    const blank = !currentTabUrl || currentTabUrl === 'newtab' || currentTabUrl === 'home';
+                    if (!blank && searchBar.value !== currentTabUrl)
                         searchBar.value = currentTabUrl;
                     searchBar.select();
                 }
@@ -640,6 +660,28 @@
         // ── Suggestion state ──────────────────────────────────────────────────────
         let currentSuggestions = [];
         let activeSuggestionIndex = -1;
+        // Declared HERE, above updateSuggestions/renderSuggestions which read them
+        // (CLAUDE.md invariant 2 — a `let` below its reader is in the TDZ during
+        // init). suggestSeq guards stale async renders; suggestAbort cancels the
+        // in-flight remote suggest when a newer keystroke supersedes it.
+        let suggestSeq = 0;
+        let suggestAbort = null;
+        // P0-2 — split passes. The LOCAL pass (open tabs/bookmarks/history) runs
+        // un-throttled on every keystroke; the REMOTE pass (search suggest) is
+        // throttled so a fast burst hits the network once, not per key. Remote
+        // rows are kept across keystrokes so the list doesn't lose height while a
+        // new request is in flight, and expire 500 ms after typing stops if not
+        // refreshed. `syncResult` carries the local half so the remote pass can
+        // re-merge without recomputing it. All declared above their readers
+        // (invariant 2); `remoteThrottle` is assigned after fetchRemote exists.
+        let keptRemote = { q: '', rows: [] };
+        let remoteExpire = null;
+        let syncResult = null;
+        let remoteThrottle = null;
+        // Omnibox a11y (P0-7): the live region is read here (above its readers,
+        // invariant 2). `announce` writes the polite region; empty strings clear it.
+        const omniLive = document.getElementById('omni-live');
+        const announce = (msg) => { if (omniLive) omniLive.textContent = msg || ''; };
         let overlayPointerDown = false;
         let userTyping = false;
         let lastInputWasInsert = false;
@@ -766,38 +808,55 @@
             window.suggestions.close();
             currentSuggestions = [];
             activeSuggestionIndex = -1;
+            searchBar.setAttribute('aria-expanded', 'false'); // (P0-7)
         }
         // Pre-warm the connection to a highlighted suggestion's origin so Enter
-        // starts hot. Only real http(s) URL suggestions (history/bookmark/direct)
-        // — never a search query, a tab switch, or a non-web scheme — and only the
-        // origin, so no path or query string leaves the machine before the user
-        // commits. Deduped per origin; main skips private tabs.
+        // starts hot. The decision of WHAT to warm is the pure preconnectOrigin
+        // (renderer/lib/util.js): a url/navigate row → its own origin, a search
+        // row → the engine's origin — never a tab switch, a container row, or a
+        // non-web scheme, and only the ORIGIN, so no path or query leaves the
+        // machine before the user commits. Deduped per origin; skipped entirely
+        // in a private window or on a private tab so nothing leaks there.
+        const searchEngineOrigin = () => {
+            try { return new URL(searchUrlFor('a')).origin; }
+            catch { return null; }
+        };
         let lastPreconnected = '';
+        function preconnect(origin) {
+            if (!origin || origin === lastPreconnected)
+                return;
+            if (isPrivateWindow || tabPrivate.get(activeTabIndex))
+                return;
+            lastPreconnected = origin;
+            window.suggestions.preconnect?.(origin);
+        }
         function preconnectSuggestion(item) {
-            try {
-                if (!item || !item.url || item.type === 'switch-tab' || item.profile)
-                    return;
-                const u = new URL(item.url);
-                if (u.protocol !== 'http:' && u.protocol !== 'https:')
-                    return;
-                if (u.origin === lastPreconnected)
-                    return;
-                lastPreconnected = u.origin;
-                window.suggestions.preconnect?.(u.origin);
-            }
+            try { preconnect(preconnectOrigin(item, searchEngineOrigin())); }
             catch (e) { window.northstarLog?.debug('renderer', 'preconnectSuggestion: ' + e); }
+        }
+        // On focus, before any suggestion exists, warm the default engine — the
+        // most likely Enter target for a fresh query.
+        function preconnectEngine() {
+            try { preconnect(searchEngineOrigin()); }
+            catch (e) { window.northstarLog?.debug('renderer', 'preconnectEngine: ' + e); }
         }
         function renderSuggestions(list) {
             if (!userTyping)
                 return;
+            // Keep the highlighted row by identity across re-renders (P0-3): when
+            // async rows merge in, the selection follows the same row rather than
+            // snapping back to the top. The base row is always index 0.
+            activeSuggestionIndex = reindexActive(currentSuggestions, activeSuggestionIndex, list);
             currentSuggestions = list;
-            activeSuggestionIndex = list.length ? 0 : -1;
             if (!list.length) {
                 hideSuggestions();
                 return;
             }
-            preconnectSuggestion(list[0]);
+            preconnectSuggestion(currentSuggestions[activeSuggestionIndex] || list[0]);
             window.suggestions.open(getSuggestionsBounds(), currentSuggestions, activeSuggestionIndex, currentQuery, getSearchEngine()).catch(() => { });
+            // A11y (P0-7): the dropdown is open, and announce how many rows it has.
+            searchBar.setAttribute('aria-expanded', 'true');
+            announce(`${list.length} suggestion${list.length === 1 ? '' : 's'}`);
         }
         function setActiveSuggestion(newIndex) {
             if (!currentSuggestions.length)
@@ -812,6 +871,10 @@
                 clearGhost();
                 searchBar.value = item.url || item.query || '';
                 preconnectSuggestion(item);
+                // A11y (P0-7): announce the row the arrow landed on.
+                const title = item.title || item.query || item.url || '';
+                const loc = item.url && item.url !== title ? `, ${item.url}` : '';
+                announce(`${title}${loc}, ${newIndex + 1} of ${currentSuggestions.length}`);
             }
             window.suggestions.update(getSuggestionsBounds(), currentSuggestions, activeSuggestionIndex, currentQuery, getSearchEngine());
         }
@@ -902,6 +965,20 @@
             }
             if (e.key === 'ArrowLeft' || e.key === 'Home')
                 clearGhost();
+            // Alt+Enter opens the target in a NEW tab rather than the current one
+            // (P0-8), as in Chrome/Firefox. A highlighted url row uses its url;
+            // otherwise the bar text is resolved the same way a normal commit is.
+            if (e.key === 'Enter' && e.altKey) {
+                e.preventDefault();
+                const item = activeSuggestionIndex >= 0 ? currentSuggestions[activeSuggestionIndex] : null;
+                const target = (item && item.url) ? item.url : formatToUrl(searchBar.value);
+                if (target) {
+                    try { window.browserBookmarks.openInNewTab(target, true); }
+                    catch (err) { window.northstarLog?.debug('renderer', 'alt-enter new tab: ' + err); }
+                    hideSuggestions();
+                }
+                return;
+            }
             // Ctrl/Cmd+Enter wraps a bare term in www. … .com; anything
             // that already looks like a URL just navigates normally.
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -1061,7 +1138,7 @@
                 return [];
             }
         }
-        async function getSearchSuggestions(q, limit = 6) {
+        async function getSearchSuggestions(q, limit = 6, signal = undefined) {
             if (!q)
                 return [];
             // Firefox disables remote search suggestions in private browsing —
@@ -1075,7 +1152,7 @@
                 bing: `https://api.bing.com/osjson.aspx?query=${encodeURIComponent(q)}`,
             };
             try {
-                const res = await fetch(suggestMap[engine] || suggestMap.google, { cache: 'no-store' });
+                const res = await fetch(suggestMap[engine] || suggestMap.google, { cache: 'no-store', signal });
                 const data = await res.json();
                 const arr = Array.isArray(data) && Array.isArray(data[1]) ? data[1] : [];
                 return arr.slice(0, limit).map(s => ({ type: engine, query: s }));
@@ -1114,99 +1191,164 @@
             const match = bare.startsWith(ql) ? bare : (host.startsWith(ql) ? host : null);
             return (match && match.length > q.length) ? match : null;
         }
-        const updateSuggestions = debounce(async () => {
+        // Assemble the final list from the local half (base + ghost domain +
+        // ranked links) and whatever remote search rows we currently hold. Shared
+        // by both passes so the ordering/caps (base → ghost → ≤3 search → ≤4
+        // links = ≤8, see MAX_HEIGHT in ipc/suggestions.js) are identical however
+        // the list was triggered.
+        function assembleSuggestions(local, remoteRows) {
+            const { base, ghostKey, topDomain, rankedLinks } = local;
+            const merged = [base];
+            const seenQuery = new Set([String(base.query).toLowerCase()]);
+            // The ghost-completed domain sits directly under the typed row, so the
+            // row you click is the completion you can see in the bar.
+            if (ghostKey)
+                merged.push(topDomain);
+            // Search suggestions right under the heuristic row (max 3); skip
+            // base-query dupes. Suggestions show ahead of history/bookmarks.
+            let searchCount = 0;
+            for (const s of remoteRows || []) {
+                const k = (s.query || '').toLowerCase();
+                if (k && !seenQuery.has(k)) {
+                    merged.push(s);
+                    seenQuery.add(k);
+                    if (++searchCount >= 3)
+                        break;
+                }
+            }
+            // History / bookmarks / open tabs — tight cap (max 4).
+            let linkCount = 0;
+            for (const link of rankedLinks) {
+                if (ghostKey && normalizeUrl(link.url) === ghostKey)
+                    continue;
+                merged.push(link);
+                if (++linkCount >= 4)
+                    break;
+            }
+            return merged;
+        }
+        // The REMOTE pass: fetch search suggestions and merge them in. Throttled
+        // (leading edge, ≥100 ms) so a fast keystroke burst hits the network once.
+        // Reads the query fresh at fire time — on a trailing call that is the
+        // latest keystroke, not the one that scheduled it. Seq-guarded + aborted
+        // so a slow earlier response can never overwrite a newer render (P0-1).
+        async function fetchRemote() {
             const q = searchBar.value.trim();
+            if (!q || !syncResult || syncResult.q !== q)
+                return; // local pass hasn't caught up to this query yet
+            const seq = suggestSeq;
+            try { suggestAbort?.abort(); } catch (e) { /* already settled */ }
+            suggestAbort = new AbortController();
+            try {
+                const rows = await getSearchSuggestions(q, 6, suggestAbort.signal);
+                if (seq !== suggestSeq)
+                    return; // a newer keystroke superseded this request
+                keptRemote = { q, rows };
+                if (userTyping && syncResult && syncResult.q === q)
+                    renderSuggestions(assembleSuggestions(syncResult, rows));
+            }
+            catch { /* keep whatever is rendered */ }
+        }
+        remoteThrottle = throttle(fetchRemote, 100);
+        // The LOCAL pass, run on every keystroke with NO debounce: open tabs are
+        // in-memory and bookmarks/history are local IPC, so their rows render as
+        // soon as they resolve rather than 120 ms after you stop typing. Previous
+        // remote rows are carried through (assembleSuggestions) so the list keeps
+        // its height while the throttled remote pass catches up.
+        function updateSuggestions() {
+            const q = searchBar.value.trim();
+            // This keystroke's number — the remote pass checks it before landing.
+            const seq = ++suggestSeq;
+            // Arm the expiry: 500 ms after the last keystroke, drop remote rows
+            // that were never refreshed so a stale search list doesn't linger.
+            clearTimeout(remoteExpire);
+            remoteExpire = setTimeout(() => {
+                if (keptRemote.rows.length) {
+                    keptRemote = { q: '', rows: [] };
+                    if (userTyping && syncResult)
+                        renderSuggestions(assembleSuggestions(syncResult, []));
+                }
+            }, 500);
             if (!q) {
                 hideSuggestions();
                 return;
             }
             const ql = q.toLowerCase();
             currentQuery = q; // typed text drives the bold-completion highlighting
-            // Immediate feedback while async sources load
+            // Immediate feedback before the local IPC resolves.
             renderSuggestions([looksLikeUrl(q) ? { type: 'navigate', query: q } : { type: 'action', query: q }]);
-            try {
-                // Over-fetch links so relevance scoring (below) has enough
-                // candidates to find good matches before we truncate the list.
-                const openTabs = getOpenTabSuggestions(q);
-                const [bookmarks, hist, search] = await Promise.all([
-                    getBookmarkSuggestions(q, 12),
-                    getHistorySuggestions(q, 20),
-                    getSearchSuggestions(q, 6),
-                ]);
-                // Score each link/tab; drop irrelevant and low-value (auth/redirect)
-                // matches. Bookmarks slightly outrank history at the same tier.
-                const scored = [];
-                const consider = (item, bias) => {
-                    const s = linkScore(item, ql);
-                    if (s < 0 || isLowValueMatch(item.url, s))
+            (async () => {
+                try {
+                    // Over-fetch links so relevance scoring has enough candidates
+                    // to find good matches before we truncate the list.
+                    const openTabs = getOpenTabSuggestions(q);
+                    const [bookmarks, hist] = await Promise.all([
+                        getBookmarkSuggestions(q, 12),
+                        getHistorySuggestions(q, 20),
+                    ]);
+                    // A newer keystroke has already run — drop these stale results.
+                    if (seq !== suggestSeq)
                         return;
-                    scored.push({ item, score: s + bias, clean: cleanliness(item) });
-                };
-                for (const b of bookmarks)
-                    consider(b, -0.1);
-                for (const h of hist)
-                    consider(h, 0);
-                rememberHosts(hist);
-                for (const t of openTabs)
-                    consider(t, -0.2);
-                // Sort by relevance tier, then by cleanliness (short, titled URLs first).
-                scored.sort((a, b) => (a.score - b.score) || (a.clean - b.clean));
-                // Dedup by normalized host+path (ignoring www), keeping the best entry.
-                const rankedLinks = [];
-                const seenLinks = new Set();
-                for (const { item } of scored) {
-                    const key = normalizeUrl(item.url);
-                    if (seenLinks.has(key))
-                        continue;
-                    seenLinks.add(key);
-                    rankedLinks.push(item);
-                }
-                // Ghost-complete from the top domain-prefix match. The bar itself
-                // keeps exactly what was typed — the completion is only painted —
-                // so the first row (what Enter runs) stays the typed query, and the
-                // completed domain stays reachable as its own row below.
-                const topDomain = rankedLinks.find(x => linkScore(x, ql) === 0);
-                const completed = topDomain ? computeAutofill(q, topDomain.url) : null;
-                if (completed && searchBar.value === q)
-                    setGhost(q, completed.slice(q.length));
-                const base = looksLikeUrl(q)
-                    ? { type: 'navigate', query: q }
-                    : { type: 'action', query: q };
-                const merged = [base];
-                const seenQuery = new Set([String(base.query).toLowerCase()]);
-                // The ghost-completed domain sits directly under the typed row, so
-                // the row you click is the completion you can see in the bar.
-                const ghostKey = completed ? normalizeUrl(topDomain.url) : null;
-                if (ghostKey)
-                    merged.push(topDomain);
-                // Search suggestions right under the heuristic row (max 3); skip
-                // base-query dupes. the default order shows suggestions
-                // ahead of history/bookmarks.
-                let searchCount = 0;
-                for (const s of search) {
-                    const k = (s.query || '').toLowerCase();
-                    if (k && !seenQuery.has(k)) {
-                        merged.push(s);
-                        seenQuery.add(k);
-                        if (++searchCount >= 3)
-                            break;
+                    // Score each link/tab; drop irrelevant and low-value
+                    // (auth/redirect) matches. Bookmarks slightly outrank history.
+                    const scored = [];
+                    const consider = (item, bias) => {
+                        const s = linkScore(item, ql);
+                        if (s < 0 || isLowValueMatch(item.url, s))
+                            return;
+                        scored.push({ item, score: s + bias, clean: cleanliness(item) });
+                    };
+                    for (const b of bookmarks)
+                        consider(b, -0.1);
+                    for (const h of hist)
+                        consider(h, 0);
+                    rememberHosts(hist);
+                    for (const t of openTabs)
+                        consider(t, -0.2);
+                    // Sort by relevance tier, then cleanliness (short, titled first).
+                    scored.sort((a, b) => (a.score - b.score) || (a.clean - b.clean));
+                    // Dedup by normalized host+path (ignoring www), keep the best.
+                    const rankedLinks = [];
+                    const seenLinks = new Set();
+                    for (const { item } of scored) {
+                        const key = normalizeUrl(item.url);
+                        if (seenLinks.has(key))
+                            continue;
+                        seenLinks.add(key);
+                        rankedLinks.push(item);
                     }
+                    // Ghost-complete from the top domain-prefix match. The bar keeps
+                    // exactly what was typed — the completion is only painted — so
+                    // the first row (what Enter runs) stays the typed query, and the
+                    // completed domain stays reachable as its own row below.
+                    const topDomain = rankedLinks.find(x => linkScore(x, ql) === 0);
+                    const completed = topDomain ? computeAutofill(q, topDomain.url) : null;
+                    if (completed && searchBar.value === q)
+                        setGhost(q, completed.slice(q.length));
+                    const base = looksLikeUrl(q)
+                        ? { type: 'navigate', query: q }
+                        : { type: 'action', query: q };
+                    const ghostKey = completed ? normalizeUrl(topDomain.url) : null;
+                    // Carry remote rows through only while they match this query;
+                    // otherwise they belong to an older keystroke and are dropped.
+                    syncResult = { q, ql, base, ghostKey, topDomain, rankedLinks };
+                    const remoteRows = keptRemote.q === q ? keptRemote.rows : [];
+                    renderSuggestions(assembleSuggestions(syncResult, remoteRows));
+                    // Kick the throttled remote pass (private tabs fetch nothing).
+                    remoteThrottle();
                 }
-                // History / bookmarks / open tabs — tight cap (max 4).
-                // Caps keep the whole list (base + ≤3 search + ≤4 links = ≤8) visible
-                // without scrolling — see MAX_HEIGHT in ipc/suggestions.js.
-                let linkCount = 0;
-                for (const link of rankedLinks) {
-                    if (ghostKey && normalizeUrl(link.url) === ghostKey)
-                        continue;
-                    merged.push(link);
-                    if (++linkCount >= 4)
-                        break;
-                }
-                renderSuggestions(merged);
-            }
-            catch { /* keep base rendered */ }
-        }, 120);
+                catch { /* keep base rendered */ }
+            })();
+        }
+        // hideSuggestions() calls this: stop the throttle and expiry, abort any
+        // in-flight remote request, and forget carried-over rows.
+        updateSuggestions.cancel = () => {
+            remoteThrottle?.cancel();
+            clearTimeout(remoteExpire);
+            try { suggestAbort?.abort(); } catch (e) { /* already settled */ }
+            keptRemote = { q: '', rows: [] };
+            syncResult = null;
+        };
         /* The theme editor opens as a popup over the chrome, not as a trip to
            Settings: you are choosing a colour for the thing you are looking
            at, and the answer should appear next to it. Same instrument
@@ -1322,13 +1464,9 @@
         // Turn omnibox / dropped input into a loadable URL: pass through real
         // URLs, http-ify bare domains, and send anything else to the search engine.
         function formatToUrl(input) {
-            const text = String(input || '').trim();
-            if (!text) return '';
-            if (/^https?:\/\//i.test(text)) return text;
-            if (/^northstar:\/\//i.test(text)) return text; // internal-page scheme
-            if (/^(file|about|data|blob):/i.test(text)) return text; // dropped file:// etc.
-            if (text.includes('.') && !/\s/.test(text)) return 'https://' + text;
-            return searchUrlFor(text);
+            // Shared with the new-tab page via renderer/lib/util.toNavigableUrl, so
+            // the two entry surfaces resolve typed text identically.
+            return window.Northstar.util.toNavigableUrl(input, engineList, getSearchEngine());
         }
         function loadUrlInActiveTab(url) {
             const formatted = formatToUrl(url);
@@ -1361,6 +1499,10 @@
         // Resting input value: the full URL for http(s) pages, the legacy domain
         // fallback for internal pages (newtab, file://).
         function restingValueFor(url) {
+            // The new-tab page (and a blank tab) rest with an EMPTY, ready bar —
+            // you type, you go. 'home' is the NTP token (P2).
+            if (!url || url === 'newtab' || url === 'home')
+                return '';
             const ns = northstarDisplay(url);
             if (ns)
                 return ns;
@@ -1416,16 +1558,39 @@
                 omnibox.dataset.omni = 'secure';
             else if (/^http:\/\//i.test(url))
                 omnibox.dataset.omni = 'insecure';
+            else if (/^(northstar|file|about|data|blob|chrome):/i.test(url))
+                omnibox.dataset.omni = 'internal'; // app page, not a web origin (P2-1)
             else
-                omnibox.dataset.omni = 'search';
+                omnibox.dataset.omni = 'search';    // blank / new tab
         }
         // Loading state → tab spinner + reload/stop button toggle.
-        function setTabLoading(index, loading) {
+        // Inline SVG throbber (P1-1). Built lazily per tab and removed when the
+        // load ends, so idle rows carry no extra DOM. One <circle r=7> (C≈44, the
+        // dasharray the CSS animates); colour (wait grey vs load accent) and the
+        // favicon handoff are pure CSS off the waiting/loading classes.
+        const THROBBER_SVG = '<svg class="tab-throbber" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7"/></svg>';
+        function setTabLoading(index, loading, phase = 'loading') {
             if (loading)
                 tabLoading.add(index);
             else
                 tabLoading.delete(index);
-            tabs.get(index)?.classList.toggle('loading', !!loading);
+            const btn = tabs.get(index);
+            if (btn) {
+                btn.classList.toggle('loading', !!loading);
+                // 'waiting' only before the response commits; 'loading' replaces it.
+                btn.classList.toggle('waiting', !!loading && phase === 'waiting');
+                // Loading starting clears the slept/crashed row states (P1-8): a
+                // woken tab reloads, and a reloaded crashed tab is live again.
+                if (loading)
+                    btn.classList.remove('slept', 'crashed');
+                let throbber = btn.querySelector('.tab-throbber');
+                if (loading && !throbber) {
+                    btn.insertAdjacentHTML('afterbegin', THROBBER_SVG);
+                }
+                else if (!loading && throbber) {
+                    throbber.remove(); // load done → favicon pops to full (CSS)
+                }
+            }
             if (index === activeTabIndex)
                 updateReloadButton();
         }
@@ -1439,6 +1604,20 @@
         // Tab bar
         // ─────────────────────────────────────────────────────────────────────────
         function initTabBar() {
+            // Release the close-freeze (P1-3) when the pointer leaves the strip:
+            // the survivors have held their widths through a run of closes; now
+            // re-lay-out once, animated by the tab-button width transition.
+            tabBar.addEventListener('mouseleave', () => {
+                if (!closingFreeze)
+                    return;
+                closingFreeze = false;
+                tabBar.classList.add('relayout-anim');
+                updateTabWidths(tabs.size);
+                updateScrollShadows();
+                // Drop the transition class once the move has played, so later
+                // width changes (resize, drag) stay instant.
+                setTimeout(() => tabBar.classList.remove('relayout-anim'), 240);
+            });
             // Another window's torn-off tab is hovering over our strip → light up.
             window.dragdrop.onMergeHover?.((v) => tabBar.classList.toggle('merge-target', !!v));
             // Released over the page card: the drop sheet there handled it, and
@@ -1511,8 +1690,12 @@
                     updateNavigationButtons(data.canGoBack, data.canGoForward);
             });
             window.tab.onTabLoading((_e, data) => {
-                setTabLoading(data.index, data.loading);
+                setTabLoading(data.index, data.loading, data.phase);
             });
+            // Slept / crashed row states (P1-8). Cleared by setTabLoading when the
+            // tab next starts loading (wake reloads; a reloaded crash is live).
+            window.tab.onTabSlept?.((_e, data) => tabs.get(data.index)?.classList.add('slept'));
+            window.tab.onTabCrashed?.((_e, data) => tabs.get(data.index)?.classList.add('crashed'));
             try { window.tab.onIconChanged(({ index, icon }) => applyCustomTabIcon(Number(index), icon)); }
             catch (e) { window.northstarLog?.debug('renderer', 'initTabBar: ' + e); }
             window.tabsUI?.onPinTab((index) => {
@@ -1687,7 +1870,7 @@
                 rows.push([sideNow ? 'Tabs on top' : 'Tabs on side',
                     () => window.northstarSettings.set('tabBarSide', sideNow ? 'top' : 'side')]);
                 rows.push(
-                    [T('chrome.newTab', 'New tab'), () => window.palette.open()],
+                    [T('chrome.newTab', 'New tab'), () => window.tab.newPage()],
                     ['New folder', newFolderInline],
                     ['sep'],
                     ['Select all tabs', () => selectAllTabs()],
@@ -2385,6 +2568,17 @@
                 btn.setAttribute('aria-expanded', 'true');
                 openSpaceList(btn, true);
             });
+            // Ctrl+Shift+M (P2-7): main routes the space-switcher shortcut here.
+            try {
+                window.profiles.onOpenSwitcher?.(() => {
+                    const btn = document.getElementById('space-header');
+                    if (btn) {
+                        btn.setAttribute('aria-expanded', 'true');
+                        openSpaceList(btn, true);
+                    }
+                });
+            }
+            catch (e) { window.northstarLog?.debug('renderer', 'onOpenSwitcher: ' + e); }
             // Right-click it and you get what you get on the space's avatar in
             // the foot — the pill is the space, so both surfaces of it answer
             // the same way.
@@ -2401,28 +2595,16 @@
                     ['New space…', () => openCreateSpace()],
                     ['New folder', () => newFolderInline()],
                     ['sep'],
-                    [T('chrome.newTab', 'New tab'), () => window.palette.open()],
+                    [T('chrome.newTab', 'New tab'), () => window.tab.newPage()],
                 ]);
             });
             document.getElementById('sb-settings')?.addEventListener('click', () => {
                 window.electronAPI.openSettingsTab();
             });
-            // Downloads live in the foot too — revealed once the session
-            // has any downloads, opening the shared downloads panel.
-            const dl = document.getElementById('sb-downloads');
-            if (dl && window.downloads) {
-                const revealIfAny = async () => {
-                    try { if (((await window.downloads.getAll()) || []).length) dl.classList.remove('hidden'); }
-                    catch (e) { window.northstarLog?.debug('renderer', 'revealIfAny: ' + e); }
-                };
-                dl.addEventListener('click', () => {
-                    const r = dl.getBoundingClientRect();
-                    window.downloads.togglePanel({ left: r.left, right: r.right, top: r.top, bottom: r.bottom });
-                });
-                try { window.downloads.onChanged(() => dl.classList.remove('hidden')); }
-                catch (e) { window.northstarLog?.debug('renderer', 'revealIfAny: ' + e); }
-                revealIfAny();
-            }
+            // The sidebar-foot downloads button (#sb-downloads) is wired by
+            // initDownloads alongside the toolbar one — see there. Keeping both in
+            // one owner is what lets the auto-open / 5 s auto-close / progress ring
+            // behave identically whichever button the layout is showing (P1-4).
             // Edit-profile modal (name + emoji)
             const modal = document.getElementById('profile-rename-modal');
             const input = document.getElementById('prf-input');
@@ -2560,6 +2742,9 @@
             closeBtn.className = 'tab-close';
             closeBtn.tabIndex = -1;
             closeBtn.innerHTML = '×';
+            // mousedown (not click) so the freeze is set before the removal's
+            // relayout runs; the pointer is still over the strip (P1-3).
+            closeBtn.addEventListener('mousedown', (e) => { if (e.button === 0) freezeTopStripClose(); });
             closeBtn.onclick = (e) => { e.stopPropagation(); window.tab.remove(parseInt(index)); };
             if (isPrivate) {
                 const shield = document.createElement('span');
@@ -2580,6 +2765,7 @@
                     return;
                 e.preventDefault();
                 e.stopPropagation();
+                freezeTopStripClose(); // middle-click is a mouse close too (P1-3)
                 window.tab.remove(parseInt(index));
             });
             // Right-click a sidebar tab → a custom menu (pin, folder, close, …).
@@ -2596,7 +2782,7 @@
                 const curFolder = folderState.assign.get(idx) || null;
                 // Grouped as in the reference design doc; folder targets collapse
                 // into one submenu instead of a row per folder.
-                const rows = [[T('chrome.newTab', 'New tab'), () => window.palette.open()]];
+                const rows = [[T('chrome.newTab', 'New tab'), () => window.tab.newPage()]];
                 if (!isPinned) {
                     const moves = folderState.folders
                         .filter(f => f.id !== curFolder)
@@ -2680,10 +2866,12 @@
                             const first = [...tabsContainer.querySelectorAll('.tab-button:not(.pinned):not(.in-folder)')][0];
                             if (first && first !== btn) tabsContainer.insertBefore(btn, first);
                             window.tab.reorder([...tabsContainer.querySelectorAll('.tab-button')].map(el => +el.dataset.index));
+                            reportTabOrder();
                         }],
                         ['Move to Bottom', () => {
                             tabsContainer.appendChild(btn);
                             window.tab.reorder([...tabsContainer.querySelectorAll('.tab-button')].map(el => +el.dataset.index));
+                            reportTabOrder();
                         }],
                     ]],
                     ...(splitPair && splitPair.includes(idx)
@@ -2982,14 +3170,73 @@
             if (shouldActivate) {
                 setActiveTab(index);
             }
+            animateTabEnter(btn); // P1-2 — grow the new row in
             updateScrollShadows();
+        }
+        // Grow a newly-inserted row in (P1-2). Transform only, so siblings don't
+        // jump and the top strip's inline widths are untouched. Two rAFs so the
+        // start state paints before the transition runs.
+        function animateTabEnter(btn) {
+            if (prefersReducedMotion() || Date.now() - chromeBootAt < 1200)
+                return; // instant during boot / reduced motion
+            btn.classList.add('tab-enter');
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                if (!btn.isConnected) { btn.classList.remove('tab-enter'); return; }
+                btn.classList.add('tab-enter-active');
+                btn.classList.remove('tab-enter');
+                let done = false;
+                const end = () => {
+                    if (done) return;
+                    done = true;
+                    btn.classList.remove('tab-enter-active');
+                    btn.removeEventListener('transitionend', end);
+                };
+                btn.addEventListener('transitionend', end);
+                setTimeout(end, 400);
+            }));
+        }
+        // Collapse a closing row out, then drop the node (P1-2). Size is measured
+        // and animated inline (height in the sidebar, width in the top strip), so
+        // the row below slides up / the next ✕ slides under the cursor.
+        function animateTabLeave(btn, remove) {
+            const side = sideTabs();
+            const prop = side ? 'height' : 'width';
+            const size = side ? btn.offsetHeight : btn.offsetWidth;
+            btn.style[prop] = size + 'px';
+            btn.style.transition =
+                `${prop} var(--dur-2) var(--ease-accel), opacity var(--dur-2) var(--ease-accel), ` +
+                `margin var(--dur-2) var(--ease-accel), padding var(--dur-2) var(--ease-accel)`;
+            void btn.offsetWidth; // flush the start size before animating to 0
+            requestAnimationFrame(() => {
+                btn.style[prop] = '0px';
+                btn.style.opacity = '0';
+                btn.style.margin = '0';
+                btn.style.padding = '0';
+                btn.style.minWidth = btn.style.minHeight = '0';
+            });
+            let done = false;
+            const end = () => {
+                if (done) return;
+                done = true;
+                btn.removeEventListener('transitionend', end);
+                remove();
+            };
+            btn.addEventListener('transitionend', end);
+            setTimeout(end, 400); // fallback if transitionend never fires
         }
         function removeTabButton(index) {
             const btn = tabs.get(index);
-            if (btn) {
+            if (!btn)
+                return;
+            // Drop it from the map now so all logic treats the tab as gone; only
+            // the DOM node lingers for the collapse animation.
+            tabs.delete(index);
+            if (prefersReducedMotion()) {
                 btn.remove();
-                tabs.delete(index);
+                return;
             }
+            btn.classList.add('leaving');
+            animateTabLeave(btn, () => btn.remove());
         }
         // Toggle .in-split on the two tabs currently sharing the screen (split view).
         function applySplitMarks() {
@@ -3507,11 +3754,22 @@
             }
             for (const btn of normal) if (!grouped.has(btn)) frag.appendChild(btn);
             tabsContainer.appendChild(frag);
+            reportTabOrder();
             // Membership/collapse just changed which tiles are compact (favicon
             // width) and how wide the rest are, so recompute widths, then re-check
             // the overflow indicators once that has applied.
             updateTabWidths(tabs.size);
             setTimeout(updateScrollShadows, 20);
+        }
+        // Tell main the order the tabs are DRAWN in, top to bottom — Ctrl+1–9
+        // and Ctrl+Tab follow it (a new sidebar tab lands at the top of the loose
+        // tabs, which main's own tabOrder doesn't know).
+        function reportTabOrder() {
+            try {
+                const order = [...tabsContainer.querySelectorAll('.tab-button')].map(el => parseInt(el.dataset.index, 10));
+                window.tab.reportVisualOrder?.(order);
+            }
+            catch (e) { window.northstarLog?.debug('renderer', 'reportTabOrder: ' + e); }
         }
         // ── Tab media indicator: audible/muted speaker, recording mic/camera ─────
         const INDICATOR_SVG = {
@@ -3706,6 +3964,11 @@
                 tabsContainer.style.overflowX = '';
                 return;
             }
+            // Held after a mouse close until the pointer leaves the strip (P1-3):
+            // the removed node is gone but the survivors keep their widths, so the
+            // next ✕ lands under the cursor.
+            if (closingFreeze)
+                return;
             requestAnimationFrame(() => {
                 // Bail if we've switched to side mode since this frame was
                 // scheduled: the side path above already cleared the inline
@@ -4151,47 +4414,153 @@
         // Downloads button + panel
         // ─────────────────────────────────────────────────────────────────────────
         function initDownloads() {
-            const btn = document.getElementById('downloads-btn');
-            if (!btn || !window.downloads)
+            // One owner for BOTH download buttons — the toolbar one (top mode) and
+            // the sidebar-foot one (side mode, the default). Whichever the layout
+            // shows is where the panel anchors (P1-4).
+            const btns = ['downloads-btn', 'sb-downloads']
+                .map(id => document.getElementById(id)).filter(Boolean);
+            if (!btns.length || !window.downloads)
                 return;
             let panelOpen = false;
-            let activeCount = 0;
-            function syncButton(items) {
-                activeCount = items.filter(i => i.state === 'progressing').length;
-                btn.classList.toggle('hidden', items.length === 0);
-                btn.classList.toggle('downloading', activeCount > 0);
-                btn.title = activeCount > 0 ? `Downloads — ${activeCount} in progress` : 'Downloads';
+            // A partial panel (auto-opened by a new download) closes itself after
+            // 5 s; a full panel (opened by a click / Ctrl+J) never does.
+            let autoCloseArmed = false;
+            let autoCloseTimer = null;
+            let pointerOverButton = false;
+            let panelHovered = false;
+            const seen = new Set(); // download ids seen → a new id means "auto-open"
+            // A screen reader must never have the panel yanked out from under it
+            // (Chrome's rule for any accessibility mode). Read once at startup.
+            let a11yOn = false;
+            try { a11yOn = !!window.downloads.a11y?.(); }
+            catch (e) { a11yOn = false; }
+            const AUTO_CLOSE_MS = 5000;
+            const visibleBtn = () => btns.find(b => b.offsetParent !== null) || btns[0];
+            const panelAnchor = () => {
+                const r = visibleBtn().getBoundingClientRect();
+                return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+            };
+            // Progress ring: determinate from aggregate bytes, indeterminate (a
+            // spinning arc) when any in-flight item has no content-length.
+            function ringFor(b, prog) {
+                if (!prog.length) {
+                    b.classList.remove('dl-active', 'dl-indeterminate');
+                    b.style.removeProperty('--dl-progress');
+                    return;
+                }
+                const indeterminate = prog.some(i => !(i.totalBytes > 0));
+                b.classList.add('dl-active');
+                b.classList.toggle('dl-indeterminate', indeterminate);
+                if (!indeterminate) {
+                    const recv = prog.reduce((s, i) => s + (i.receivedBytes || 0), 0);
+                    const tot = prog.reduce((s, i) => s + (i.totalBytes || 0), 0);
+                    b.style.setProperty('--dl-progress', tot ? Math.min(1, recv / tot) : 0);
+                }
             }
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const r = btn.getBoundingClientRect();
-                panelOpen = await window.downloads.togglePanel({ left: r.left, right: r.right, top: r.top, bottom: r.bottom });
-                btn.classList.toggle('active', panelOpen);
-                if (panelOpen)
-                    btn.classList.remove('has-new');
+            function syncButton(items) {
+                const prog = items.filter(i => i.state === 'progressing');
+                for (const b of btns) {
+                    b.classList.toggle('hidden', items.length === 0);
+                    b.classList.toggle('downloading', prog.length > 0);
+                    b.title = prog.length > 0 ? `Downloads — ${prog.length} in progress` : 'Downloads';
+                    ringFor(b, prog);
+                }
+            }
+            function armAutoClose() {
+                clearTimeout(autoCloseTimer);
+                // Never while a screen reader is on, or while the pointer is over a
+                // button or the panel — the partial panel waits for you to leave.
+                if (!autoCloseArmed || a11yOn || pointerOverButton || panelHovered)
+                    return;
+                autoCloseTimer = setTimeout(() => {
+                    if (panelOpen && autoCloseArmed)
+                        window.downloads.closePanel();
+                }, AUTO_CLOSE_MS);
+            }
+            async function togglePanel({ auto = false } = {}) {
+                const open = await window.downloads.togglePanel(panelAnchor());
+                panelOpen = open;
+                for (const b of btns) {
+                    b.classList.toggle('active', open);
+                    if (open)
+                        b.classList.remove('has-new');
+                }
+                autoCloseArmed = open && auto;
+                if (open)
+                    armAutoClose();
+                else
+                    clearTimeout(autoCloseTimer);
+            }
+            // A click / Ctrl+J opens full mode (all session downloads), which never
+            // auto-closes. The button is hidden until the first download.
+            async function openManual() {
+                if (btns.every(b => b.classList.contains('hidden')))
+                    return;
+                if (panelOpen && !autoCloseArmed)
+                    return; // already up in full mode → the click is a toggle-close handled below
+                await togglePanel({ auto: false });
+            }
+            // A new download pops the partial panel and starts the 5 s countdown.
+            async function openPartial() {
+                if (btns.every(b => b.classList.contains('hidden')))
+                    return;
+                if (panelOpen) { autoCloseArmed = true; armAutoClose(); return; }
+                await togglePanel({ auto: true });
+            }
+            for (const b of btns) {
+                b.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (panelOpen) { window.downloads.closePanel(); return; }
+                    togglePanel({ auto: false });
+                });
+                b.addEventListener('mouseenter', () => { pointerOverButton = true; clearTimeout(autoCloseTimer); });
+                b.addEventListener('mouseleave', () => { pointerOverButton = false; armAutoClose(); });
+            }
+            window.downloads.onShortcut?.(() => openManual());
+            // The panel view reports its own hover (it is a separate WebContentsView,
+            // so the chrome can't see the pointer enter it) — pauses the countdown.
+            window.downloads.onPanelHover?.((hovered) => {
+                panelHovered = !!hovered;
+                if (panelHovered)
+                    clearTimeout(autoCloseTimer);
+                else
+                    armAutoClose();
             });
             window.downloads.onPanelClosed(() => {
                 panelOpen = false;
-                btn.classList.remove('active');
+                autoCloseArmed = false;
+                clearTimeout(autoCloseTimer);
+                for (const b of btns)
+                    b.classList.remove('active');
             });
             window.downloads.onChanged(async (item) => {
                 const items = await window.downloads.getAll();
                 syncButton(items);
                 // Pulse ends → mark completion so the user notices the finished file
                 if (item && item.state === 'completed' && !panelOpen)
-                    btn.classList.add('has-new');
+                    for (const b of btns)
+                        b.classList.add('has-new');
+                // A newly-started download opens the partial panel within this tick,
+                // right after syncButton reveals the button (P1-4, box 28).
+                if (item && item.state === 'progressing' && !seen.has(item.id)) {
+                    seen.add(item.id);
+                    openPartial();
+                }
             });
-            // Close the panel on clicks outside the button (chrome or page content)
+            // Close the panel on clicks outside either button (chrome or page).
             window.addEventListener('click', (e) => {
-                if (panelOpen && !btn.contains(e.target))
+                if (panelOpen && !btns.some(b => b.contains(e.target)))
                     window.downloads.closePanel();
             });
             if (window.contentInteraction) {
                 window.contentInteraction.onClicked(() => { if (panelOpen)
                     window.downloads.closePanel(); });
             }
-            // Restore button state for downloads started earlier in the session
-            window.downloads.getAll().then(syncButton).catch(() => { });
+            // Restore button state for downloads started earlier in the session.
+            window.downloads.getAll().then((items) => {
+                for (const it of items) seen.add(it.id); // don't auto-open on restore
+                syncButton(items);
+            }).catch(() => { });
         }
         // ─────────────────────────────────────────────────────────────────────────
         // Reader mode + Picture-in-Picture buttons

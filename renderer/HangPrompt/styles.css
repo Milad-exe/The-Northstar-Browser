@@ -1,0 +1,28 @@
+/* Hang prompt (P2-3). The card is sized by its view (features/hang-prompt.js);
+   the body is transparent so only the surface-card shows. Shares the surface
+   tokens so it reads as one system with the other overlays. */
+html, body {
+  margin: 0; height: 100%; background: transparent;
+  font-family: var(--font); -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+#panel {
+  margin: 0; padding: var(--sp-4);
+  display: flex; flex-direction: column; gap: var(--sp-4);
+}
+.hang-msg {
+  font-size: var(--fs-body); font-weight: 600; color: var(--text);
+  letter-spacing: var(--tracking);
+}
+.hang-detail { font-size: var(--fs-micro); color: var(--text-2); line-height: 1.4; }
+.hang-actions { display: flex; justify-content: flex-end; gap: var(--sp-5); margin-top: var(--sp-3); }
+.hang-btn {
+  padding: 6px 14px; border-radius: var(--r-md); border: none; cursor: pointer;
+  font-family: var(--font); font-size: var(--fs-body); font-weight: 500;
+  background: var(--hover); color: var(--text);
+  transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+.hang-btn:hover { background: var(--active-bg); }
+.hang-btn.primary { background: var(--accent); color: var(--accent-ink); }
+.hang-btn.primary:hover { filter: brightness(1.08); }
+.hang-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-wash); }

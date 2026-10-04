@@ -145,3 +145,14 @@ ink.code-workspace
 .dev-profile/
 # Transient build stamp (written by scripts/dist.js during a build)
 build-stamp.json
+
+# Claude / AI-assistant files — local only, never committed
+CLAUDE.md
+CLAUDE.local.md
+**/CLAUDE.md
+.claude/
+.claude-*/
+.mcp.json
+docs/chrome-ux/
+docs/ui-polish/
+docs/claude-setup/

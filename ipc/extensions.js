@@ -7,6 +7,7 @@
 const log = require('../features/log');
 const path = require('path');
 const { dialog, WebContentsView } = require('electron');
+const { signalEnter, playOutThenHide } = require('./../features/overlay-anim');
 const { resolveAppFile } = require('../app-paths');
 const extensions = require('../features/extensions');
 const WEB_STORE_URL = 'https://chromewebstore.google.com/';
@@ -56,18 +57,13 @@ async function ensurePanel(wd) {
 function hidePanel(wd) {
     if (!wd?.extensionsPanel)
         return false;
-    try {
-        wd.extensionsPanel.setVisible(false);
-        wd.extensionsPanelOpen = false;
-        try {
-            wd.window.webContents.send('extensions-panel-closed');
-        }
+    wd.extensionsPanelOpen = false;
+    // Fade the card out (P1-6), then hide the view and tell the chrome.
+    playOutThenHide(wd.extensionsPanel, () => {
+        try { wd.window.webContents.send('extensions-panel-closed'); }
         catch (e) { log.debug('extensions', 'hidePanel', e); }
-        return true;
-    }
-    catch {
-        return false;
-    }
+    });
+    return true;
 }
 /**
  * Gap-layer handlers (see preload/ext-polyfill.js).
@@ -790,6 +786,7 @@ function register(ipcMain, { wm }) {
             view.setVisible(true);
             wd.extensionsPanelOpen = true;
             wd.extensionsPanelAnchor = anchor; // for the self-measured resize
+            signalEnter(view); // P1-6 fade-in
             return true;
         }
         catch (err) {

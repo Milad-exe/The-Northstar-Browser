@@ -46,6 +46,11 @@ html, body {
 }
 .dl-status { font-size: var(--fs-micro); color: var(--text-3); white-space: nowrap; }
 .dl-status.error { color: var(--danger); }
+.dl-status.warn { color: var(--danger); font-weight: 600; }
+/* Dangerous type (P1-5): tint the icon and name so the warning reads before
+   the click, and mark the row so hover doesn't imply a safe one-click open. */
+.dl-item.dangerous .dl-icon { color: var(--danger); }
+.dl-item.dangerous .dl-name { color: var(--danger); }
 
 /* The bar is the one place progress is shown; it stays hairline-thin so a row
    mid-download does not shout over the finished ones. */

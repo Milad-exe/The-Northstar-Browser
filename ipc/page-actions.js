@@ -13,6 +13,7 @@
  * first.
  */
 const log = require('../features/log');
+const { signalEnter, playOutThenHide } = require('../features/overlay-anim');
 const path = require('path');
 const { resolveAppFile } = require('../app-paths');
 const { WebContentsView, clipboard } = require('electron');
@@ -71,17 +72,13 @@ async function ensurePanel(wd) {
 function hidePanel(wd) {
     if (!wd?.pageActions)
         return false;
-    try {
-        wd.pageActions.setVisible(false);
-        wd.pageActionsOpen = false;
+    wd.pageActionsOpen = false;
+    // Fade the card out (P1-6), then hide the view and hand focus back.
+    playOutThenHide(wd.pageActions, () => {
         try { wd.window.webContents.focus(); }
         catch (e) { log.debug('page-actions', 'refocus', e); }
-        return true;
-    }
-    catch (e) {
-        log.debug('page-actions', 'hidePanel', e);
-        return false;
-    }
+    });
+    return true;
 }
 
 function register(ipcMain, { wm }) {
@@ -107,6 +104,7 @@ function register(ipcMain, { wm }) {
             wd.pageActionsShownAt = Date.now();
             try { view.webContents.send('page-actions-state', state || {}); }
             catch (e) { log.debug('page-actions', 'state', e); }
+            signalEnter(view); // P1-6 fade-in
             try { view.webContents.focus(); }
             catch (e) { log.debug('page-actions', 'focus', e); }
             return true;

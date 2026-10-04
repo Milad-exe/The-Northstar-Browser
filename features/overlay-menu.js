@@ -20,8 +20,8 @@
  */
 const log = require('./log');
 
-let showFn = null;   // injected by ipc/ctxmenu at registration (see palette-bridge
-                     // for why features/ does not require ipc/ directly)
+let showFn = null;   // injected by ipc/ctxmenu at registration (features/ does
+                     // not require ipc/ directly — ipc/ already requires features/)
 let hideFn = null;   // ditto, to dismiss the overlay from feature-layer code
 
 function provide(fn, hide) {

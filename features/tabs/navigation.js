@@ -11,6 +11,9 @@
  /* Mixed into Tabs.prototype at the bottom of features/tabs.js — `this` is the
     Tabs instance and nothing here requires Tabs back. */
 const log = require('../log');
+const { pathToFileURL } = require('url');
+const { resolveAppFile } = require('../../app-paths');
+const { internalHistoryEntry } = require('./internal-page');
 
 /* When the custom history tree and Chromium's own session history agree on the
    adjacent entry, move through it with the NATIVE navigation — that restores the
@@ -44,22 +47,47 @@ function nativeHistoryHas(tab, url, dir) {
     }
 }
 
+/* Load one history entry into the tab (`self` is the Tabs instance). An
+   internal page is stored as its token ('home'), which is not a URL —
+   loadURL('home') was ERR_INVALID_URL, so Back from a site typed on the new-tab
+   page hit an error page. Resolve it to its file and load in place; Settings
+   (privileged preload, fixed at tab creation) opens as its own tab instead.
+   `dir` (-1/+1) allows the native back/forward-cache fast path. */
+function loadHistoryEntry(self, index, tab, url, dir = 0) {
+    const internal = internalHistoryEntry(url);
+    if (internal && !internal.inPlace) {
+        self.openInternalPage(internal.type, internal.section);
+        return;
+    }
+    if (internal?.type === 'home') {
+        self._loadNewTabPage(index); // keeps a private tab's #private
+        return;
+    }
+    const target = internal
+        ? pathToFileURL(resolveAppFile(internal.file)).href + (internal.section ? '#' + internal.section : '')
+        : url;
+    tab.setNavigatingProgrammatically(true);
+    if (dir < 0 && nativeHistoryHas(tab, target, -1))
+        tab.webContents.navigationHistory.goBack();
+    else if (dir > 0 && nativeHistoryHas(tab, target, 1))
+        tab.webContents.navigationHistory.goForward();
+    else
+        tab.webContents.loadURL(target);
+    self.tabUrls.set(index, url);
+}
+
 module.exports = {
     goBack(index) {
         if (this.tabMap.has(index)) {
             const tab = this.tabMap.get(index);
             const previousUrl = this.navigationHistory.goBack(index);
-            // Only navigate to a REAL previous page. The new-tab page is the
-            // history root, not a destination — going "back" to a blank tab is
-            // never what the user wants (and canGoBack already refuses it), so a
-            // null/'newtab' result is a no-op rather than blanking the tab.
+            // Only navigate to a REAL previous page. The blank tab ('newtab') is
+            // the history root, not a destination — going "back" to it is never
+            // what the user wants (and canGoBack already refuses it), so a
+            // null/'newtab' result is a no-op rather than blanking the tab. The
+            // new-tab PAGE ('home') is a destination, and Back returns to it.
             if (previousUrl && previousUrl !== 'newtab') {
-                tab.setNavigatingProgrammatically(true);
-                if (nativeHistoryHas(tab, previousUrl, -1))
-                    tab.webContents.navigationHistory.goBack();
-                else
-                    tab.webContents.loadURL(previousUrl);
-                this.tabUrls.set(index, previousUrl);
+                loadHistoryEntry(this, index, tab, previousUrl, -1);
                 this.sendNavigationUpdate(index);
             }
         }
@@ -70,12 +98,7 @@ module.exports = {
             const nextUrl = this.navigationHistory.goForward(index);
             const isPriv = this.privateTabs.has(index);
             if (nextUrl && nextUrl !== 'newtab') {
-                tab.setNavigatingProgrammatically(true);
-                if (nativeHistoryHas(tab, nextUrl, 1))
-                    tab.webContents.navigationHistory.goForward();
-                else
-                    tab.webContents.loadURL(nextUrl);
-                this.tabUrls.set(index, nextUrl);
+                loadHistoryEntry(this, index, tab, nextUrl, 1);
             }
             else if (nextUrl === 'newtab') {
                 tab.setNavigatingProgrammatically(true);
@@ -95,19 +118,7 @@ module.exports = {
             return;
         tab.setNavigatingProgrammatically(true);
         if (url && url !== 'newtab') {
-            tab.webContents.loadURL(url);
-            this.tabUrls.set(index, url);
-            // This tab now has somewhere to be, so the palette's question is
-            // answered — whether it was answered IN the palette or elsewhere
-            // (a link opened in a new tab, a bookmark, a restored session).
-            if (index === this.activeTabIndex) {
-                try {
-                    const wd = this.getWindowData();
-                    if (wd?.paletteOpen)
-                        require('./palette-bridge').hidePalette(wd);
-                }
-                catch (e) { log.debug('tabs', 'hide palette on load', e); }
-            }
+            loadHistoryEntry(this, index, tab, url);
         }
         else {
             const isPriv = this.privateTabs.has(index);

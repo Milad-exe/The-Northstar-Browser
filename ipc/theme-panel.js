@@ -15,6 +15,7 @@ const path = require('path');
 const { resolveAppFile } = require('../app-paths');
 const { WebContentsView } = require('electron');
 const { panelBounds, PANEL_RADIUS, W_MD } = require('../features/overlay-bounds');
+const { signalEnter, playOutThenHide } = require('../features/overlay-anim');
 
 const PANEL_W = W_MD;
 /* Sized to hold the WHOLE instrument without an inner scroll: the mode toggle,
@@ -65,19 +66,15 @@ async function ensurePanel(wd) {
 function hidePanel(wd) {
     if (!wd?.themePanel)
         return false;
-    try {
-        wd.themePanel.setVisible(false);
-        wd.themePanelOpen = false;
-        // The overlay took keyboard focus; hand it back or the window is left
-        // with nothing focused and the next accelerator beeps.
+    wd.themePanelOpen = false;
+    // Fade the card out (P1-6), then hide the view and restore keyboard focus —
+    // otherwise the window is left with nothing focused and the next accelerator
+    // beeps.
+    playOutThenHide(wd.themePanel, () => {
         try { wd.window.webContents.focus(); }
         catch (e) { log.debug('theme-panel', 'refocus', e); }
-        return true;
-    }
-    catch (e) {
-        log.debug('theme-panel', 'hidePanel', e);
-        return false;
-    }
+    });
+    return true;
 }
 
 function register(ipcMain, { wm }) {
@@ -109,6 +106,7 @@ function register(ipcMain, { wm }) {
             wd.themePanelShownAt = Date.now();
             try { view.webContents.send('theme-panel-scope', wd.themePanelScope); }
             catch (e) { log.debug('theme-panel', 'scope', e); }
+            signalEnter(view); // P1-6 fade-in
             try { view.webContents.focus(); }
             catch (e) { log.debug('theme-panel', 'focus', e); }
             return true;

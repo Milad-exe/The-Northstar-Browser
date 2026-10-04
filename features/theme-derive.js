@@ -120,6 +120,31 @@ const RAMP = {
     dark:  { bg: -0.030, shell: 0, page: +0.040, surface: +0.085, surface2: +0.125 },
     light: { bg: -0.050, shell: 0, page: +0.045, surface: +0.032, surface2: +0.016 },
 };
+/* Depth — the second axis, so the chrome is more than a monochrome lightness
+   ramp. Each layer carries not just its own lightness but a little more chroma
+   and a small hue drift as it rises (a recessed well cooler and greyer, a raised
+   card warmer and a touch richer) — the way real surfaces shift under light.
+   `dh` is degrees of OKLCH hue drift, `cMul` scales the ground chroma; both are
+   multiplied by the seed's `depth` (0 = the old flat ramp, exactly; 1 = full),
+   so every theme derived before this is unchanged at depth 0. The magnitudes are
+   deliberately small — the accent must stay the loudest colour on screen. */
+const DEPTH = {
+    dark: {
+        bg:       { dh: -4, cMul: 0.60 },
+        shell:    { dh:  0, cMul: 1.00 },
+        page:     { dh: +2, cMul: 1.15 },
+        surface:  { dh: +4, cMul: 1.40 },
+        surface2: { dh: +6, cMul: 1.70 },
+    },
+    light: {
+        bg:       { dh: -4, cMul: 0.60 },
+        shell:    { dh:  0, cMul: 1.00 },
+        page:     { dh: +2, cMul: 1.15 },
+        surface:  { dh: +4, cMul: 1.35 },
+        surface2: { dh: +6, cMul: 1.50 },
+    },
+};
+const DEPTH_DEFAULT = 0.55;
 /* Text lightness is absolute — it is the one thing that must not follow the
    ground, because it is what has to stay legible on it. */
 const TEXT_L = {
@@ -348,7 +373,16 @@ function derive(seed) {
     const textC = inkLch
         ? Math.min(inkLch.C, INK_CHROMA_MAX)
         : Math.min(ground.C, TEXT_CHROMA_MAX);
-    const g = L => fromLch({ L, C: groundC, h: ground.h });
+    /* Each ground layer is the ground hue/chroma at its ramp lightness, PLUS the
+       depth axis: a per-layer chroma multiplier and hue drift (see DEPTH). At
+       depth 0 this collapses to the old `fromLch(step, groundC, ground.h)`. */
+    const depth = clamp01(seed && seed.depth != null ? Number(seed.depth) : DEPTH_DEFAULT);
+    const dmap = DEPTH[mode];
+    const gKey = (key) => {
+        const d = dmap[key] || { dh: 0, cMul: 1 };
+        const C = Math.max(0, groundC * (1 + (d.cMul - 1) * depth));
+        return fromLch({ L: step(key), C, h: ground.h + d.dh * depth });
+    };
     const t = L => fromLch({ L, C: textC, h: textH });
 
     /* Secondary and tertiary ink SOLVE for their contrast floor instead of
@@ -417,7 +451,7 @@ function derive(seed) {
     const dangerC = accentIsRed ? 0.17 : 0.19;
     let danger = fromLch({ L: mode === 'dark' ? 0.74 : 0.55, C: dangerC, h: dangerHue });
     {   // …and must stay visible on a card, which a bright ground can undo.
-        const card = g(step('surface'));
+        const card = gKey('surface');
         const stepL = mode === 'dark' ? 0.02 : -0.02;
         let L = mode === 'dark' ? 0.74 : 0.55;
         for (let i = 0; i < 40 && contrast(danger, card) < 3; i++) {
@@ -428,7 +462,7 @@ function derive(seed) {
         }
     }
 
-    const textHex = solve(tl.text, 4.5, [g(step('page')), g(step('surface'))]);
+    const textHex = solve(tl.text, 4.5, [gKey('page'), gKey('surface')]);
     /* Secondary ink normally clears 4.5:1, the body-text floor. A vivid ground
        is the one case where that is unachievable rather than merely awkward:
        on a mid-tone chrome there is no lightness in either direction that
@@ -436,7 +470,7 @@ function derive(seed) {
        primary ink — the only solutions are white, which IS the primary. So a
        vivid theme drops secondary ink to 3:1, the floor for text that is not
        the thing you are reading. Body text keeps 4.5 everywhere, always. */
-    const text2Hex = solve(tl.text2, vivid ? 3 : 4.5, [g(step('shell')), g(step('surface'))],
+    const text2Hex = solve(tl.text2, vivid ? 3 : 4.5, [gKey('shell'), gKey('surface')],
         { L: toLch(textHex).L, min: 0.10 });
 
     /* Tertiary ink is the DIMMEST tone, and solving it independently could put
@@ -445,7 +479,7 @@ function derive(seed) {
        the secondary toward the ground instead and stop at the last step that
        still clears 3:1: dimmer than --text-2 by construction, legible by test. */
     const text3Hex = (() => {
-        const grounds = [g(step('shell')), g(step('surface'))];
+        const grounds = [gKey('shell'), gKey('surface')];
         const toward = mode === 'dark' ? -0.02 : 0.02;
         const startL = toLch(text2Hex).L;
         let best = text2Hex;
@@ -459,11 +493,11 @@ function derive(seed) {
     })();
 
     const tokens = {
-        '--shell': g(step('shell')),
-        '--page': g(step('page')),
-        '--bg': g(step('bg')),
-        '--surface': g(step('surface')),
-        '--surface-2': g(step('surface2')),
+        '--shell': gKey('shell'),
+        '--page': gKey('page'),
+        '--bg': gKey('bg'),
+        '--surface': gKey('surface'),
+        '--surface-2': gKey('surface2'),
         '--text': textHex,
         '--text-2': text2Hex,
         '--text-3': text3Hex,
@@ -483,6 +517,15 @@ function derive(seed) {
         '--shadow-pop': mode === 'light'
             ? '0 10px 30px rgba(30,35,60,0.14), 0 2px 6px rgba(30,35,60,0.08)'
             : '0 16px 40px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.30)',
+        /* Depth, part two: surfaces catch light instead of being flat fills.
+           --surface-hi is the top-edge highlight (the macOS "lit edge") — the
+           card already had a fixed 8% one; this keeps that as the baseline and
+           strengthens it with depth. --surface-grad is a whisper of a top-lighter
+           gradient, absent at depth 0. surface.css applies both to .surface-card. */
+        '--surface-hi': `inset 0 0.5px 0 rgba(255,255,255,${round((mode === 'light' ? 0.9 : 0.08) + (mode === 'light' ? 0 : 0.10) * depth, 3)})`,
+        '--surface-grad': depth > 0
+            ? `linear-gradient(180deg, rgba(255,255,255,${round((mode === 'light' ? 0.42 : 0.03) * depth, 3)}) 0%, rgba(255,255,255,0) 42%)`
+            : 'none',
     };
 
     /* The chrome's wash — the theme's gradient, painted OVER --shell rather than
@@ -495,6 +538,9 @@ function derive(seed) {
        radial of the same hue would be redundant — and, crucially, it means
        forking a flat built-in stays flat until you add a second colour, rather
        than the browser changing the instant you open the editor. */
+    /* A role-based theme (no colours[]) previously stayed a single flat ground.
+       With depth it gets a faint tonal wash in its own hue instead — see
+       faintWash. Zen (colours[]) themes keep their explicit pooled gradient. */
     const gradColors = seed && Array.isArray(seed.colors) ? seed.colors : null;
     tokens['--shell-wash'] = gradColors && gradColors.length >= 2
         ? gradientCss(gradColors, seed.positions, mode, wheel ? wheel.intensity : 1)

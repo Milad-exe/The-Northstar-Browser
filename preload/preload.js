@@ -211,6 +211,11 @@ document.addEventListener('click', (event) => {
 }, true);
 exposeInternal("tab", {
     add: () => ipcRenderer.invoke("addTab"),
+    newPage: () => ipcRenderer.invoke("tabs:new-page"), // open the new-tab page (P2)
+    listOpen: () => ipcRenderer.invoke('tabs:list-open'), // this space's open tabs (NTP tab search)
+    // End a Ctrl+Shift+A tab search: jump to `index` (null = back where it began)
+    // and close the search page.
+    searchDone: (index) => ipcRenderer.invoke('tabs:search-done', index),
     addPrivate: () => ipcRenderer.invoke("addPrivateTab"),
     addLazy: (url) => ipcRenderer.invoke("addTabLazy", url),
     remove: (index) => ipcRenderer.invoke("removeTab", index),
@@ -236,12 +241,15 @@ exposeInternal("tab", {
     fetchFavicon: (url) => ipcRenderer.invoke('favicon-fetch', url),
     cachedFavicon: (host) => ipcRenderer.invoke('favicon-cached', host),
     reorder: (order) => ipcRenderer.invoke('reorderTabs', order),
+    reportVisualOrder: (order) => ipcRenderer.send('tabs:visual-order', order),
     onTabCreated: (callback) => ipcRenderer.on('tab-created', callback),
     onTabRemoved: (callback) => ipcRenderer.on('tab-removed', callback),
     onTabSwitched: (callback) => ipcRenderer.on('tab-switched', callback),
     onUrlUpdated: (callback) => ipcRenderer.on('url-updated', callback),
     onNavigationUpdated: (callback) => ipcRenderer.on('navigation-updated', callback),
     onTabLoading: (callback) => ipcRenderer.on('tab-loading', callback),
+    onTabSlept: (callback) => ipcRenderer.on('tab-slept', callback),   // P1-8
+    onTabCrashed: (callback) => ipcRenderer.on('tab-crashed', callback), // P1-8
     onMediaIndicator: (callback) => ipcRenderer.on('tab-media-indicator', callback)
 });
 // Essentials — pinned favourites at the top of the tab sidebar.
@@ -294,6 +302,8 @@ exposeInternal('profiles', {
     // Main asks the renderer to switch workspaces (e.g. the active workspace's
     // last tab was closed but another workspace still has tabs).
     onForceSwitch: (cb) => ipcRenderer.on('switch-to-workspace', (_e, id) => cb(id)),
+    // Ctrl+Shift+M (P2-7): main asks the renderer to open the space switcher.
+    onOpenSwitcher: (cb) => ipcRenderer.on('open-space-switcher', () => cb()),
     onRename: (cb) => ipcRenderer.on('rename-profile', (_e, id) => cb(id)),
 });
 // Personas — optional rename + live id→name map for labelling history/suggestions.
@@ -302,10 +312,6 @@ exposeInternal('profiles', {
 exposeInternal('ctxMenu', {
     open: (data) => ipcRenderer.invoke('ctxmenu:open', data),
     onPicked: (cb) => ipcRenderer.on('ctxmenu:picked', (_e, result) => cb(result)),
-});
-// Command palette — opens in place of creating a blank tab.
-exposeInternal('palette', {
-    open: () => ipcRenderer.invoke('palette:open'),
 });
 /* The theme popup, opened from the sidebar's context menu. It carries the
    trigger's rect so features/overlay-bounds.js can hang the panel off it. */
@@ -619,6 +625,11 @@ exposeInternal('downloads', {
     closePanel: () => ipcRenderer.invoke('downloads-panel-close'),
     onChanged: (fn) => ipcRenderer.on('downloads-changed', (_e, item) => fn(item)),
     onPanelClosed: (fn) => ipcRenderer.on('downloads-panel-closed', () => fn()),
+    onShortcut: (fn) => ipcRenderer.on('downloads:shortcut-open', () => fn()), // Ctrl+J (P0-8)
+    // P1-4: whether the partial panel may auto-close (no, under a screen reader),
+    // and the panel view's own hover so the countdown pauses over it.
+    a11y: () => { try { return ipcRenderer.sendSync('downloads-a11y'); } catch { return false; } },
+    onPanelHover: (fn) => ipcRenderer.on('downloads-panel-hover', (_e, hovered) => fn(hovered)),
 });
 // ── Password autofill + save detection (runs in web-page tabs) ────────────────
 // The preload shares the page DOM, so we read/fill fields here and talk to the
@@ -743,4 +754,31 @@ exposeInternal('urlUtils', {
         }
         catch { }
     }, { passive: true, capture: true });
+})();
+// ── Sleep-eligibility signals (P0-5) ──────────────────────────────────────────
+// Tell main when a page earns one of Chrome's discard protections, so the
+// sleeper never frees a process with unsent user input or a popped-out video.
+// IPC only — nothing is written onto `window`, since with contextIsolation the
+// preload's world is invisible to the sleeper's executeJavaScript anyway. Only
+// real web pages are slept, so only they report.
+(() => {
+    if (location.protocol !== 'http:' && location.protocol !== 'https:')
+        return;
+    // Form interaction / user edits. One-shot per document: the first input on
+    // any field marks the page dirty, and a fresh navigation re-runs this
+    // preload (so the flag resets without an explicit "clean" message).
+    let dirtySent = false;
+    document.addEventListener('input', () => {
+        if (dirtySent)
+            return;
+        dirtySent = true;
+        try { ipcRenderer.send('page-dirty'); }
+        catch { }
+    }, { passive: true, capture: true });
+    // Picture-in-Picture. The events fire on the <video> element and are seen on
+    // the document in the capture phase; they also cover a PiP window the user
+    // closes from the OS, which never goes through our toggle.
+    const pip = (active) => { try { ipcRenderer.send('page-pip', active); } catch { } };
+    document.addEventListener('enterpictureinpicture', () => pip(true), { capture: true });
+    document.addEventListener('leavepictureinpicture', () => pip(false), { capture: true });
 })();

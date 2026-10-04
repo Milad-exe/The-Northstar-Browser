@@ -32,9 +32,9 @@ function overlayViewsOf(wd) {
         // Window-owned panels, created lazily and kept.
         wd.sidePanel, wd.sidePanelHeader, wd.menu, wd.suggestions,
         wd.bookmarkPrompt, wd.folderDropdown, wd.downloadsPanel,
-        wd.extensionsPanel, wd.passwordPrompt, wd.ctxMenu, wd.palette,
+        wd.extensionsPanel, wd.passwordPrompt, wd.ctxMenu,
         wd.themePanel, wd.pageActions, wd.permView, wd.miniPlayer,
-        wd.siteInfoView,
+        wd.siteInfoView, wd.hangPrompt,
     ].filter(Boolean);
 }
 

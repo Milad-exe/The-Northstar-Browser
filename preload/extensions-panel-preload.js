@@ -48,3 +48,11 @@ contextBridge.exposeInMainWorld('extPanel', {
     // resizes to fit rather than guessing from a row count.
     setHeight: (h) => ipcRenderer.invoke('extensions-panel-height', h),
 });
+// Overlay enter/exit motion (P1-6). Main signals a show (overlay:enter) and a
+// close (overlay:leave); the page fades, then acks overlay:leave-done so main
+// hides the view. Sandboxed-safe: electron IPC only.
+contextBridge.exposeInMainWorld('overlayAnim', {
+    onEnter: (fn) => ipcRenderer.on('overlay:enter', () => fn()),
+    onLeave: (fn) => ipcRenderer.on('overlay:leave', () => fn()),
+    leaveDone: () => { try { ipcRenderer.send('overlay:leave-done'); } catch (e) { /* view gone */ } },
+});

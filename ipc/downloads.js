@@ -11,6 +11,7 @@ const path = require('path');
 const { resolveAppFile } = require('../app-paths');
 const { WebContentsView, shell, app } = require('electron');
 const downloadManager = require('../features/download-manager');
+const { signalEnter, playOutThenHide } = require('../features/overlay-anim');
 const { panelBounds, PANEL_RADIUS, W_MD } = require('../features/overlay-bounds');
 const PANEL_WIDTH = W_MD;
 // Mirrors renderer/Downloads/styles.css + the shared panel anatomy: a
@@ -56,18 +57,14 @@ async function ensurePanel(wd) {
 function hidePanel(wd) {
     if (!wd?.downloadsPanel)
         return false;
-    try {
-        wd.downloadsPanel.setVisible(false);
-        wd.downloadsPanelOpen = false;
-        try {
-            wd.window.webContents.send('downloads-panel-closed');
-        }
+    // Play the close fade inside the page, then hide the view (P1-6). The flag
+    // flips now so a re-click reopens cleanly; the chrome is told once hidden.
+    wd.downloadsPanelOpen = false;
+    playOutThenHide(wd.downloadsPanel, () => {
+        try { wd.window.webContents.send('downloads-panel-closed'); }
         catch (e) { log.debug('downloads', 'hidePanel', e); }
-        return true;
-    }
-    catch {
-        return false;
-    }
+    });
+    return true;
 }
 function register(ipcMain, { wm }) {
     // Push every item change to all windows: chrome button + open panels.
@@ -85,8 +82,26 @@ function register(ipcMain, { wm }) {
             }
         }
     });
+    // P1-4: the chrome asks once whether a screen reader is active, so the
+    // partial panel never auto-closes under one. sendSync keeps the chrome's
+    // decision synchronous at startup.
+    ipcMain.on('downloads-a11y', (e) => {
+        try { e.returnValue = app.isAccessibilitySupportEnabled(); }
+        catch { e.returnValue = false; }
+    });
+    // The panel view reports its own hover; forward it to that window's chrome so
+    // the auto-close countdown pauses while the pointer is over the panel.
+    ipcMain.on('downloads-panel-hover-report', (e, hovered) => {
+        for (const wd of wm.getAllWindows()) {
+            if (wd.downloadsPanel?.webContents === e.sender) {
+                try { wd.window.webContents.send('downloads-panel-hover', !!hovered); }
+                catch (err) { log.debug('downloads', 'panel-hover', err); }
+                break;
+            }
+        }
+    });
     ipcMain.handle('downloads-get', () => downloadManager.getAll());
-    ipcMain.handle('downloads-action', (_e, action, id) => {
+    ipcMain.handle('downloads-action', (_e, action, id, confirmed) => {
         switch (action) {
             case 'cancel':
                 downloadManager.cancel(id);
@@ -98,7 +113,9 @@ function register(ipcMain, { wm }) {
                 downloadManager.resume(id);
                 break;
             case 'open-file':
-                downloadManager.openFile(id);
+                // confirmed (P1-5): the panel sends true only on a dangerous
+                // file's deliberate second click.
+                downloadManager.openFile(id, confirmed === true);
                 break;
             case 'show-in-folder':
                 downloadManager.showInFolder(id);
@@ -133,6 +150,7 @@ function register(ipcMain, { wm }) {
             view.webContents.send('downloads-data', items);
             view.setVisible(true);
             wd.downloadsPanelOpen = true;
+            signalEnter(view); // P1-6 fade-in
             return true;
         }
         catch (err) {

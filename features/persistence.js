@@ -71,6 +71,10 @@ const DEFAULTS = {
     // Interface language: 'system' follows the OS, otherwise a locale id from
     // locales/*.json. Web pages are unaffected (Accept-Language is not touched).
     language: 'system',
+    // The new-tab page (renderer/NewTab): which sections show (both off = the
+    // minimal, field-only page), the user's own shortcut tiles
+    // [{ url, title }], and the urls of tiles they removed with ×.
+    newTabPage: { shortcuts: true, recent: true, tiles: [], hidden: [] },
 };
 class Persistence {
     dir; // ~/<userData>/northstar

@@ -1,0 +1,244 @@
+/* New-tab page (P2 pivot). A quiet, themed page: a centered field, then the
+   space's quick links and recent pages. Uses the shared tokens so it follows
+   the active theme like the other internal pages. */
+.ntp {
+  display: flex; min-height: 100vh; margin: 0;
+  justify-content: center;
+}
+/* `hidden` must always win. Any rule here that sets `display` (the sections are
+   flex) outranks the UA's [hidden] { display: none }, so a section switched off
+   in Customise stayed on screen and the tiles only shifted. One rule for the
+   whole page rather than one per class. */
+.ntp [hidden] { display: none !important; }
+.ntp-wrap {
+  width: 100%; max-width: 680px;
+  padding: 18vh var(--sp-6, 24px) var(--sp-7, 48px);
+  display: flex; flex-direction: column; gap: var(--sp-7, 48px);
+}
+
+/* The field — the hero of the page, echoing the omnibox but larger. */
+.ntp-omni {
+  display: flex; align-items: center; gap: var(--sp-5, 12px);
+  height: 52px; padding: 0 var(--sp-5, 16px);
+  background: var(--surface); border-radius: var(--r-lg, 14px);
+  box-shadow: var(--ring-2, inset 0 0 0 1px var(--border-2));
+  transition: box-shadow var(--dur-2) var(--ease);
+}
+.ntp-omni:focus-within {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent),
+    0 0 0 4px var(--accent-wash);
+}
+.ntp-omni-icon { width: 20px; height: 20px; color: var(--text-3); flex-shrink: 0; }
+
+/* Suggestions — floated over the page so the tiles below hold still while
+   rows come and go (and while history merges in). This is a tab page, not an
+   overlay view, so it may cast a shadow. */
+.ntp-box { position: relative; z-index: 2; }
+.ntp-suggest {
+  position: absolute; left: 0; right: 0; top: calc(100% + 6px);
+  display: flex; flex-direction: column; padding: var(--sp-3, 6px);
+  background: var(--surface); border-radius: var(--r-lg, 14px);
+  box-shadow: var(--ring-2, inset 0 0 0 1px var(--border-2)), var(--shadow-pop, 0 12px 32px rgba(0,0,0,.28));
+  animation: ntp-sug-in var(--dur-2) var(--ease-decel);
+}
+@keyframes ntp-sug-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.ntp-sug {
+  display: flex; align-items: center; gap: var(--sp-5, 12px);
+  height: 40px; padding: 0 var(--sp-4, 10px);
+  border-radius: var(--r-md, 10px); cursor: pointer; min-width: 0;
+}
+.ntp-sug.active { background: var(--hover); }
+.ntp-sug .ntp-fav { width: 20px; height: 20px; border-radius: 5px; font-size: 11px; }
+.ntp-sug-title {
+  font-size: var(--fs-body, 14px); color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 1; max-width: 50%;
+}
+.ntp-sug-url {
+  flex: 1; min-width: 0; font-size: var(--fs-micro, 12px); color: var(--text-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ntp-sug-kind { font-size: var(--fs-micro, 12px); color: var(--text-3); flex-shrink: 0; }
+.ntp-sug-kind.is-tab {
+  color: var(--accent); padding: 2px 8px; border-radius: 999px;
+  background: var(--accent-wash);
+}
+#q {
+  flex: 1; min-width: 0; height: 100%;
+  border: none; outline: none; background: transparent;
+  font-family: var(--font); font-size: var(--fs-title, 17px); font-weight: 500;
+  letter-spacing: -0.01em; color: var(--text);
+}
+#q::placeholder { color: var(--text-3); }
+
+.ntp-section { display: flex; flex-direction: column; gap: var(--sp-5, 14px); }
+.ntp-h {
+  margin: 0; font-size: var(--fs-micro, 12px); font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3);
+}
+
+/* Quick-link tiles. */
+.ntp-tiles {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: var(--sp-5, 14px);
+}
+.ntp-tile {
+  display: flex; flex-direction: column; align-items: center; gap: var(--sp-4, 8px);
+  padding: var(--sp-5, 14px) var(--sp-4, 8px);
+  border: none; border-radius: var(--r-md, 12px); cursor: pointer;
+  background: var(--surface); color: var(--text);
+  transition: background var(--dur-1) var(--ease), transform var(--dur-1) var(--ease);
+}
+.ntp-tile:hover { background: var(--hover); }
+.ntp-tile:active { transform: scale(0.97); }
+.ntp-tile:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-wash); }
+.ntp-fav, .ntp-fav-img {
+  width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  object-fit: cover;
+}
+.ntp-fav { background: var(--active-bg); color: var(--text-2); font-weight: 600; font-size: 15px; }
+.ntp-tile-label {
+  max-width: 100%; font-size: var(--fs-micro, 12px); color: var(--text-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Recent rows. */
+.ntp-recent { display: flex; flex-direction: column; }
+.ntp-recent-row {
+  display: flex; align-items: baseline; gap: var(--sp-5, 12px);
+  width: 100%; padding: var(--sp-4, 9px) var(--sp-5, 12px);
+  border: none; border-radius: var(--r-md, 10px); cursor: pointer;
+  background: transparent; color: var(--text); text-align: left;
+  transition: background var(--dur-1) var(--ease);
+}
+.ntp-recent-row:hover { background: var(--hover); }
+.ntp-recent-row:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-wash); }
+.ntp-recent-title {
+  font-size: var(--fs-body, 14px); color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; max-width: 55%;
+}
+.ntp-recent-url {
+  font-size: var(--fs-micro, 12px); color: var(--text-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ntp-recent-row { align-items: center; }
+.ntp-recent-row .ntp-fav { width: 18px; height: 18px; border-radius: 5px; font-size: 10px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ntp-suggest { animation: none; }
+  .ntp-omni, .ntp-tile, .ntp-recent-row { transition: none; }
+  .ntp-tile:active { transform: none; }
+}
+
+/* Tab search (Ctrl+Shift+A): the field and its tab list are the whole page;
+   the list sits in flow (nothing below it to hold still) and is always open. */
+.ntp-tabsearch .ntp-wrap { padding-top: 14vh; }
+.ntp-tabsearch .ntp-suggest { position: static; margin-top: 6px; animation: none; }
+
+/* ── Tiles: hover actions, the + tile ──────────────────────────────────── */
+.ntp-tile-wrap { position: relative; display: flex; }
+.ntp-tile-wrap .ntp-tile { flex: 1; min-width: 0; }
+.ntp-tile-act {
+  position: absolute; top: 4px; width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: var(--r-pill); cursor: pointer;
+  background: var(--surface-2); color: var(--text-2); font-size: 13px; line-height: 1;
+  opacity: 0; transition: opacity var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
+}
+.ntp-tile-act.is-remove { right: 4px; }
+.ntp-tile-act.is-edit { right: 30px; }
+.ntp-tile-wrap:hover .ntp-tile-act,
+.ntp-tile-wrap:focus-within .ntp-tile-act { opacity: 1; }
+.ntp-tile-act:hover { background: var(--hover); color: var(--text); }
+.ntp-tile-act:focus-visible { opacity: 1; outline: none; box-shadow: 0 0 0 2px var(--accent-wash); }
+.ntp-tile-add { background: transparent; box-shadow: var(--ring); }
+.ntp-tile-add:hover { background: var(--hover); }
+.ntp-fav-add { font-size: 20px; font-weight: 400; color: var(--text-2); }
+
+/* Minimal: the field alone, a little lower on the page. */
+.ntp-minimal .ntp-wrap { padding-top: 28vh; }
+
+/* ── Customise button + panel ──────────────────────────────────────────── */
+.ntp-customise {
+  position: fixed; right: var(--sp-6, 20px); bottom: var(--sp-6, 20px);
+  display: inline-flex; align-items: center; gap: var(--sp-3, 6px);
+  height: 34px; padding: 0 var(--sp-5, 12px);
+  border: none; border-radius: var(--r-pill); cursor: pointer;
+  background: var(--surface); color: var(--text-2); box-shadow: var(--ring);
+  font-family: var(--font); font-size: var(--fs-micro, 12px); font-weight: 500;
+  transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+.ntp-customise svg { width: 16px; height: 16px; }
+.ntp-customise:hover, .ntp-customise[aria-expanded="true"] { background: var(--hover); color: var(--text); }
+.ntp-customise:focus-visible { outline: none; box-shadow: var(--ring), 0 0 0 3px var(--accent-wash); }
+.ntp-panel {
+  position: fixed; right: var(--sp-6, 20px); bottom: calc(var(--sp-6, 20px) + 42px);
+  width: 290px; padding: var(--sp-3, 6px); z-index: 3;
+  display: flex; flex-direction: column;
+  background: var(--surface); border-radius: var(--r-lg, 14px);
+  box-shadow: var(--ring-2), var(--shadow-pop);
+  animation: ntp-panel-in var(--dur-2) var(--ease-decel);
+}
+@keyframes ntp-panel-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.ntp-opt {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-5, 12px);
+  min-height: 38px; padding: 0 var(--sp-4, 10px); border-radius: var(--r-md, 10px);
+  font-size: var(--fs-body, 14px); color: var(--text); cursor: pointer;
+}
+.ntp-opt:hover { background: var(--hover); }
+/* A small switch, drawn from the checkbox itself. */
+.ntp-opt input {
+  appearance: none; flex-shrink: 0; position: relative; margin: 0; cursor: pointer;
+  width: 32px; height: 18px; border-radius: var(--r-pill);
+  background: var(--active-bg); transition: background var(--dur-1) var(--ease);
+}
+.ntp-opt input::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px;
+  border-radius: 50%; background: var(--text-2);
+  transition: transform var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
+}
+.ntp-opt input:checked { background: var(--accent); }
+.ntp-opt input:checked::after { transform: translateX(14px); background: var(--accent-ink); }
+.ntp-opt input:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-wash); }
+.ntp-panel-btn {
+  margin-top: var(--sp-3, 6px); height: 34px; border: none; border-radius: var(--r-md, 10px);
+  background: transparent; color: var(--accent); cursor: pointer;
+  font-family: var(--font); font-size: var(--fs-body, 14px); text-align: left; padding: 0 var(--sp-4, 10px);
+}
+.ntp-panel-btn:hover { background: var(--hover); }
+
+/* ── Add / edit shortcut dialog ────────────────────────────────────────── */
+.ntp-dialog {
+  width: min(380px, calc(100vw - 32px)); padding: var(--sp-6, 20px);
+  border: none; border-radius: var(--r-xl, 18px);
+  background: var(--surface); color: var(--text);
+  box-shadow: var(--ring-2), var(--shadow-pop);
+}
+.ntp-dialog[open] { animation: ntp-panel-in var(--dur-2) var(--ease-decel); }
+.ntp-dialog::backdrop { background: color-mix(in srgb, var(--bg) 55%, transparent); }
+.ntp-dialog form { display: flex; flex-direction: column; gap: var(--sp-5, 12px); }
+.ntp-dialog-title { margin: 0 0 var(--sp-2, 4px); font-size: var(--fs-title, 17px); font-weight: 600; }
+.ntp-field { display: flex; flex-direction: column; gap: var(--sp-2, 4px); font-size: var(--fs-micro, 12px); color: var(--text-2); }
+.ntp-field input {
+  height: 36px; padding: 0 var(--sp-4, 10px); border: none; border-radius: var(--r-md, 10px);
+  background: var(--surface-2); color: var(--text); box-shadow: var(--ring);
+  font-family: var(--font); font-size: var(--fs-body, 14px); outline: none;
+}
+.ntp-field input:focus { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 0 3px var(--accent-wash); }
+.ntp-err { margin: 0; font-size: var(--fs-micro, 12px); color: var(--danger); }
+.ntp-dialog-actions { display: flex; justify-content: flex-end; gap: var(--sp-3, 8px); margin-top: var(--sp-2, 4px); }
+.ntp-btn {
+  height: 34px; padding: 0 var(--sp-5, 14px); border: none; border-radius: var(--r-pill); cursor: pointer;
+  background: var(--active-bg); color: var(--text);
+  font-family: var(--font); font-size: var(--fs-body, 14px); font-weight: 500;
+}
+.ntp-btn:hover { background: var(--hover); }
+.ntp-btn.is-primary { background: var(--accent); color: var(--accent-ink); }
+.ntp-btn.is-primary:hover { background: var(--accent-2); }
+.ntp-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-wash); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ntp-panel, .ntp-dialog[open] { animation: none; }
+  .ntp-tile-act, .ntp-customise, .ntp-opt input, .ntp-opt input::after { transition: none; }
+}

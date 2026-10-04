@@ -48,11 +48,15 @@
         <button class="omni-icon" id="omni-icon" type="button" aria-label="Site information" data-i18n-label="chrome.siteInfo">
           <!-- Search: shown while typing / on new tab -->
           <svg class="oi oi-search" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M232.49,215.51,185,168a92.12,92.12,0,1,0-17,17l47.53,47.54a12,12,0,0,0,17-17ZM44,112a68,68,0,1,1,68,68A68.07,68.07,0,0,1,44,112Z"/></svg>
-          <!-- Secure: HTTPS page -->
-          <svg class="oi oi-secure" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208,76H180V56A52,52,0,0,0,76,56V76H48A20,20,0,0,0,28,96V208a20,20,0,0,0,20,20H208a20,20,0,0,0,20-20V96A20,20,0,0,0,208,76ZM100,56a28,28,0,0,1,56,0V76H100ZM204,204H52V100H204Z"/></svg>
-          <!-- Not secure: HTTP page -->
-          <svg class="oi oi-insecure" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208,76H100V56a28,28,0,0,1,28-28c13.51,0,25.65,9.62,28.24,22.39a12,12,0,1,0,23.52-4.78C174.87,21.5,153.1,4,128,4A52.06,52.06,0,0,0,76,56V76H48A20,20,0,0,0,28,96V208a20,20,0,0,0,20,20H208a20,20,0,0,0,20-20V96A20,20,0,0,0,208,76Zm-4,128H52V100H204Z"/></svg>
+          <!-- Secure: HTTPS page — site-controls "sliders", as in Chrome v117+ (P2-1) -->
+          <svg class="oi oi-secure" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2.6" fill="currentColor" stroke="none"/><circle cx="15" cy="17" r="2.6" fill="currentColor" stroke="none"/></svg>
+          <!-- Not secure / cert error: warning triangle (P2-1) -->
+          <svg class="oi oi-insecure" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M236.8,188.09,149.35,36.22a24.76,24.76,0,0,0-42.7,0L19.2,188.09a23.51,23.51,0,0,0,0,23.72A24.35,24.35,0,0,0,40.55,224h174.9a24.35,24.35,0,0,0,21.33-12.19A23.51,23.51,0,0,0,236.8,188.09ZM116,104a12,12,0,0,1,24,0v40a12,12,0,0,1-24,0Zm12,96a16,16,0,1,1,16-16A16,16,0,0,1,128,200Z"/></svg>
+          <!-- Internal page (history, settings, …): app-window glyph (P2-1) -->
+          <svg class="oi oi-internal" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,16V80H40V56ZM40,200V96H216V200Z"/></svg>
         </button>
+        <!-- "Not secure" chip (P2-1): part of the field, before the input, shown on http. -->
+        <span class="omni-chip" id="omni-chip" data-i18n="chrome.notSecure">Not secure</span>
         <div class="omni-input">
           <input id="searchBar" type="text" placeholder="Search or enter URL"
                  data-i18n-placeholder="chrome.omnibox"
@@ -217,6 +221,11 @@
 
   <!-- Content Area -->
   <div id="content-area"></div>
+
+  <!-- Screen-reader announcements for the omnibox (P0-7): suggestion count on
+       open, the active row on arrow. Visually hidden; polite so it never
+       interrupts typing. -->
+  <div id="omni-live" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
   <!-- Pomodoro Overlay -->
   <div id="pomodoro-overlay" class="pomodoro-overlay hidden">

@@ -2,6 +2,7 @@ const log = require('./log');
 const zoom = require('./zoom');
 const { app } = require('electron');
 const focusMode = require('./focus-mode');
+const profiles = require('./profiles'); // spaces, for P2-6 space-switch shortcuts
 class Shortcuts {
     mainWindow; // BrowserWindow this shortcut set is bound to
     tabManager; // Tabs instance for that window
@@ -53,18 +54,13 @@ class Shortcuts {
         }
         for (const [accelerator, callback] of this.shortcuts) {
             if (this.matchesAccelerator(input, accelerator)) {
-                // A shortcut firing while a floating overlay is up dismisses it
-                // first — the omnibox or the context menu should go away when
-                // another shortcut takes over, not sit on top of the state the
-                // shortcut just changed. Done before the callback so re-opening
-                // the palette (⌘T) still wins.
+                // A shortcut firing while the context menu is up dismisses it
+                // first — it should go away when another shortcut takes over,
+                // not sit on top of the state the shortcut just changed. The
+                // menu took keyboard focus, so this keystroke arrived through
+                // IT; done before the callback so what the shortcut opens wins.
                 try {
                     const wd = this.getWindowData();
-                    if (wd?.paletteOpen)
-                        require('./palette-bridge').hidePalette(wd, { committed: false });
-                    // The context-menu overlay took keyboard focus, so this
-                    // keystroke arrived through IT — dismiss it too, or ⌘T opened
-                    // the palette behind a menu that never closed.
                     if (wd?.ctxMenuOpen)
                         require('./overlay-menu').hide(wd);
                 }
@@ -175,21 +171,15 @@ class Shortcuts {
     }
     // ── Tab shortcuts ──────────────────────────────────────────────────────────
     registerTabShortcuts() {
-        // New tab — raises the palette; committing a query is what creates the
-        // tab, so there is no blank page to pass through.
+        // New tab — opens the new-tab page (P2 pivot: replaces the Palette).
         this.registerShortcut('CmdOrCtrl+T', () => {
-            try {
-                const wd = this.tabManager.getWindowData?.();
-                if (wd) { require('./palette-bridge').openFor(wd); return; }
-            }
+            try { this.tabManager?.openInternalPage?.('home'); }
             catch (e) { log.debug('shortcuts', 'registerTabShortcuts', e); }
-            /* No fallback tab. The palette IS how a tab gets made here, and if
-               it cannot be raised the answer is nothing — a blank tab is not
-               the consolation prize, and this browser has none. */
         });
-        // New private tab — fully isolated session, wiped when the tab closes
+        // New private tab — fully isolated session, wiped when the tab closes.
+        // It opens on the (private, history-free) new-tab page, like Ctrl+T.
         this.registerShortcut('CmdOrCtrl+Alt+T', () => {
-            this.tabManager.createTab(null, true, true);
+            this.tabManager.openNewTabPage(true);
         });
         // Open the current site in a fresh isolated (persistent) session — the
         // quick, keyboard path to the "Open Isolated Instance" action. Blank tab
@@ -264,6 +254,32 @@ class Shortcuts {
             const tabIndexes = this._orderedTabIndexes();
             if (tabIndexes.length > 0)
                 this.tabManager.showTab(tabIndexes[tabIndexes.length - 1]);
+        });
+        // Switch SPACE by number / step (P2-6). Ctrl+Alt+1…9 jumps to the Nth
+        // space in the foot order; Ctrl+Alt+↑/↓ steps through them. Distinct from
+        // Ctrl+1…9 (tabs) by the Alt modifier. Main asks the renderer to switch,
+        // the same path the "last tab closed" auto-switch uses.
+        for (let i = 1; i <= 9; i++) {
+            const n = i;
+            this.registerShortcut(`CmdOrCtrl+Alt+${n}`, () => this.switchToSpaceByNumber(n));
+        }
+        this.registerShortcut('CmdOrCtrl+Alt+Up', () => this.switchSpaceBy(-1));
+        this.registerShortcut('CmdOrCtrl+Alt+Down', () => this.switchSpaceBy(1));
+        // Tab search, as Chrome's Ctrl+Shift+A: the new-tab page in its tab-search
+        // mode — type to filter this space's open tabs, Enter jumps, Esc returns.
+        this.registerShortcut('CmdOrCtrl+Shift+A', () => {
+            try { this.tabManager.openTabSearch(); }
+            catch (e) { log.debug('shortcuts', 'tab search', e); }
+        });
+        // Space switcher (P2-7): open the #space-header menu in the renderer.
+        this.registerShortcut('CmdOrCtrl+Shift+M', () => {
+            try { this.mainWindow.webContents.send('open-space-switcher'); }
+            catch (e) { log.debug('shortcuts', 'space switcher', e); }
+        });
+        // Clear browsing data (P2-7): Settings, opened to the privacy section.
+        this.registerShortcut('CmdOrCtrl+Shift+Delete', () => {
+            try { this.tabManager?.openInternalPage?.('settings', 'privacy'); }
+            catch (e) { log.debug('shortcuts', 'clear data', e); }
         });
         // Split view — Ctrl/Cmd+Shift+E toggles the active tab against the last
         // one you were on. Previously this feature had no keyboard access at all.
@@ -357,6 +373,22 @@ class Shortcuts {
                 this.tabManager.findDialog.show(tab);
             }
         });
+        // Find next / previous (P0-8). Ctrl+G / F3 and the Shift variants are the
+        // standard "repeat the last find" keys. The dialog's handleNext/Previous
+        // are internally guarded: no-op until there is a search term + active tab,
+        // so pressing them cold does nothing rather than erroring.
+        const findNext = () => this.tabManager.findDialog?.handleNext();
+        const findPrev = () => this.tabManager.findDialog?.handlePrevious();
+        this.registerShortcut('CmdOrCtrl+G', findNext);
+        this.registerShortcut('F3', findNext);
+        this.registerShortcut('CmdOrCtrl+Shift+G', findPrev);
+        this.registerShortcut('Shift+F3', findPrev);
+        // Open the downloads panel (P0-8). The renderer owns the panel, so this
+        // just pokes the chrome; initDownloads listens for it.
+        this.registerShortcut('CmdOrCtrl+J', () => {
+            try { this.mainWindow.webContents.send('downloads:shortcut-open'); }
+            catch (e) { log.debug('shortcuts', 'downloads:shortcut-open', e); }
+        });
         // Print
         this.registerShortcut('CmdOrCtrl+P', () => {
             const tab = this.activeTab();
@@ -433,7 +465,11 @@ class Shortcuts {
             this.mainWindow.webContents.send('toggle-bookmark-bar');
         });
         // Compact mode: hide the sidebar; the page goes full-bleed. Per window.
-        this.registerShortcut('CmdOrCtrl+Shift+C', () => {
+        // On Ctrl+\ (Cmd+\), NOT Ctrl+Shift+C — that combo is Chrome's
+        // inspect-element, which web devs reach for constantly (P1-7). Ctrl+\ is
+        // unused by Chrome, and avoids the Shift+\ = "|" layout trap of this
+        // produced-character matcher.
+        this.registerShortcut('CmdOrCtrl+\\', () => {
             if (!this.tabManager)
                 return;
             this.tabManager.sidebarCompact = !this.tabManager.sidebarCompact;
@@ -514,8 +550,18 @@ class Shortcuts {
             if (tab && devtoolsAllowed(tab.webContents))
                 tab.webContents.toggleDevTools();
         });
-        // Renderer devtools (for debugging the chrome UI itself) — dev runs only.
+        // Ctrl+Shift+J is Chrome's "open the page's console" (P1-7). Electron
+        // exposes no API to pre-select the Console panel, so this opens the
+        // active page's devtools — which is what the key means to muscle memory,
+        // in packaged builds too, not only --dev.
         this.registerShortcut('CmdOrCtrl+Shift+J', () => {
+            const tab = this.activeTab();
+            if (tab && devtoolsAllowed(tab.webContents))
+                tab.webContents.toggleDevTools();
+        });
+        // Renderer devtools (for debugging the chrome UI itself) moves to a
+        // dev-only combo so it never shadows the page console above.
+        this.registerShortcut('CmdOrCtrl+Alt+Shift+J', () => {
             if (process.argv.includes('--dev'))
                 this.mainWindow.webContents.toggleDevTools();
         });
@@ -583,6 +629,11 @@ class Shortcuts {
                 keyMatches = true;
             else if (key.match(/^[0-9]$/) && input.key === key)
                 keyMatches = true;
+            // A layout whose digit row needs Shift (AZERTY: Ctrl+1 produces '&')
+            // still means Ctrl+1 — match the physical key. Never with Alt held:
+            // Ctrl+Alt is AltGr on Windows, and AltGr+digit types '@', '#', '|'…
+            else if (key.match(/^[0-9]$/) && !input.alt && (input.code === 'Digit' + key || input.code === 'Numpad' + key))
+                keyMatches = true;
         }
         if (!keyMatches)
             return false;
@@ -625,6 +676,32 @@ class Shortcuts {
         if (number >= 1 && number <= indexes.length)
             this.tabManager.showTab(indexes[number - 1]);
     }
+    // ── Space switching (P2-6) ───────────────────────────────────────────────
+    // Spaces are profiles here; switching is renderer-driven, so main asks the
+    // renderer to switch via the same 'switch-to-workspace' channel the auto-
+    // switch uses. profiles.list() is the foot order.
+    switchToSpaceByNumber(number) {
+        try {
+            const list = profiles.list();
+            const target = list[number - 1];
+            if (target)
+                this.mainWindow.webContents.send('switch-to-workspace', target.id);
+        }
+        catch (e) { log.debug('shortcuts', 'switchToSpaceByNumber', e); }
+    }
+    switchSpaceBy(step) {
+        try {
+            const list = profiles.list();
+            if (list.length < 2)
+                return;
+            const cur = String(this.tabManager?.profileId ?? '1');
+            const i = list.findIndex(p => String(p.id) === cur);
+            const next = list[((i < 0 ? 0 : i) + step + list.length) % list.length];
+            if (next)
+                this.mainWindow.webContents.send('switch-to-workspace', next.id);
+        }
+        catch (e) { log.debug('shortcuts', 'switchSpaceBy', e); }
+    }
     _orderedTabIndexes() {
         // Visual (tab-bar) order, restricted to the CURRENT SPACE's live tabs.
         // The window keeps EVERY space's tabs alive in tabMap (see
@@ -632,7 +709,19 @@ class Shortcuts {
         // Ctrl+Shift+Tab and Ctrl+1–9 walk straight into another space's tabs —
         // switching the whole window's context to a space you are not in. Cycling
         // must stay within the active space, exactly like the sidebar shows.
-        return this.tabManager.tabsInWorkspace(this.tabManager.profileId);
+        const inWs = this.tabManager.tabsInWorkspace(this.tabManager.profileId);
+        // ...and in the order the sidebar DRAWS them. The sidebar puts a new tab
+        // at the top of the loose tabs while tabOrder appends it, so following
+        // tabOrder sent Ctrl+1 to the bottom-most tab. The renderer reports its
+        // drawn order (ipc 'tabs:visual-order'); any tab it hasn't reported yet
+        // falls in after, in tabOrder.
+        const visual = this.tabManager.visualOrder;
+        if (!Array.isArray(visual) || !visual.length)
+            return inWs;
+        const live = new Set(inWs);
+        const drawn = visual.filter(i => live.has(i));
+        const seen = new Set(drawn);
+        return [...drawn, ...inWs.filter(i => !seen.has(i))];
     }
     // ── Zoom helpers ───────────────────────────────────────────────────────────
     // Each of these remembers the new level for the site (features/zoom.js), so

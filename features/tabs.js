@@ -23,7 +23,7 @@ const extensions = require('./extensions');
 // positions the page view's left edge at this.sidebarWidth, so if the two clamps
 // disagree the page view covers (or leaves a gap beside) the sidebar's resize
 // handle — the "sidebar is behind the tab view" bug on wide/maximized windows.
-const { clampSidebarWidth } = require('../renderer/lib/util');
+const { clampSidebarWidth, mergeOrder } = require('../renderer/lib/util');
 const miniPlayer = require('./mini-player');
 const privateSessions = require('./private-session');
 const YOUTUBE_SPACE_FIX_JS = `
@@ -163,6 +163,9 @@ class Tabs {
         // it owns its own timer and names exactly what it reads off Tabs.
         this.sleeper = new TabSleeper(this);
         this.sleeper.start();
+        // The sleeper reads this for the kNotificationsEnabled protection — a tab
+        // whose origin may show notifications is never discarded (features/tabs/sleep.js).
+        this.sitePermissions = require('./site-permissions');
         // -1 until a tab exists: a window opens with none, and pointing at
         // tab 0 while the map is empty makes every lookup a silent miss.
         this.activeTabIndex = -1;
@@ -515,16 +518,6 @@ class Tabs {
             }
             catch (e) { log.debug('tabs', 'raiseFloatingViews', e); }
         }
-        // Re-adding a view drops its keyboard focus. If the palette is up, a
-        // raise triggered by anything else (a tab finishing load, a background
-        // tab opening, media state) would silently pull the caret out of it
-        // mid-type — the intermittent "window loses context on ⌘T". Hand focus
-        // back to the palette so it keeps the caret while it is open.
-        try {
-            if (wd.paletteOpen && wd.palette && !wd.palette.webContents.isDestroyed())
-                wd.palette.webContents.focus();
-        }
-        catch (e) { log.debug('tabs', 'raiseFloatingViews focus', e); }
     }
     setShortcuts(shortcuts) {
         this.shortcuts = shortcuts;
@@ -776,6 +769,19 @@ class Tabs {
         const page = INTERNAL_PAGES[type];
         if (!page)
             return null;
+        // The new-tab page is a NORMAL tab showing a page, not a page tab: it is
+        // what you browse FROM, so the view must be on the right session —
+        // private window, this space's profile session — and registered with
+        // extensions. createTabWithPage builds on the default session, so a site
+        // typed on the NTP of a private window loaded outside the private session.
+        if (type === 'home') {
+            if (replaceActive && this.tabMap.has(this.activeTabIndex)) {
+                this.navigationHistory.addEntry(this.activeTabIndex, 'home');
+                this._loadNewTabPage(this.activeTabIndex);
+                return this.activeTabIndex;
+            }
+            return this.openNewTabPage();
+        }
         const activeIdx = this.activeTabIndex;
         const canReplace = replaceActive && this.tabMap.has(activeIdx);
         const newIdx = this.createTabWithPage(page.file, type, page.title, {
@@ -816,6 +822,9 @@ class Tabs {
         const token = section ? `${pageType}/${section}` : pageType;
         this.tabMap.set(tabIndex, tab);
         this.tabUrls.set(tabIndex, token);
+        // The space it was opened in. Unset, tabsInWorkspace read it as space 1,
+        // so a Settings/History tab opened in another space showed up in space 1.
+        this.tabProfiles.set(tabIndex, this.profileId);
         // Position: after a given tab (for in-place replacement of the new-tab
         // page), otherwise append.
         const afterPos = (opts.insertAfter != null) ? this.tabOrder.indexOf(opts.insertAfter) : -1;
@@ -830,7 +839,8 @@ class Tabs {
             index: tabIndex,
             title: pageTitle || pageType,
             totalTabs: this.tabMap.size,
-            afterIndex: afterPos !== -1 ? opts.insertAfter : null
+            afterIndex: afterPos !== -1 ? opts.insertAfter : null,
+            workspace: this.profileId,
         });
         this.sendTabUpdate(tabIndex, tab, token, pageTitle);
         this.showTab(tabIndex);
@@ -856,12 +866,10 @@ class Tabs {
     /**
      * Load "no page" into a tab.
      *
-     * A blank tab used to load renderer/NewTab — a real document with a mark
-     * and a hint line. It is gone: opening a tab raises the palette, so the
-     * page behind it only ever flashed past on the way somewhere else, and a
-     * page that exists only to be covered is a page to maintain, translate and
-     * theme for nothing. The view is transparent (_applyTabBackground), so
-     * about:blank shows the chrome's own page card.
+     * A blank tab is about:blank (the 'newtab' token). New tabs the user asks
+     * for open the new-tab page instead (openNewTabPage); this is for tabs that
+     * are about to be given a url. The view is transparent
+     * (_applyTabBackground), so about:blank shows the chrome's own page card.
      */
     // Essentials — the tile grid at the top of the sidebar. An Essential IS a
     // tab, and the whole binding lives in features/tabs/essentials.js (mixed
@@ -869,6 +877,60 @@ class Tabs {
     _loadBlank(tab) {
         try { tab.webContents.loadURL('about:blank'); }
         catch (e) { log.debug('tabs', '_loadBlank', e); }
+    }
+    /** A new active tab showing the new-tab page — private when asked (or in a
+     *  private window), so a new private tab has a field to type into rather
+     *  than an empty page. */
+    openNewTabPage(isPrivate = false, mode = null) {
+        const idx = this.createTab(null, true, !!isPrivate);
+        this.navigationHistory.initializeTab(idx, 'home'); // Back returns here
+        this._loadNewTabPage(idx, mode);
+        return idx;
+    }
+    /** Tab search (Ctrl+Shift+A): the new-tab page in its #tabs mode, which
+     *  lists this space's open tabs. It is a throwaway — picking a tab or
+     *  pressing Esc closes it (finishTabSearch), it never lands in "reopen
+     *  closed tab", and Esc returns you to the tab you came from. */
+    openTabSearch() {
+        const from = this.activeTabIndex;
+        // Already searching? Don't stack a second one.
+        if (this.tabSearchFrom?.has(from))
+            return from;
+        const idx = this.openNewTabPage(false, 'tabs');
+        if (!this.tabSearchFrom)
+            this.tabSearchFrom = new Map();
+        this.tabSearchFrom.set(idx, from);
+        return idx;
+    }
+    /** End a tab search from its page: switch to `target` (or back to where the
+     *  search was opened from when null) and close the search tab. */
+    finishTabSearch(searchIdx, target = null) {
+        if (!this.tabSearchFrom?.has(searchIdx))
+            return false;
+        const from = this.tabSearchFrom.get(searchIdx);
+        const dest = (target != null && this.tabMap.has(target)) ? target : from;
+        this.removeTabWithTargetFocus(searchIdx, this.tabMap.has(dest) ? dest : null);
+        if (this.tabMap.has(dest) && this.activeTabIndex !== dest)
+            this.showTab(dest);
+        return true;
+    }
+    /** Show the new-tab page in an existing tab, in place. It runs on the
+     *  general preload (its bridges are gated to file://), so any tab can load
+     *  it. The hash carries its flags: `private` (show no history) and `tabs`
+     *  (tab-search mode, see openTabSearch). */
+    _loadNewTabPage(index, mode = null) {
+        const tab = this.tabMap.get(index);
+        if (!tab)
+            return;
+        const priv = this.privateTabs.has(index) || this.isPrivateWindow;
+        const hash = [priv ? 'private' : '', mode === 'tabs' ? 'tabs' : ''].filter(Boolean).join(',');
+        try {
+            tab.setNavigatingProgrammatically?.(true);
+            tab.webContents.loadFile(resolveAppFile(INTERNAL_PAGES.home.file), hash ? { hash } : undefined);
+        }
+        catch (e) { log.warn('tabs', '_loadNewTabPage', e); }
+        this.tabUrls.set(index, 'home');
+        this.sendTabUpdate(index, tab, 'home', INTERNAL_PAGES.home.title);
     }
     _applyTabBackground(tab, urlOrType) {
         const t = urlOrType || '';
@@ -1159,9 +1221,12 @@ class Tabs {
     // pages, unloaded lazy tabs, or tabs with DevTools open.
     // Tell the chrome a tab started/stopped loading so it can show a tab
     // spinner and flip the reload button to a stop button (and back).
-    sendLoadingState(tabIndex, loading) {
+    // phase (P1-1): 'waiting' between did-start-loading and the response
+    // committing (grey ring, no favicon), then 'loading' once content arrives
+    // (accent ring, favicon inside). Ignored when loading is false.
+    sendLoadingState(tabIndex, loading, phase = 'loading') {
         try {
-            this.mainWindow.webContents.send('tab-loading', { index: tabIndex, loading: !!loading });
+            this.mainWindow.webContents.send('tab-loading', { index: tabIndex, loading: !!loading, phase });
         }
         catch (e) { log.debug('tabs', 'sendLoadingState', e); }
     }
@@ -1199,23 +1264,13 @@ class Tabs {
     // prototype at the bottom of the file — this class was 3k lines and the
     // three of them are self-contained.
     /**
-     * Raise the palette over a blank tab.
-     *
-     * "New tab" used to mean "load the new-tab page", so every new tab took the
-     * user somewhere before they had said where they wanted to go — and offered
-     * a second search field competing with the address bar. Now the tab holds
-     * the space and the palette asks the question. Guarded against re-opening
-     * on the same tab within a beat, so dismissing it does not immediately
-     * summon it again when focus returns.
-     */
-    /**
      * The last tab in the window just closed.
      *
      * In the TOP STRIP the window *is* the tab strip, so it goes with the last
      * tab — what most browsers do. In SIDEBAR mode the window is a
      * workspace that happens to hold tabs, so it stays: closing your last tab
      * should not throw away the window, its size, its space or its session.
-     * It stays EMPTY — no blank tab, and no palette until you ask for one.
+     * It stays EMPTY — no blank tab, and no new-tab page until you ask for one.
      *
      * Deferred and re-checked on the next tick either way: rapid tab operations
      * (double-close races) pass through a transient empty state, and acting on
@@ -1345,18 +1400,6 @@ class Tabs {
         // Split view: after showing the active half full, lay both halves out.
         if (this.splitPair && this.splitPair.includes(index))
             this._layoutSplit();
-        // The palette is raised ONLY when the user asks for a new tab (⌘T, the
-        // +, the menu). Landing on a blank tab used to raise it too, which
-        // meant switching tabs could put a dialog in front of you.
-        const blank = (this.tabUrls.get(index) || '') === 'newtab';
-        if (!blank) {
-            try {
-                const wd = this.getWindowData();
-                if (wd?.paletteOpen)
-                    require('./palette-bridge').hidePalette(wd);
-            }
-            catch (e) { log.debug('tabs', 'hide palette on switch', e); }
-        }
     }
     loadUrl(index, url) {
         // northstar:// internal pages open in a NEW tab. They cannot navigate an
@@ -1369,6 +1412,13 @@ class Tabs {
         // that a restore/reload can hand back — both must resolve to the internal
         // page, never be fetched as a web address (which 404s).
         const internal = parseNorthstarUrl(url) || parseInternalToken(url);
+        // The new-tab page needs no special preload, so it loads IN this tab,
+        // like any address (northstar://home typed, a restored 'home' token).
+        if (internal?.type === 'home' && this.tabMap.has(index)) {
+            this.navigationHistory.addEntry(index, 'home');
+            this._loadNewTabPage(index);
+            return;
+        }
         if (internal) {
             this.activeTabIndex = index;
             const blank = this.tabUrls.get(index) === 'newtab';
@@ -1383,17 +1433,6 @@ class Tabs {
             // sitting there for the whole network wait reads as "stuck".
             tab.webContents.loadURL(url);
             this.tabUrls.set(index, url);
-            // This tab now has somewhere to be, so the palette's question is
-            // answered — whether it was answered IN the palette or elsewhere
-            // (a link opened in a new tab, a bookmark, a restored session).
-            if (index === this.activeTabIndex) {
-                try {
-                    const wd = this.getWindowData();
-                    if (wd?.paletteOpen)
-                        require('./palette-bridge').hidePalette(wd);
-                }
-                catch (e) { log.debug('tabs', 'hide palette on load', e); }
-            }
             // Set a temporary title before the page actually loads
             let tempTitle = url;
             try {
@@ -1436,6 +1475,10 @@ class Tabs {
     recordClosed(index) {
         // Private tabs must not be resurrectable via "reopen closed tab".
         if (this.privateTabs.has(index))
+            return;
+        // A tab-search page is a throwaway, not something you'd reopen. (Every
+        // close passes through here, so this is also where its entry is dropped.)
+        if (this.tabSearchFrom?.delete(index))
             return;
         const url = this.tabUrls.get(index);
         if (url && url !== 'newtab' && !url.startsWith('file://')) {
@@ -1699,11 +1742,15 @@ class Tabs {
     reorderTabs(newOrder) {
         if (!Array.isArray(newOrder))
             return;
-        const allKeys = new Set(this.tabMap.keys());
-        const ok = newOrder.every(k => allKeys.has(k)) && newOrder.length === allKeys.size;
-        if (!ok)
-            return;
-        this.tabOrder = [...newOrder];
+        // The chrome sends the tabs it DRAWS — this space's, not the other
+        // spaces' or the Essentials'. Demanding every tab here silently dropped
+        // every drag once a second space existed; merge instead, so the drawn
+        // tabs swap among their own slots and the rest keep theirs.
+        const full = this.tabOrder.filter(i => this.tabMap.has(i));
+        for (const i of this.tabMap.keys())
+            if (!full.includes(i))
+                full.push(i);
+        this.tabOrder = mergeOrder(full, newOrder.map(Number));
         this.saveStateDebounced();
     }
     buildSerializableState() {

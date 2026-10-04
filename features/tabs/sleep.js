@@ -68,6 +68,23 @@ class TabSleeper {
                 return; // only real web pages
             if ((t.tabLastActive.get(i) || 0) > cutoff)
                 return;
+            // Chrome-parity protections (discard_eligibility_policy.cc), cheapest
+            // first and every one failing safe — flags set by the page lifecycle
+            // and one cached permission lookup, so scan() stays synchronous.
+            if ((tab.lastAudibleAt || 0) > Date.now() - 60_000)
+                return; // kRecentlyAudible — just stopped playing sound
+            if (tab.inPiP)
+                return; // kPictureInPicture — video popped out
+            if (tab.capturing && tab.capturing.size)
+                return; // kCapturingVideo/Audio/Display — camera/mic/screen live
+            if (tab.dirty)
+                return; // kFormInteractions/kUserEdits — unsent typing on the page
+            const perms = t.sitePermissions;
+            if (perms) {
+                const origin = perms.originOf(url);
+                if (origin && perms.state(origin, 'notifications') === 'allow')
+                    return; // kNotificationsEnabled — may push while backgrounded
+            }
             try {
                 const wc = tab.webContents;
                 if (!wc || wc.isDestroyed() || wc.isCrashed())
@@ -77,6 +94,11 @@ class TabSleeper {
                 if (wc.isDevToolsOpened())
                     return;
                 tab.slept = true;
+                // Tell the chrome so the row shows the slept state (dotted ring,
+                // dimmed favicon). Optional-chained so the stub Tabs in the unit
+                // tests — which has no real webContents — is unaffected (P1-8).
+                try { t.mainWindow.webContents?.send('tab-slept', { index: i }); }
+                catch (e) { log.debug('tab-sleep', 'tab-slept', e); }
                 wc.forcefullyCrashRenderer(); // frees the whole renderer process
             }
             catch (e) { log.debug('tab-sleep', 'scan tab', e); }

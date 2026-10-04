@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none';" />
+  <title>New Tab</title>
+  <link rel="stylesheet" href="../styles/ui.css">
+  <link rel="stylesheet" href="../styles/page.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="page ntp">
+  <main class="ntp-wrap">
+    <div class="ntp-box">
+      <form id="omni" class="ntp-omni" role="search" autocomplete="off">
+        <svg class="ntp-omni-icon" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M232.49,215.51,185,168a92.12,92.12,0,1,0-17,17l47.53,47.54a12,12,0,0,0,17-17ZM44,112a68,68,0,1,1,68,68A68.07,68.07,0,0,1,44,112Z"/></svg>
+        <input id="q" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggest"
+               aria-label="Search or enter address" placeholder="Search or enter address"
+               data-i18n-placeholder="ntp.placeholder" data-i18n-label="ntp.placeholder" autofocus spellcheck="false" />
+      </form>
+      <div id="suggest" class="ntp-suggest" role="listbox" hidden></div>
+    </div>
+    <section id="links" class="ntp-section" hidden>
+      <div id="links-grid" class="ntp-tiles"></div>
+    </section>
+    <section id="recent" class="ntp-section" hidden>
+      <h2 class="ntp-h" data-i18n="ntp.recent">Recent</h2>
+      <div id="recent-list" class="ntp-recent"></div>
+    </section>
+  </main>
+
+  <button id="customise" class="ntp-customise" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="custom-panel">
+    <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M40,88H73a32,32,0,0,0,62,0h81a8,8,0,0,0,0-16H135a32,32,0,0,0-62,0H40a8,8,0,0,0,0,16Zm64-24A16,16,0,1,1,88,80,16,16,0,0,1,104,64ZM216,168H199a32,32,0,0,0-62,0H40a8,8,0,0,0,0,16h97a32,32,0,0,0,62,0h17a8,8,0,0,0,0-16Zm-48,24a16,16,0,1,1,16-16A16,16,0,0,1,168,192Z"/></svg>
+    <span data-i18n="ntp.customise">Customise</span>
+  </button>
+  <div id="custom-panel" class="ntp-panel" role="dialog" aria-label="Customise" data-i18n-label="ntp.customise" hidden>
+    <label class="ntp-opt"><span data-i18n="ntp.showShortcuts">Shortcuts</span><input id="opt-shortcuts" type="checkbox" role="switch"></label>
+    <label class="ntp-opt"><span data-i18n="ntp.showRecent">Recent pages</span><input id="opt-recent" type="checkbox" role="switch"></label>
+    <label class="ntp-opt"><span data-i18n="ntp.minimal">Minimal — just the search field</span><input id="opt-minimal" type="checkbox" role="switch"></label>
+    <button id="opt-restore" class="ntp-panel-btn" type="button" data-i18n="ntp.restoreHidden" hidden>Restore hidden shortcuts</button>
+  </div>
+
+  <dialog id="tile-dialog" class="ntp-dialog">
+    <form id="tile-form" method="dialog" autocomplete="off">
+      <h2 id="tile-title" class="ntp-dialog-title">Add shortcut</h2>
+      <label class="ntp-field"><span data-i18n="ntp.name">Name</span><input id="tile-name" type="text" spellcheck="false" /></label>
+      <label class="ntp-field"><span data-i18n="ntp.url">URL</span><input id="tile-url" type="text" spellcheck="false" placeholder="example.com" /></label>
+      <p id="tile-err" class="ntp-err" data-i18n="ntp.badUrl" hidden>Enter a web address, like example.com</p>
+      <div class="ntp-dialog-actions">
+        <button id="tile-cancel" type="button" class="ntp-btn" data-i18n="ntp.cancel">Cancel</button>
+        <button type="submit" class="ntp-btn is-primary" data-i18n="ntp.save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="../lib/i18n.js"></script>
+  <script src="../lib/util.js"></script>
+  <script src="newtab.js"></script>
+</body>
+</html>

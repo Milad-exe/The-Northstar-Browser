@@ -18,6 +18,10 @@ const INTERNAL_PAGES = {
     settings: { file: 'renderer/Settings/index.html', title: 'Settings' },
     history: { file: 'renderer/History/index.html', title: 'History' },
     bookmarks: { file: 'renderer/Bookmarks/index.html', title: 'Bookmarks' },
+    // The new-tab page (P2 pivot: replaces the Palette). Token is `home`, NOT
+    // `newtab` — that string is the long-standing blank-tab sentinel and giving
+    // it a page here would change blank-tab behaviour everywhere at once.
+    home: { file: 'renderer/NewTab/index.html', title: 'New Tab' },
 };
 const SETTINGS_SECTIONS = ['general', 'appearance', 'focus', 'privacy', 'passwords', 'extensions', 'data', 'about'];
 
@@ -62,6 +66,8 @@ function internalTokenFor(fileUrl) {
         type = 'bookmarks';
     else if (fileUrl.includes('/History/index.html'))
         type = 'history';
+    else if (fileUrl.includes('/NewTab/index.html'))
+        type = 'home';
     if (!type)
         return null;
     let section = '';
@@ -77,4 +83,16 @@ function internalTokenFor(fileUrl) {
     return section ? `${type}/${section}` : type;
 }
 
-module.exports = { INTERNAL_PAGES, SETTINGS_SECTIONS, parseNorthstarUrl, parseInternalToken, internalTokenFor };
+// A history entry that is an internal page → { type, section, file, inPlace },
+// else null. The history tree stores the bare token ('home'), which is not a
+// loadable URL. inPlace: the page runs on the general tab preload, so a tab can
+// load it in its own view (Back onto the new-tab page). Settings needs its
+// privileged preload, chosen at tab creation, so it can't.
+function internalHistoryEntry(raw) {
+    const p = parseNorthstarUrl(raw) || parseInternalToken(raw);
+    if (!p)
+        return null;
+    return { ...p, file: INTERNAL_PAGES[p.type].file, inPlace: p.type !== 'settings' };
+}
+
+module.exports = { INTERNAL_PAGES, SETTINGS_SECTIONS, parseNorthstarUrl, parseInternalToken, internalTokenFor, internalHistoryEntry };

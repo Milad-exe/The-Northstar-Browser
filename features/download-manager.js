@@ -77,6 +77,9 @@ class DownloadManager {
                 paused: false,
                 private: isPrivate,
                 startTime: Date.now(),
+                // Executable / script type: the panel shows a warning and opening
+                // needs a confirmed second click (P1-5).
+                dangerous: isDangerousFile(path.basename(savePath)),
             };
             this.items.set(id, rec);
             this.handles.set(id, item);
@@ -86,6 +89,7 @@ class DownloadManager {
                 if (actual && actual !== rec.savePath) {
                     rec.savePath = actual;
                     rec.filename = path.basename(actual);
+                    rec.dangerous = isDangerousFile(rec.filename);
                 }
             };
             item.on('updated', (_e, state) => {
@@ -130,14 +134,21 @@ class DownloadManager {
         this.handles.get(id)?.resume();
     }
     catch (e) { log.debug('download-manager', 'resume', e); } }
-    openFile(id) {
+    // confirmed (P1-5): a dangerous type (installer/script) opens only on an
+    // explicit second, confirmed click. shell.openPath is never reached for one
+    // otherwise, so a drive-by download can't be launched with a single stray
+    // click. Returns whether the OS open was actually invoked.
+    openFile(id, confirmed = false) {
         const r = this.items.get(id);
-        if (r?.state === 'completed') {
-            try {
-                shell.openPath(r.savePath);
-            }
-            catch (e) { log.debug('download-manager', 'openFile', e); }
+        if (r?.state !== 'completed')
+            return false;
+        if (r.dangerous && !confirmed)
+            return false;
+        try {
+            shell.openPath(r.savePath);
+            return true;
         }
+        catch (e) { log.debug('download-manager', 'openFile', e); return false; }
     }
     showInFolder(id) {
         const r = this.items.get(id);
@@ -168,6 +179,16 @@ class DownloadManager {
     }
 }
 // ── Helpers ──────────────────────────────────────────────────────────────────
+/** File types that execute or install, so opening one is a security decision
+ *  (P1-5). Matches the spec list in docs/chrome-ux/components/downloads.md. */
+const DANGEROUS_EXT = new Set([
+    'exe', 'msi', 'bat', 'cmd', 'com', 'ps1', 'scr', 'vbs', 'js', 'jar',
+    'dmg', 'pkg', 'sh', 'appimage', 'deb', 'rpm',
+]);
+function isDangerousFile(name) {
+    const ext = path.extname(String(name || '')).replace(/^\./, '').toLowerCase();
+    return DANGEROUS_EXT.has(ext);
+}
 /** "report.pdf" → "report (1).pdf" until the name is free. */
 function uniquePath(dir, filename) {
     const ext = path.extname(filename);
@@ -186,4 +207,6 @@ function uniquePath(dir, filename) {
     return candidate;
 }
 
-module.exports = new DownloadManager();
+const instance = new DownloadManager();
+instance.isDangerousFile = isDangerousFile; // pure predicate, also unit-tested
+module.exports = instance;

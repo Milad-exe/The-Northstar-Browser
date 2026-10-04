@@ -46,7 +46,7 @@ const activeTabWc = () => {
     const tab = t && t.tabMap.get(t.activeTabIndex);
     return (tab && tab.webContents && !tab.webContents.isDestroyed()) ? tab.webContents : null;
 };
-const newTab = () => { const wd = focusedWd(); if (wd) { try { require('./palette-bridge').openFor(wd); } catch (e) { log.debug('app-menu', 'newtab', e); } } };
+const newTab = () => { const wd = focusedWd(); if (wd?.tabs) { try { wd.tabs.openInternalPage('home'); } catch (e) { log.debug('app-menu', 'newtab', e); } } };
 /** Whatever webContents currently holds focus — the right target for clipboard. */
 const focusedWc = () => { try { return webContents.getFocusedWebContents(); } catch { return null; } };
 

@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <link rel="stylesheet" href="../styles/ui.css">
+  <link rel="stylesheet" href="../styles/surface.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="panel" class="surface-card" role="alertdialog" aria-labelledby="hang-msg">
+    <div class="hang-msg" id="hang-msg"></div>
+    <div class="hang-detail" data-i18n="hang.detail">You can wait for it to catch up, or stop it and reload.</div>
+    <div class="hang-actions">
+      <button id="stop" class="hang-btn" data-i18n="hang.stop">Stop page</button>
+      <button id="wait" class="hang-btn primary" data-i18n="hang.wait" autofocus>Wait</button>
+    </div>
+  </div>
+  <script src="../lib/i18n.js"></script>
+  <script src="../lib/surface-anim.js"></script>
+  <script src="hang.js"></script>
+</body>
+</html>

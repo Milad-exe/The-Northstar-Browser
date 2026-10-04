@@ -145,11 +145,47 @@ html[data-private-tab="true"] {
   --ring: inset 0 0 0 0.5px var(--border);
   --ring-2: inset 0 0 0 0.5px var(--border-2);
 
-  /* Motion — two durations and one curve, used everywhere. */
-  --dur-1: 110ms;
-  --dur-2: 190ms;
-  --ease: cubic-bezier(0.2, 0, 0, 1);
+  /* Motion — Material 3 scale (see docs/chrome-ux/motion.md). --dur-1/--dur-2
+     and --ease are the existing values; the rest are added for the chrome-feel
+     work. NB: mirror every change in ui.css — pages link that, not this file. */
+  --dur-instant: 50ms;   /* state-layer fades, press */
+  --dur-1: 110ms;        /* hover / colour washes */
+  --dur-2: 190ms;        /* toggles, small moves */
+  --dur-3: 250ms;        /* favicon handoff, chip collapse, panel in */
+  --dur-4: 350ms;        /* chip expand, larger layout shifts */
+  --ease: cubic-bezier(0.2, 0, 0, 1);              /* M3 standard */
+  --ease-decel: cubic-bezier(0.05, 0.7, 0.1, 1);   /* emphasized-decelerate: entering */
+  --ease-accel: cubic-bezier(0.3, 0, 0.8, 0.15);   /* emphasized-accelerate: leaving */
+  --ease-spin:  cubic-bezier(0.4, 0, 0.2, 1);      /* throbber arc (FAST_OUT_SLOW_IN) */
 
+  /* Loading throbber (Chrome's constants) */
+  --throbber-size: 16px;
+  --throbber-stroke: 2px;
+  --throbber-rotate: 1568ms;
+  --throbber-arc: 667ms;
+  --throbber-wait: var(--border-2);   /* grey ring, before the response commits */
+  --throbber-load: var(--accent);     /* accent ring, once content is arriving */
+  --discard-ring: var(--text-3);      /* dotted ring on a slept (discarded) tab */
+  /* "Not secure" omnibox chip (P2-1): amber warn, milder than --danger (which
+     stays reserved for a cert error). Translucent so it reads on any theme. */
+  --chip-warn: color-mix(in srgb, #f6a93b 22%, transparent);
+  --chip-warn-ink: color-mix(in srgb, #f6a93b 60%, var(--text));
+
+  /* Timing read by JS via getComputedStyle where needed */
+  --hovercard-delay: 300ms;
+  --autoclose-partial: 5s;
+
+}
+
+/* Reduced motion: zero the durations (every transition collapses), stop looping
+   animations, and freeze the loading ring to a static arc. Mirror in ui.css —
+   only that file is linked at runtime. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-instant: 0ms; --dur-1: 0ms; --dur-2: 0ms; --dur-3: 0ms; --dur-4: 0ms;
+  }
+  *, *::before, *::after { animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+  .tab-throbber, .tab-throbber circle { animation: none !important; } /* static ring */
 }
 
 /* Light themes need less shadow — the same alpha that reads as depth on a dark

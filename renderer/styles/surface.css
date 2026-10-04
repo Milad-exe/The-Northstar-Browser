@@ -28,6 +28,10 @@
   /* ── The card ───────────────────────────────────────────────────────────── */
   .surface-card {
     background: var(--surface);
+    /* A whisper of a top-lighter gradient so the card catches light rather than
+       reading as a flat fill (theme depth, from theme-derive.js). 'none' at
+       depth 0. */
+    background-image: var(--surface-grad, none);
     border-radius: var(--r-lg);
     /* The ring does the work a border used to: no layout, crisp at any DPR.
        The half-pixel highlight along the top edge is the light catching a
@@ -46,12 +50,28 @@
        to the address field and paints its own contained shadow
        (renderer/Suggestions/styles.css). */
     box-shadow:
-      inset 0 0.5px 0 color-mix(in srgb, #fff 8%, transparent),
+      var(--surface-hi, inset 0 0.5px 0 color-mix(in srgb, #fff 8%, transparent)),
       var(--ring-2);
     overflow: hidden;
     font-family: var(--font);
     -webkit-font-smoothing: antialiased;
   }
+  /* Enter / exit motion (P1-6), driven by renderer/lib/surface-anim.js. The
+     default card is fully visible, so a page that never animates is unaffected.
+     Opt-in classes only: .surface-enter is the start state (and .surface-in the
+     transition toward resting) on open; .surface-out is the close fade. Translate
+     only, ≤4px — NEVER scale: the dropdown's shadow gutter is measured exactly
+     and scaling would clip it. */
+  .surface-card.surface-enter { opacity: 0; transform: translateY(-4px); }
+  .surface-card.surface-in {
+    opacity: 1; transform: translateY(0);
+    transition: opacity var(--dur-2) var(--ease-decel), transform var(--dur-2) var(--ease-decel);
+  }
+  .surface-card.surface-out {
+    opacity: 0; transform: translateY(-4px);
+    transition: opacity var(--dur-1) var(--ease-accel), transform var(--dur-1) var(--ease-accel);
+  }
+
   /* The scrim behind a modal surface. Dark enough to detach the card from the
      page, light enough that the page is still legible behind it. */
   .surface-scrim { background: color-mix(in srgb, #05070d 42%, transparent); }

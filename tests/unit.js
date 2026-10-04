@@ -420,6 +420,142 @@ test('resting URL display splits scheme, host and path', () => {
     assert.deepStrictEqual(chromeUtil.urlDisplayParts('https://user:pw@example.com/x'), ['https://user:pw@', 'example.com', '/x']);
 });
 
+test('a suggestion key is its url, else its type+query', () => {
+    assert.strictEqual(chromeUtil.suggestionKey({ url: 'https://youtube.com/', type: 'history' }), 'https://youtube.com/');
+    assert.strictEqual(chromeUtil.suggestionKey({ type: 'google', query: 'cats' }), 'google:cats');
+    assert.strictEqual(chromeUtil.suggestionKey({ type: 'action', query: 'cats' }), 'action:cats');
+});
+
+test('the active row survives a re-render by identity, not index', () => {
+    const prev = [
+        { type: 'action', query: 'you' },   // base row (index 0)
+        { url: 'https://youtube.com/' },     // index 1 — the row the user arrowed to
+        { url: 'https://you.com/' },
+    ];
+    // A later merge reorders the list; the active url is now at index 2.
+    const next = [
+        { type: 'action', query: 'you' },
+        { type: 'google', query: 'you tube' },
+        { url: 'https://youtube.com/' },     // same identity, moved
+    ];
+    assert.strictEqual(chromeUtil.reindexActive(prev, 1, next), 2, 'follows the url across a merge');
+    // The active row is gone from the next list → fall back to the base row.
+    const gone = [{ type: 'action', query: 'you' }, { url: 'https://other.com/' }];
+    assert.strictEqual(chromeUtil.reindexActive(prev, 1, gone), 0);
+    // Nothing was active → base row.
+    assert.strictEqual(chromeUtil.reindexActive(prev, -1, next), 0);
+    // Empty next list → no selection.
+    assert.strictEqual(chromeUtil.reindexActive(prev, 1, []), -1);
+});
+
+test('preconnect targets the right origin per row type', () => {
+    const E = 'https://duckduckgo.com';
+    assert.strictEqual(chromeUtil.preconnectOrigin({ url: 'https://youtube.com/watch?v=1' }, E), 'https://youtube.com');
+    assert.strictEqual(chromeUtil.preconnectOrigin({ type: 'navigate', query: 'example.com/x' }, E), 'https://example.com');
+    assert.strictEqual(chromeUtil.preconnectOrigin({ type: 'navigate', query: 'https://a.com/p' }, E), 'https://a.com');
+    assert.strictEqual(chromeUtil.preconnectOrigin({ type: 'action', query: 'cats' }, E), E, 'a search action preconnects the engine');
+    assert.strictEqual(chromeUtil.preconnectOrigin({ type: 'switch-tab', tabIndex: 2 }, E), null);
+    assert.strictEqual(chromeUtil.preconnectOrigin({ url: 'https://x.com/', profile: 'work' }, E), null, 'a container row leaks no origin');
+    assert.strictEqual(chromeUtil.preconnectOrigin({ url: 'about:blank' }, E), null, 'non-http never preconnects');
+});
+
+test('toNavigableUrl resolves typed text the same way the omnibox commits it', () => {
+    // Lifted from renderer formatToUrl so the new-tab page and the omnibox can't
+    // drift. Real URLs pass through; a bare domain gets https; a northstar:// or
+    // file:// scheme passes; anything else becomes a search.
+    const E = [{ id: 'google', url: 'https://www.google.com/search?q=%s' }];
+    const nav = (t) => chromeUtil.toNavigableUrl(t, E, 'google');
+    assert.strictEqual(nav('https://a.com/p'), 'https://a.com/p');
+    assert.strictEqual(nav('example.com/x'), 'https://example.com/x');
+    assert.strictEqual(nav('northstar://home'), 'northstar://home');
+    assert.strictEqual(nav('file:///tmp/x'), 'file:///tmp/x');
+    assert.strictEqual(nav('hello world'), 'https://www.google.com/search?q=hello%20world');
+    assert.strictEqual(nav('   '), '', 'blank resolves to nothing');
+});
+
+// New-tab page: suggestions under the field and the most-visited tiles. Local
+// only (no network), open tabs first so tab search lives in the NTP field.
+test('ntpSuggestions ranks open tabs, then bookmarks, then history, deduped', () => {
+    const sources = {
+        tabs: [{ index: 4, url: 'https://github.com/x', title: 'GitHub repo' }],
+        bookmarks: [{ url: 'https://github.com/x', title: 'dup of the tab' }, { url: 'https://git-scm.com', title: 'Git' }],
+        history: [{ url: 'https://gitlab.com', title: 'GitLab' }, { url: 'https://git-scm.com', title: 'Git again' }, { url: 'https://news.com', title: 'News' }],
+    };
+    const rows = chromeUtil.ntpSuggestions('git', sources, 6);
+    assert.deepStrictEqual(rows.map(r => [r.kind, r.url]), [
+        ['tab', 'https://github.com/x'],
+        ['bookmark', 'https://git-scm.com'],
+        ['history', 'https://gitlab.com'],
+    ]);
+    assert.strictEqual(rows[0].index, 4, 'a tab row carries the tab to switch to');
+    assert.deepStrictEqual(chromeUtil.ntpSuggestions('  ', sources, 6), [], 'blank query, no rows');
+    assert.strictEqual(chromeUtil.ntpSuggestions('g', sources, 2).length, 2, 'limit holds');
+});
+
+// Ctrl+Shift+A: the NTP's tab-search mode lists every open tab before you type
+// (Chrome's tab search does), filters as you do, and keeps two tabs on the same
+// page apart — each row is its own tab.
+test('tabSearchRows lists all tabs blank, filters typed, keeps duplicates', () => {
+    const tabs = [
+        { index: 1, url: 'https://a.com/', title: 'Alpha' },
+        { index: 2, url: 'https://b.com/', title: 'Beta' },
+        { index: 3, url: 'https://a.com/', title: 'Alpha' },
+    ];
+    assert.deepStrictEqual(chromeUtil.tabSearchRows('', tabs).map(r => r.index), [1, 2, 3]);
+    assert.deepStrictEqual(chromeUtil.tabSearchRows('alp', tabs).map(r => r.index), [1, 3]);
+    assert.deepStrictEqual(chromeUtil.tabSearchRows('b.com', tabs).map(r => r.index), [2]);
+    assert.strictEqual(chromeUtil.tabSearchRows('', tabs, 2).length, 2, 'limit holds');
+    assert.ok(chromeUtil.tabSearchRows('', tabs).every(r => r.kind === 'tab'));
+});
+
+// NTP shortcut tiles (Phase 4): your own tiles first and always shown, then the
+// space's Essentials, then most-visited to fill — minus any you hid.
+test('ntpTiles orders custom, essentials, frequent; hidden only hides the rest', () => {
+    const cfg = { tiles: [{ url: 'https://mine.com/', title: 'Mine' }, { url: 'https://hid.com/', title: 'Kept' }], hidden: ['https://hid.com/', 'https://e2.com/', 'https://f2.com/'] };
+    const sources = {
+        essentials: [{ url: 'https://e1.com/', title: 'E1' }, { url: 'https://e2.com/', title: 'E2' }, { url: 'https://mine.com/', title: 'dup' }],
+        frequent: [{ url: 'https://f1.com/', title: 'F1' }, { url: 'https://f2.com/', title: 'F2' }, { url: 'https://f3.com/', title: 'F3' }],
+    };
+    const t = chromeUtil.ntpTiles(cfg, sources, 5);
+    assert.deepStrictEqual(t.map(x => [x.source, x.url]), [
+        ['custom', 'https://mine.com/'], ['custom', 'https://hid.com/'],
+        ['essential', 'https://e1.com/'], ['frequent', 'https://f1.com/'], ['frequent', 'https://f3.com/'],
+    ]);
+    assert.deepStrictEqual(chromeUtil.ntpTiles({}, {}, 8), [], 'nothing to show, no tiles');
+});
+
+test('tileUrl accepts addresses, refuses searches and unsafe schemes', () => {
+    assert.strictEqual(chromeUtil.tileUrl('example.com'), 'https://example.com/');
+    assert.strictEqual(chromeUtil.tileUrl(' https://a.com/x?y=1 '), 'https://a.com/x?y=1');
+    assert.strictEqual(chromeUtil.tileUrl('http://local.test:8080'), 'http://local.test:8080/');
+    assert.strictEqual(chromeUtil.tileUrl('just words'), '');
+    assert.strictEqual(chromeUtil.tileUrl('javascript:alert(1)'), '');
+    assert.strictEqual(chromeUtil.tileUrl(''), '');
+});
+
+// Drag-reorder sends only the tabs the sidebar draws (this space, no
+// Essentials). reorderTabs demanded EVERY tab, so with two spaces a drag was
+// silently dropped. mergeOrder lays the drawn tabs into their own slots and
+// leaves every other tab where it was.
+test('mergeOrder reorders a subset in place, other tabs keep their slots', () => {
+    assert.deepStrictEqual(chromeUtil.mergeOrder([0, 1, 2, 3, 4], [4, 1, 3]), [0, 4, 2, 1, 3]);
+    assert.deepStrictEqual(chromeUtil.mergeOrder([0, 1, 2], [2, 1, 0]), [2, 1, 0], 'a full order is taken as-is');
+    assert.deepStrictEqual(chromeUtil.mergeOrder([0, 1, 2], [9, 2, 0]), [2, 1, 0], 'unknown indices ignored');
+    assert.deepStrictEqual(chromeUtil.mergeOrder([0, 1, 2], [2, 2, 0]), [2, 1, 0], 'duplicates ignored');
+    assert.deepStrictEqual(chromeUtil.mergeOrder([0, 1], []), [0, 1]);
+});
+
+test('mostVisited counts visits per page, newest-first ties, skips searches', () => {
+    const h = [
+        { url: 'https://a.com/', title: 'A' }, { url: 'https://b.com/', title: 'B' },
+        { url: 'https://a.com/', title: 'A' }, { url: 'https://c.com/', title: 'C' },
+        { url: 'https://www.google.com/search?q=x', title: 'x - Search' },
+        { url: 'https://b.com/', title: 'B' }, { url: 'https://a.com/', title: 'A' },
+    ];
+    assert.deepStrictEqual(chromeUtil.mostVisited(h, 3).map(r => r.url), ['https://a.com/', 'https://b.com/', 'https://c.com/']);
+    assert.deepStrictEqual(chromeUtil.mostVisited(h, 2, new Set(['https://a.com/'])).map(r => r.url), ['https://b.com/', 'https://c.com/']);
+});
+
 test('omnibox and main process agree on keyword search', () => {
     const engines = [
         { id: 'google', keyword: 'g', url: 'https://www.google.com/search?q=%s' },
@@ -440,6 +576,20 @@ test('debounce fires once and can be cancelled', async () => {
     fn.cancel();
     await new Promise(r => setTimeout(r, 25));
     assert.strictEqual(calls, 1);
+});
+
+test('throttle fires on the leading edge and suppresses the immediate follow-up', () => {
+    // The omnibox remote pass (P0-2) must hit the network on the first keystroke
+    // (leading edge), then NOT again for a burst of fast keystrokes inside the
+    // window. Synchronously observable: the first call runs now, the rest don't.
+    let calls = 0;
+    const t = chromeUtil.throttle(() => calls++, 100);
+    t('a'); // leading edge → runs immediately
+    t('b'); // within the window → deferred, not run now
+    t('c');
+    assert.strictEqual(calls, 1, 'only the leading call runs synchronously');
+    t.cancel(); // drop the pending trailing call so no timer outlives the test
+    assert.strictEqual(calls, 1, 'cancel leaves the leading call as the only one');
 });
 
 // ── Localisation ─────────────────────────────────────────────────────────────
@@ -1271,6 +1421,173 @@ test('sleeping is skippable by setting, and stops when the window is gone', () =
     assert.strictEqual(s.timer, null, 'a destroyed window stops the scan');
 });
 
+// The Chrome-parity protections (P0-5): each is a flag or a synchronous lookup,
+// and each must fail SAFE (keep the tab awake). One idle background web tab,
+// stale for an hour, that would otherwise be slept — made ineligible one reason
+// at a time.
+function staleTab(overrides = {}) {
+    const t = stubTabs(overrides);
+    const tab = t._mk(overrides.tabProps || {});
+    t.tabMap.set(1, tab);
+    t.tabUrls.set(1, overrides.url || 'https://example.com');
+    t.tabLastActive.set(1, Date.now() - 60 * 60_000);
+    return { t, tab };
+}
+
+test('a tab with half-typed form text is never slept', () => {
+    const { t, tab } = staleTab({ tabProps: { dirty: true } });
+    new TabSleeper(t).scan();
+    assert.strictEqual(tab.slept, false, 'kUserEdits: a dirty page keeps its process');
+});
+
+test('a tab capturing camera/mic/screen is never slept', () => {
+    const { t, tab } = staleTab({ tabProps: { capturing: new Set(['video']) } });
+    new TabSleeper(t).scan();
+    assert.strictEqual(tab.slept, false, 'kCapturing*: a live capture keeps the tab awake');
+});
+
+test('a tab in Picture-in-Picture is never slept', () => {
+    const { t, tab } = staleTab({ tabProps: { inPiP: true } });
+    new TabSleeper(t).scan();
+    assert.strictEqual(tab.slept, false, 'kPictureInPicture');
+});
+
+test('recently-audible is a 60 s window, not forever', () => {
+    const recent = staleTab({ tabProps: { lastAudibleAt: Date.now() - 30_000 } });
+    new TabSleeper(recent.t).scan();
+    assert.strictEqual(recent.tab.slept, false, 'stopped 30 s ago → still protected');
+
+    const old = staleTab({ tabProps: { lastAudibleAt: Date.now() - 90_000 } });
+    new TabSleeper(old.t).scan();
+    assert.strictEqual(old.tab.slept, true, 'stopped 90 s ago → eligible again');
+});
+
+test('a tab whose origin may show notifications is never slept', () => {
+    const { t, tab } = staleTab({
+        url: 'https://chat.example.com/room',
+        sitePermissions: {
+            originOf: (u) => { try { return new URL(u).origin; } catch { return null; } },
+            state: (origin, name) => (name === 'notifications' && origin === 'https://chat.example.com' ? 'allow' : 'ask'),
+        },
+    });
+    new TabSleeper(t).scan();
+    assert.strictEqual(tab.slept, false, 'kNotificationsEnabled: a granted origin keeps running');
+});
+
+// ── New-tab page routing (P2 pivot) ──────────────────────────────────────────
+// northstar://home must resolve to the NewTab page, and the 'home' token must
+// round-trip — without disturbing the 'newtab' blank-tab sentinel.
+const internalPage = require('../features/tabs/internal-page');
+test('northstar://home routes to the new-tab page; the newtab sentinel is untouched', () => {
+    assert.deepStrictEqual(internalPage.parseNorthstarUrl('northstar://home'), { type: 'home', section: null });
+    assert.deepStrictEqual(internalPage.parseInternalToken('home'), { type: 'home', section: null });
+    assert.ok(internalPage.INTERNAL_PAGES.home.file.includes('NewTab'), 'home maps to renderer/NewTab');
+    assert.strictEqual(internalPage.parseInternalToken('newtab'), null, 'the blank-tab sentinel is not a page');
+    assert.strictEqual(internalPage.internalTokenFor('file:///x/renderer/NewTab/index.html'), 'home');
+});
+
+// Back/forward onto an internal page: the history tree stores the bare token
+// ('home'), and handing that to loadURL gave ERR_INVALID_URL — Back from a
+// site you typed on the new-tab page landed on an error page. Pages on the
+// general preload load in place; Settings (privileged preload) can't.
+test('history entries that are internal pages resolve to their file', () => {
+    const h = internalPage.internalHistoryEntry('home');
+    assert.strictEqual(h.type, 'home');
+    assert.ok(h.file.includes('NewTab/index.html'));
+    assert.strictEqual(h.inPlace, true);
+    assert.strictEqual(internalPage.internalHistoryEntry('history').inPlace, true);
+    const s = internalPage.internalHistoryEntry('settings/privacy');
+    assert.strictEqual(s.inPlace, false);
+    assert.strictEqual(s.section, 'privacy');
+    assert.strictEqual(internalPage.internalHistoryEntry('northstar://home').type, 'home');
+    assert.strictEqual(internalPage.internalHistoryEntry('https://example.com'), null);
+    assert.strictEqual(internalPage.internalHistoryEntry('newtab'), null);
+});
+
+// ── Overlay enter/exit motion (P1-6) ─────────────────────────────────────────
+// The class-sequencing is pure; the fade itself is CSS. Pin that a card reaches
+// the shown state, and that exit always calls back (so a panel never hangs).
+const surfaceAnim = require('../renderer/lib/surface-anim');
+function fakeCard() {
+    const set = new Set();
+    return {
+        classList: {
+            add: (...c) => c.forEach(x => set.add(x)),
+            remove: (...c) => c.forEach(x => set.delete(x)),
+            contains: (c) => set.has(c),
+        },
+        addEventListener() { }, removeEventListener() { },
+        _has: (c) => set.has(c),
+    };
+}
+test('enterCard brings a card to its shown state', () => {
+    const el = fakeCard();
+    surfaceAnim.enterCard(el); // no requestAnimationFrame in node → runs synchronously
+    assert.ok(el._has('surface-in'), 'transitions toward resting');
+    assert.ok(!el._has('surface-enter'), 'start state is cleared');
+});
+test('exitCard calls back immediately under reduced motion', () => {
+    const saved = global.matchMedia;
+    global.matchMedia = () => ({ matches: true });
+    try {
+        let called = false;
+        surfaceAnim.exitCard(fakeCard(), () => { called = true; });
+        assert.ok(called, 'reduced motion → hide now, no waiting on a transition');
+    }
+    finally { if (saved) global.matchMedia = saved; else delete global.matchMedia; }
+});
+test('exitCard starts the close fade and never drops the callback', () => {
+    const el = fakeCard();
+    let n = 0;
+    surfaceAnim.exitCard(el, () => { n++; });
+    assert.ok(el._has('surface-out'), 'the out class is applied');
+    assert.ok(typeof surfaceAnim.exitCard === 'function');
+});
+
+// ── Shortcut rebinds (P1-7) ──────────────────────────────────────────────────
+// Compact moves off Ctrl+Shift+C (Chrome's inspect-element) to Ctrl+\. The
+// produced-character matcher keys off input.key, so pin the new combo and that
+// the old one no longer fires it.
+test('compact mode binds to Ctrl+\\, not Ctrl+Shift+C', () => {
+    const Shortcuts = require(path.join(root, 'features/shortcuts'));
+    const match = (input, accel) => Shortcuts.prototype.matchesAccelerator.call({}, input, accel);
+    const base = { meta: false, control: true, shift: false, alt: false };
+    assert.ok(match({ ...base, key: '\\' }, 'CmdOrCtrl+\\'), 'Ctrl+\\ triggers compact');
+    assert.ok(!match({ ...base, shift: true, key: 'C' }, 'CmdOrCtrl+\\'), 'Ctrl+Shift+C no longer does');
+    assert.ok(!match({ ...base, key: '\\' }, 'CmdOrCtrl+Shift+C'), 'the old binding is gone');
+});
+
+// ── Downloads: dangerous-file confirm (P1-5) ─────────────────────────────────
+// shell.openPath must never run for an executable/script unless the user has
+// explicitly confirmed a second time.
+const downloadManager = require('../features/download-manager');
+
+test('the dangerous-file list catches executables and scripts, spares documents', () => {
+    for (const n of ['setup.exe', 'a.msi', 'x.bat', 'y.cmd', 'z.com', 's.ps1', 'p.scr',
+                     'v.vbs', 'app.js', 'tool.jar', 'disk.dmg', 'pkg.pkg', 'run.sh',
+                     'Foo.AppImage', 'lib.deb', 'pkg.rpm'])
+        assert.ok(downloadManager.isDangerousFile(n), `${n} should be flagged dangerous`);
+    for (const n of ['report.pdf', 'photo.png', 'notes.txt', 'sheet.xlsx', 'archive.zip', 'song.mp3'])
+        assert.ok(!downloadManager.isDangerousFile(n), `${n} should be safe`);
+    assert.ok(downloadManager.isDangerousFile('SETUP.EXE'), 'extension match is case-insensitive');
+    assert.ok(!downloadManager.isDangerousFile(''), 'no name → not dangerous');
+});
+
+test('openFile refuses a dangerous file until it is confirmed', () => {
+    const dm = downloadManager;
+    const opened = [];
+    electronStub.shell.openPath = (p) => { opened.push(p); return Promise.resolve(''); };
+    dm.items.set(901, { id: 901, state: 'completed', savePath: 'C:/dl/evil.exe', filename: 'evil.exe', dangerous: true });
+    dm.openFile(901);        // no confirm → refused
+    assert.deepStrictEqual(opened, [], 'shell.openPath is never reached for a dangerous file');
+    dm.openFile(901, true);  // confirmed → opens
+    assert.deepStrictEqual(opened, ['C:/dl/evil.exe'], 'a confirmed dangerous file opens');
+    dm.items.set(902, { id: 902, state: 'completed', savePath: 'C:/dl/report.pdf', filename: 'report.pdf', dangerous: false });
+    dm.openFile(902);        // safe → opens on the first call
+    assert.deepStrictEqual(opened, ['C:/dl/evil.exe', 'C:/dl/report.pdf'], 'a safe file needs no confirm');
+    dm.items.delete(901); dm.items.delete(902);
+});
+
 // ── Tab cycling stays within the active space ────────────────────────────────
 // The window keeps every space's tabs alive in one tabMap; cycling (Ctrl+Tab,
 // Ctrl+1–9) must never walk into another space's tabs — doing so switched the
@@ -1308,6 +1625,36 @@ test('tab cycling never leaves the current space', () => {
 
     sut.switchToTabByNumber(3);                   // space 1 has 2 tabs → no-op
     assert.ok(!shown.includes(2) && !shown.includes(3), 'never activates another space’s tab');
+});
+
+// ── Ctrl+1–9 / Ctrl+Tab follow the order the sidebar DRAWS ──────────────────
+// The sidebar puts a new tab at the TOP of the loose tabs, while main's
+// tabOrder appends it — so Ctrl+1 landed on the bottom-most tab. The renderer
+// reports its drawn order (tabs.visualOrder); cycling must follow it, still
+// scoped to the space, with any unreported tab falling in after.
+test('tab shortcuts follow the drawn (visual) order', () => {
+    const Shortcuts = require(path.join(root, 'features/shortcuts'));
+    const shown = [];
+    const tm = {
+        profileId: '1',
+        activeTabIndex: 0,
+        tabOrder: [0, 1, 2, 3, 4],
+        tabMap: new Map([[0, {}], [1, {}], [2, {}], [3, {}], [4, {}]]),
+        tabProfiles: new Map([[0, '1'], [1, '1'], [2, '1'], [3, '2'], [4, '1']]),
+        visualOrder: [2, 3, 1, 0, 99],   // 3 is another space's, 99 is gone, 4 unreported
+        tabsInWorkspace(id) {
+            const key = String(id);
+            return this.tabOrder.filter(i => this.tabMap.has(i) && (this.tabProfiles.get(i) || '1') === key);
+        },
+        showTab(i) { shown.push(i); this.activeTabIndex = i; },
+    };
+    const sut = Object.create(Shortcuts.prototype);
+    sut.tabManager = tm;
+    assert.deepStrictEqual(sut._orderedTabIndexes(), [2, 1, 0, 4]);
+    sut.switchToTabByNumber(1);
+    assert.strictEqual(tm.activeTabIndex, 2, 'Ctrl+1 is the top drawn tab');
+    sut.switchToNextTab();
+    assert.strictEqual(tm.activeTabIndex, 1, 'Ctrl+Tab walks down the drawn list');
 });
 
 // ── Report ───────────────────────────────────────────────────────────────────

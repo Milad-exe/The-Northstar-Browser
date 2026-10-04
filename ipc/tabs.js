@@ -157,7 +157,7 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
     ipcMain.handle('addPrivateTab', (_e) => {
         const wd = wm.getWindowByWebContents(_e.sender);
         if (wd)
-            wd.tabs.createTab(null, true, true);
+            wd.tabs.openNewTabPage(true); // on the private new-tab page, like Ctrl+T
     });
     // Open a URL in a new background tab without loading it until the user switches to it
     ipcMain.handle('addTabLazy', (_e, url) => {
@@ -854,6 +854,14 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
         }
         return false;
     });
+    // The order the chrome DRAWS this space's tabs in — what Ctrl+1–9 and
+    // Ctrl+Tab follow (Shortcuts._orderedTabIndexes). Kept apart from tabOrder:
+    // reorderTabs above only accepts a full every-space order.
+    ipcMain.on('tabs:visual-order', (_e, order) => {
+        const wd = wm.getWindowByWebContents(_e.sender);
+        if (wd?.tabs && Array.isArray(order))
+            wd.tabs.visualOrder = order.map(Number).filter(Number.isInteger);
+    });
     // Long-press / right-click on back-forward buttons: show the tab's full
     // navigation stack (newest first, current entry checked) as a native menu.
     ipcMain.handle('show-nav-history-menu', (_e, index, x, y) => {
@@ -1065,6 +1073,54 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
             sess.preconnect({ url: origin, numSockets: 1 });
         }
         catch (err) { log.debug('tabs', 'omnibox-preconnect', err); }
+    });
+    // Open the new-tab page (P2 pivot: the Palette's replacement). "+" and the
+    // "New tab" menu items call this.
+    ipcMain.handle('tabs:new-page', (e) => {
+        const wd = wm.getWindowByWebContents(e.sender);
+        return wd?.tabs ? wd.tabs.openInternalPage('home') : null;
+    });
+    // ── Open-tab list for tab search (the NTP field, Ctrl+Shift+A) ───────────
+    // Returns this window's tabs in the ACTIVE space, in the order the sidebar
+    // draws them — never another space's tabs.
+    ipcMain.handle('tabs:list-open', (e) => {
+        const wd = wm.getWindowByWebContents(e.sender);
+        const t = wd?.tabs;
+        if (!t)
+            return [];
+        let idxs;
+        try { idxs = wd.shortcuts?._orderedTabIndexes?.(); }
+        catch (err) { log.debug('tabs', 'list-open order', err); }
+        if (!Array.isArray(idxs))
+            idxs = t.tabsInWorkspace ? t.tabsInWorkspace(t.profileId) : [...t.tabMap.keys()];
+        const out = [];
+        for (const i of idxs) {
+            const url = String(t.tabUrls.get(i) || '');
+            if (!url || url === 'newtab' || url === 'home')
+                continue; // a blank tab / the new-tab page isn't a search target
+            const tab = t.tabMap.get(i);
+            let title = '';
+            try {
+                if (tab && tab.webContents && !tab.webContents.isDestroyed())
+                    title = tab.webContents.getTitle() || '';
+            }
+            catch (err) { log.debug('tabs', 'list-open title', err); }
+            out.push({ index: i, url, title: title || tab?.lazyTitle || url });
+        }
+        return out;
+    });
+    // A Ctrl+Shift+A tab-search page is done: jump to `index` (null = back to
+    // where the search began) and close the search page that sent this.
+    ipcMain.handle('tabs:search-done', (e, index) => {
+        const wd = wm.getWindowByWebContents(e.sender);
+        const t = wd?.tabs;
+        if (!t)
+            return false;
+        for (const [i, tab] of t.tabMap) {
+            if (tab.webContents === e.sender)
+                return t.finishTabSearch(i, Number.isInteger(index) ? index : null);
+        }
+        return false;
     });
     // ── Persistence mode ─────────────────────────────────────────────────────
     ipcMain.handle('getPersistMode', () => {

@@ -14,7 +14,7 @@
  * glance.js, organize.js and essentials.js use.
  */
 const path = require('path');
-const { dialog } = require('electron');
+const hangPrompt = require('../hang-prompt');
 const { resolveAppFile } = require('../../app-paths');
 const captivePortal = require('../captive-portal');
 const containers = require('../containers');
@@ -133,6 +133,8 @@ module.exports = {
                     title = 'Bookmarks';
                 else if (base === 'history')
                     title = 'History';
+                else if (base === 'home')
+                    title = i18n.t('chrome.newTab');
                 this.sendTabUpdate(tabIndex, tab, token, title);
                 this.sendNavigationUpdate(tabIndex);
             }
@@ -354,6 +356,10 @@ module.exports = {
                 return;
             const url = this.tabUrls.get(tabIndex) || '';
             log.error('tabs', `renderer gone for tab ${tabIndex}: ${details?.reason} (exit ${details?.exitCode})`);
+            // Mark the row crashed (warning glyph, dimmed title); cleared by the
+            // next did-start-loading when the user reloads (P1-8).
+            try { this.mainWindow.webContents.send('tab-crashed', { index: tabIndex }); }
+            catch (e) { log.debug('tabs', 'tab-crashed', e); }
             const params = new URLSearchParams({
                 url: url && url !== 'newtab' ? url : '',
                 reason: details?.reason || 'crashed',
@@ -378,23 +384,16 @@ module.exports = {
                 try { return new URL(this.tabUrls.get(tabIndex) || '').host; }
                 catch { return 'This page'; }
             })();
-            dialog.showMessageBox(this.mainWindow, {
-                type: 'warning',
-                buttons: ['Wait', 'Stop page'],
-                defaultId: 0,
-                cancelId: 0,
-                message: `${host} isn’t responding`,
-                detail: 'You can wait for it to catch up, or stop it and reload.',
-            }).then(({ response }) => {
-                tab._hangPrompt = false;
-                if (response === 1 && !tab.webContents.isDestroyed()) {
-                    tab._killedForHang = true;
-                    try { tab.webContents.forcefullyCrashRenderer(); }
-                    catch (e) { log.error('tabs', 'could not stop the hung page', e); }
-                }
-            }).catch(() => { tab._hangPrompt = false; });
+            // A tab-scoped overlay (P2-3), not a native message box: it matches
+            // the chrome, is anchored to this page's card, and auto-dismisses
+            // when the page recovers (responsive, below).
+            hangPrompt.show(this.getWindowData(), this, tabIndex, host);
         });
-        tab.webContents.on('responsive', () => { tab._hangPrompt = false; });
+        tab.webContents.on('responsive', () => {
+            tab._hangPrompt = false;
+            try { hangPrompt.hide(this.getWindowData()); }
+            catch (e) { log.debug('tabs', 'hang prompt hide', e); }
+        });
         // Error page — skip aborts (e.g. navigating away mid-load) and sub-frame errors
         tab.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
             if (!isMainFrame)
@@ -447,7 +446,7 @@ module.exports = {
         });
         tab.webContents.on('did-start-loading', () => {
             clearTimeout(tab._loadingCapTimer);
-            this.sendLoadingState(tabIndex, true);
+            this.sendLoadingState(tabIndex, true, 'waiting');
         });
         // DOMContentLoaded: the page is parsed and usable. Many sites then keep
         // the network "loading" for 10-20s+ on non-essential third-party junk —
@@ -539,8 +538,19 @@ module.exports = {
         // navigation (the temp permission grants clear there too).
         tab.webContents.on('audio-state-changed', (e) => {
             tab.isAudible = !!e.audible;
+            // Recently-audible sleep protection (P0-5): stamp the moment of any
+            // transition — on start it just became audible, and on stop it was
+            // audible up to this instant — so the 60 s grace is measured from
+            // when sound actually ended, not from when it began.
+            tab.lastAudibleAt = Date.now();
             this.sendMediaIndicators(tabIndex, tab);
         });
+        // Page lifecycle signals for sleep eligibility (P0-5). These come from
+        // the page's own preload over IPC (not a `window.` flag — with
+        // contextIsolation the preload's world is invisible to executeJavaScript),
+        // and are read synchronously by the sleeper. Both clear on navigation.
+        tab.webContents.ipc.on('page-dirty', () => { tab.dirty = true; });
+        tab.webContents.ipc.on('page-pip', (_e, active) => { tab.inPiP = !!active; });
         tab.webContents.on('media-capture-started', (names) => {
             if (!tab.capturing)
                 tab.capturing = new Set();
@@ -548,10 +558,23 @@ module.exports = {
             this.sendMediaIndicators(tabIndex, tab);
         });
         tab.webContents.on('did-navigate', () => {
+            // The response committed — move the throbber from waiting (grey) to
+            // loading (accent + favicon), but only while the page is still
+            // fetching, so a cached/instant load doesn't re-arm a finished tab.
+            try {
+                if (!tab.webContents.isDestroyed() && tab.webContents.isLoading())
+                    this.sendLoadingState(tabIndex, true, 'loading');
+            }
+            catch (e) { log.debug('tabs', 'did-navigate loading phase', e); }
             if (tab.capturing && tab.capturing.size) {
                 tab.capturing.clear();
                 this.sendMediaIndicators(tabIndex, tab);
             }
+            // A new document starts clean: drop the form-dirty and PiP flags so a
+            // page left dirty before navigating away becomes sleep-eligible again
+            // (the preload re-runs and re-reports if the new page earns them).
+            tab.dirty = false;
+            tab.inPiP = false;
         });
     },
 };

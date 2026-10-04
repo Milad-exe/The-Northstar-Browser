@@ -609,17 +609,20 @@ class WindowManager {
             }
             else if (options?.url) {
                 // Opened FOR a link ("open in new window"): the window starts on
-                // that page rather than on a blank tab with the palette up.
+                // that page rather than on the new-tab page.
                 const idx = tabs.createTab(null, true, !!options?.private);
                 tabs.loadUrl(idx, options.url);
             }
-            // …and nothing else. A fresh window opens with NO tabs: an empty
-            // rail and the page card in the theme's own colour. It used to
-            // create a blank tab, which then raised the palette, so the browser
-            // greeted you with a dialog you had not asked for.
-            // Whether or not there was anything to restore, the restore slot is
-            // now spent: a window opened LATER in the session must start empty,
-            // not re-run the restore and clone another window's tabs.
+            else {
+                // A fresh window opens on the new-tab page (P2 pivot). It used to
+                // open with no tabs and raise the Palette, greeting you with a
+                // dialog you hadn't asked for; now it lands on northstar://home.
+                try { tabs.openInternalPage('home'); }
+                catch (e) { log.debug('window-manager', 'open home', e); }
+            }
+            // The restore slot is now spent either way: a window opened LATER in
+            // the session must not re-run the restore and clone another window's
+            // tabs.
             this.restored = true;
             shortcuts.registerAllShortcuts();
             // The window has now resolved its final space, so re-assert the theme:

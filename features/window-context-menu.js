@@ -74,7 +74,7 @@ class WindowContextMenu {
         this.sep();
         this.contextTemplate.push({
             label: i18n.t('chrome.newTab'),
-            click: () => { require('./palette-bridge').openFor(windowData); },
+            click: () => { windowData?.tabs?.openInternalPage('home'); },
         }, { type: 'separator' }, {
             label: 'Reload Tab',
             click: () => windowData.tabs.reload(tabIndex),
@@ -187,7 +187,7 @@ class WindowContextMenu {
         this.sep();
         this.contextTemplate.push({
             label: i18n.t('chrome.newTab'),
-            click: () => { require('./palette-bridge').openFor(windowData); },
+            click: () => { windowData?.tabs?.openInternalPage('home'); },
         });
         const closed = windowData.tabs.closedTabHistory;
         if (closed && closed.length > 0) {
