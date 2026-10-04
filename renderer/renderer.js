@@ -370,6 +370,7 @@
         initProfiles();
         initEssentials();
         initHoverLabel();
+        initPermissionChip();
         // ─────────────────────────────────────────────────────────────────────────
         // Hover label (ui-polish U1-7) — the chrome's own tooltip, replacing OS
         // tooltips (renderer/lib/hover-label.js). Tabs get title + host, but
@@ -378,6 +379,73 @@
         // former `title`. It never lands on the page card (a native view drawn
         // over the chrome would hide it).
         // ─────────────────────────────────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────────────
+        // Permission chip (chrome-ux P2-2). Main reports, per tab, a request that
+        // is pending / parked (doorhanger dismissed: click to reopen) or a decision
+        // to confirm ("Camera allowed" for 2.5 s, then it collapses away).
+        // ─────────────────────────────────────────────────────────────────────────
+        function initPermissionChip() {
+            const el = document.getElementById('omni-perm');
+            const api = window.permissionChip;
+            const icons = window.Northstar?.permissionIcons;
+            if (!el || !api || !icons) return;
+            const iconEl = el.querySelector('.omni-perm-icon');
+            const textEl = el.querySelector('.omni-perm-text');
+            const byTab = new Map(); // tab index → { state, iconType, allowed }
+            let collapseTimer = null;
+            const CONFIRM_MS = 2500;
+            const label = (st) => {
+                const name = T('perm.n.' + st.iconType, icons.NOUNS[st.iconType] || icons.NOUNS.generic);
+                const key = st.allowed ? 'perm.allowed' : 'perm.blocked';
+                const fallback = icons.chipText(st.iconType, st.allowed);
+                try {
+                    const v = window.Northstar?.i18n?.t(key, { name });
+                    return (v && v !== key) ? v : fallback;
+                }
+                catch { return fallback; }
+            };
+            function render() {
+                clearTimeout(collapseTimer);
+                const st = byTab.get(activeTabIndex);
+                if (!st) {
+                    el.hidden = true;
+                    el.classList.remove('expanded', 'collapsing');
+                    return;
+                }
+                el.hidden = false;
+                el.dataset.state = st.state;
+                iconEl.innerHTML = icons[st.iconType] || icons.generic;
+                const waiting = st.state === 'pending' || st.state === 'parked';
+                el.disabled = st.state !== 'parked';
+                const what = T('perm.n.' + st.iconType, icons.NOUNS[st.iconType] || icons.NOUNS.generic);
+                el.setAttribute('aria-label', waiting ? T('perm.waiting', what + ' request') : label(st));
+                if (st.state === 'decided') {
+                    textEl.textContent = label(st);
+                    el.classList.remove('collapsing');
+                    el.classList.add('expanded');
+                    collapseTimer = setTimeout(() => {
+                        el.classList.add('collapsing');
+                        el.classList.remove('expanded');
+                        // Gone once the collapse has played.
+                        collapseTimer = setTimeout(() => { byTab.delete(activeTabIndex); render(); }, 260);
+                    }, CONFIRM_MS);
+                }
+                else {
+                    textEl.textContent = '';
+                    el.classList.remove('expanded', 'collapsing');
+                }
+            }
+            api.onUpdate((d) => {
+                if (d.tab == null) return;
+                if (d.state === 'clear') byTab.delete(d.tab);
+                else byTab.set(d.tab, { state: d.state, iconType: d.iconType || 'generic', allowed: !!d.allowed });
+                if (d.tab === activeTabIndex) render();
+            });
+            el.addEventListener('mousedown', (e) => e.preventDefault()); // keep focus where it was
+            el.addEventListener('click', () => { if (byTab.get(activeTabIndex)?.state === 'parked') api.click(); });
+            window.tab.onTabSwitched(() => setTimeout(render, 0));
+            window.tab.onTabRemoved?.((_e, d) => { if (d && d.index != null) byTab.delete(d.index); });
+        }
         function initHoverLabel() {
             const hl = window.Northstar?.hoverLabel;
             if (!hl) return;

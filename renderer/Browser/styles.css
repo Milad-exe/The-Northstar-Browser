@@ -1512,6 +1512,38 @@ html[data-tabbar="side"]:not([data-compact="on"]) #utility-bar {
   background: var(--chip-warn); color: var(--chip-warn-ink);
 }
 .omnibox[data-omni="insecure"] .omni-chip { display: inline-flex; }
+
+/* Permission chip (chrome-ux P2-2): a waiting request is an accent glyph in the
+   field; a decision expands to "Camera allowed" (--dur-4), holds, collapses
+   (--dur-3). Reduced motion: shown and hidden, no expand/collapse. */
+.omni-perm {
+  display: inline-flex; align-items: center; gap: var(--sp-2); flex-shrink: 0; align-self: center;
+  height: 24px; padding: 0 var(--sp-3); border: none; border-radius: var(--r-pill);
+  background: transparent; color: var(--accent); cursor: default;
+  font-family: var(--font); font-size: var(--fs-micro); font-weight: 600; white-space: nowrap;
+  -webkit-app-region: no-drag;
+}
+.omni-perm[hidden] { display: none; }
+.omni-perm[data-state="parked"] { cursor: pointer; background: var(--accent-wash); }
+.omni-perm[data-state="parked"]:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.omni-perm[data-state="decided"] { color: var(--text-2); background: var(--hover); }
+.omni-perm-icon { display: flex; width: 16px; height: 16px; }
+.omni-perm-icon svg { width: 16px; height: 16px; }
+.omni-perm-text {
+  display: inline-block; overflow: hidden; max-width: 0; opacity: 0;
+  transition: max-width var(--dur-3) var(--ease-accel), opacity var(--dur-3) var(--ease-accel);
+}
+.omni-perm.expanded .omni-perm-text {
+  max-width: 220px; opacity: 1;
+  transition: max-width var(--dur-4) var(--ease-decel), opacity var(--dur-4) var(--ease-decel);
+}
+/* While typing, the field is about the query. Keyed to the INPUT's focus, not
+   :focus-within — the chip is itself a button in the field, and pressing it
+   would otherwise hide it before the click landed. */
+.omnibox:has(#searchBar:focus) .omni-perm { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .omni-perm-text, .omni-perm.expanded .omni-perm-text { transition: none; }
+}
 /* While typing, the field is about the query, not the page — drop the chip. */
 .omnibox:focus-within .omni-chip { display: none; }
 /* A secure site gets a QUIET lock, not an accent-coloured one: the accent is

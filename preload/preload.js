@@ -287,6 +287,11 @@ exposeInternal('folders', {
     onTabsMoved: (cb) => ipcRenderer.on('tabs-workspace-changed', (_e, data) => cb(data)),
 });
 // Profiles — browsing selves; each window belongs to one.
+// Permission chip in the address field (chrome-ux P2-2).
+exposeInternal('permissionChip', {
+    onUpdate: (cb) => ipcRenderer.on('perm-chip', (_e, d) => cb(d || {})),
+    click: () => ipcRenderer.invoke('permission-chip-click'),
+});
 exposeInternal('profiles', {
     current: () => ipcRenderer.invoke('profiles:current'),
     list: () => ipcRenderer.invoke('profiles:list'),

@@ -22,6 +22,25 @@ let wmRef = null;
 let seq = 0;
 const pending = new Map(); // id → { resolve, wd }
 function init(wm) { wmRef = wm; }
+/* The permission chip in the address field (chrome-ux P2-2). The chrome draws
+   it; main says which tab it belongs to and what state it is in:
+     pending  — a doorhanger is up for this tab's request
+     parked   — the doorhanger was dismissed; the request waits (Chrome's quiet
+                path) and clicking the chip reopens it
+     decided  — allowed / blocked: the chip confirms, then collapses
+     clear    — nothing to show */
+function tabIndexOf(wd, wc) {
+    try {
+        for (const [i, t] of wd.tabs?.tabMap || [])
+            if (t.webContents === wc) return i;
+    }
+    catch (e) { log.debug('permission-ui', 'tabIndexOf', e); }
+    return null;
+}
+function chip(wd, payload) {
+    try { if (wd && !wd.window.isDestroyed()) wd.window.webContents.send('perm-chip', payload); }
+    catch (e) { log.debug('permission-ui', 'chip', e); }
+}
 // Read the on-screen rect of the lock icon from the chrome renderer so the
 // panel points at it. Falls back to a sensible top-left position.
 const ANCHOR_JS = `(() => {
@@ -55,7 +74,7 @@ function request(wc, data) {
         const id = ++seq;
         pending.set(id, { resolve, wd });
         wd.permQueue = wd.permQueue || [];
-        wd.permQueue.push({ id, data });
+        wd.permQueue.push({ id, data, wc, tab: tabIndexOf(wd, wc) });
         showNext(wd);
     });
 }
@@ -132,6 +151,7 @@ async function showNext(wd) {
     view.setVisible(true);
     wd.permShownAt = Date.now();
     view.webContents.send('permission-data', { id: item.id, ...item.data });
+    chip(wd, { tab: item.tab, state: 'pending', iconType: item.data.iconType || 'generic' });
     try {
         view.webContents.focus();
     }
@@ -151,8 +171,8 @@ function decide(id, allowed, remember, dismissed) {
     const entry = pending.get(id);
     if (!entry)
         return;
-    pending.delete(id);
     const wd = entry.wd;
+    const item = wd && (wd.permQueue || []).find(q => q.id === id);
     if (wd) {
         wd.permQueue = (wd.permQueue || []).filter(q => q.id !== id);
         if (wd.permShowing === id) {
@@ -160,12 +180,69 @@ function decide(id, allowed, remember, dismissed) {
             hide(wd);
         }
     }
+    // Dismissed (Esc / click-away): Chrome's quiet path. The request is NOT
+    // answered — it waits, parked behind a chip, until the chip is clicked
+    // (doorhanger again), the page navigates, or the tab closes (then denied,
+    // nothing recorded).
+    if (dismissed && item && item.tab != null && item.wc && !item.wc.isDestroyed()) {
+        park(wd, item);
+        setTimeout(() => showNext(wd), 0);
+        return;
+    }
+    pending.delete(id);
     entry.resolve({ allowed: !!allowed, remember: !!remember, dismissed: !!dismissed });
+    if (item && item.tab != null)
+        chip(wd, dismissed ? { tab: item.tab, state: 'clear' }
+            : { tab: item.tab, state: 'decided', allowed: !!allowed, iconType: item.data.iconType || 'generic' });
     if (wd)
         setTimeout(() => showNext(wd), 0);
 }
+function park(wd, item) {
+    wd.permParked = wd.permParked || new Map();
+    const prev = wd.permParked.get(item.tab);
+    if (prev && prev.id !== item.id)
+        settleParked(wd, prev); // one parked request per tab; the older one is denied
+    wd.permParked.set(item.tab, item);
+    // Leaving the page (or closing the tab) answers it: denied, nothing recorded.
+    const onNav = (_e, _url, isInPlace, isMainFrame) => { if (isMainFrame && !isInPlace) settleParked(wd, item); };
+    const onGone = () => settleParked(wd, item);
+    item.unhook = () => {
+        try { item.wc.removeListener('did-start-navigation', onNav); item.wc.removeListener('destroyed', onGone); }
+        catch (e) { log.debug('permission-ui', 'unhook', e); }
+    };
+    item.wc.on('did-start-navigation', onNav);
+    item.wc.once('destroyed', onGone);
+    chip(wd, { tab: item.tab, state: 'parked', iconType: item.data.iconType || 'generic' });
+}
+function settleParked(wd, item) {
+    if (wd.permParked?.get(item.tab) === item)
+        wd.permParked.delete(item.tab);
+    item.unhook?.();
+    const entry = pending.get(item.id);
+    if (!entry)
+        return;
+    pending.delete(item.id);
+    entry.resolve({ allowed: false, remember: false, dismissed: true });
+    chip(wd, { tab: item.tab, state: 'clear' });
+}
+/** The chip was clicked: bring a parked request's doorhanger back. */
+function reopen(wd, tab) {
+    const item = wd?.permParked?.get(tab);
+    if (!item)
+        return false;
+    wd.permParked.delete(tab);
+    item.unhook?.();
+    wd.permQueue = wd.permQueue || [];
+    wd.permQueue.unshift(item);
+    showNext(wd);
+    return true;
+}
 function register(ipcMain, { wm }) {
     init(wm);
+    ipcMain.handle('permission-chip-click', (e) => {
+        const wd = wm.getWindowByWebContents(e.sender);
+        return wd ? reopen(wd, wd.tabs?.activeTabIndex) : false;
+    });
     ipcMain.handle('permission-decide', (_e, payload) => {
         const { id, allowed, remember, dismissed } = payload || {};
         decide(id, !!allowed, !!remember, !!dismissed);

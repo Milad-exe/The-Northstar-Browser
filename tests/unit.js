@@ -1057,6 +1057,16 @@ test('formatAccelerator renders one hint format per platform', () => {
     assert.ok(!('accelerator' in rows[1]));
 });
 
+// ── Permission chip wording (chrome-ux P2-2) ─────────────────────────────────
+test('permission chip names what was decided', () => {
+    const { chipText } = require(path.join(root, 'renderer/lib/permission-icons'));
+    assert.strictEqual(chipText('camera', true), 'Camera allowed');
+    assert.strictEqual(chipText('microphone', false), 'Microphone blocked');
+    assert.strictEqual(chipText('location', true), 'Location allowed');
+    assert.strictEqual(chipText('notifications', false), 'Notifications blocked');
+    assert.strictEqual(chipText('nonsense', true), 'Permission allowed');
+});
+
 // ── Hover label placement (ui-polish U1-7) ───────────────────────────────────
 // The chrome's own hover label replaces OS tooltips. The page is a native view
 // stacked OVER the chrome, so a label must never land on the page card — it

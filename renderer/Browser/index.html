@@ -55,6 +55,9 @@
           <!-- Internal page (history, settings, …): app-window glyph (P2-1) -->
           <svg class="oi oi-internal" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,16V80H40V56ZM40,200V96H216V200Z"/></svg>
         </button>
+        <!-- Permission chip (P2-2): a request waiting on this tab, or a decision
+             being confirmed. Click a waiting one to reopen the prompt. -->
+        <button class="omni-perm" id="omni-perm" type="button" hidden><span class="omni-perm-icon" aria-hidden="true"></span><span class="omni-perm-text"></span></button>
         <!-- "Not secure" chip (P2-1): part of the field, before the input, shown on http. -->
         <span class="omni-chip" id="omni-chip" data-i18n="chrome.notSecure">Not secure</span>
         <div class="omni-input">
@@ -283,6 +286,7 @@
   <script src="../lib/keys.js"></script>
   <script src="../lib/util.js"></script>
   <script src="../lib/hover-label.js"></script>
+  <script src="../lib/permission-icons.js"></script>
   <script src="../lib/bookmark-bar.js"></script>
   <script src="../renderer.js"></script>
 </body>
