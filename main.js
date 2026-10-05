@@ -261,17 +261,11 @@ class Northstar {
             // double-fire against before-input-event (see app-menu.js).
             try { require('./features/app-menu').install(this.windowManager); }
             catch (e) { log.warn('main', 'app-menu', e); }
-            // Spellchecker — enable and set languages (OS locale + English fallback).
-            // Context-menu suggestions/add-to-dictionary are wired in tab-context-menu.js.
-            try {
-                const sess = session.defaultSession;
-                sess.setSpellCheckerEnabled(true);
-                const available = sess.availableSpellCheckerLanguages || [];
-                const wanted = [app.getLocale(), 'en-US'].filter(Boolean);
-                const langs = [...new Set(wanted)].filter(l => !available.length || available.includes(l));
-                sess.setSpellCheckerLanguages(langs.length ? langs : ['en-US']);
-            }
-            catch (e) { log.debug('main', 'cycle', e); }
+            // Spell check: Settings → Languages owns it, for EVERY session (each
+            // space, container and private tab has its own). Context-menu
+            // suggestions/add-to-dictionary are wired in tab-context-menu.js.
+            try { require('./features/spellcheck').init(this.windowManager.persistence); }
+            catch (e) { log.warn('main', 'spell check', e); }
             // Ad blocking — network-level (cancel requests) + cosmetic (hide elements).
             // NOT awaited: parsing ~250k filter rules must not delay the first
             // window. Until it finishes, shouldBlock() just returns false.

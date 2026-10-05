@@ -173,8 +173,10 @@ class TabContextMenu {
         this.contextTemplate.push({ type: 'separator' });
         this.contextTemplate.push({
             label: 'Add to dictionary',
+            // Into every space's dictionary, not only this tab's session
+            // (features/spellcheck.js) — and this session too, private or not.
             click: () => { try {
-                sess.addWordToSpellCheckerDictionary(params.misspelledWord);
+                require('./spellcheck').addWord(params.misspelledWord, sess);
             }
             catch (e) { log.debug('tab-context-menu', 'addSpellcheckItems', e); } },
         });

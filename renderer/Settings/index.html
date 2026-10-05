@@ -152,6 +152,36 @@
           <div class="card-desc" id="language-note"></div>
         </div>
 
+        <div class="card" id="spellcheck-card">
+          <div class="card-title" data-i18n="spell.title">Spell check</div>
+          <div class="toggle-row">
+            <div>
+              <div class="row-label" data-i18n="spell.enabled">Check spelling as you type</div>
+              <div class="row-desc" data-i18n="spell.enabledDesc">Misspelled words are underlined in text fields; right-click one for suggestions.</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="spell-toggle" role="switch"><span class="switch-track"></span></label>
+          </div>
+          <div class="toggle-row" id="spell-langs-row">
+            <div>
+              <div class="row-label" data-i18n="spell.languages">Languages</div>
+              <div class="row-desc" id="spell-langs-desc" data-i18n="spell.languagesDesc">Words are checked against every language listed here.</div>
+            </div>
+            <select id="spell-add-lang" aria-label="Add a spell-check language" data-i18n-label="spell.addLanguage"></select>
+          </div>
+          <div class="spell-chips" id="spell-langs"></div>
+          <div class="toggle-row" id="spell-dict-row">
+            <div>
+              <div class="row-label" data-i18n="spell.dictionary">Custom dictionary</div>
+              <div class="row-desc" data-i18n="spell.dictionaryDesc">Words you added are never marked as misspelled.</div>
+            </div>
+            <form class="spell-add-word" id="spell-add-word">
+              <input type="text" class="text-input" id="spell-word" placeholder="Add a word" data-i18n-placeholder="spell.addWordPlaceholder" spellcheck="false" autocomplete="off">
+              <button class="btn" type="submit" data-i18n="spell.add">Add</button>
+            </form>
+          </div>
+          <div class="spell-chips" id="spell-words"></div>
+        </div>
+
         <div class="card">
           <div class="card-title" data-i18n="settings.theme">Theme</div>
           <div class="card-desc" data-i18n="settings.themeDesc">Choose a color palette for the browser</div>

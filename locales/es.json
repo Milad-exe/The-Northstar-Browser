@@ -233,6 +233,16 @@
     "closed.reopenTab": "Volver a abrir la pestaña cerrada",
     "closed.empty": "Aún no has cerrado nada",
     "closed.window1": "Ventana: {title}",
-    "closed.windowN": "Ventana: {title} y {more} más"
+    "closed.windowN": "Ventana: {title} y {more} más",
+    "spell.title": "Corrector ortográfico",
+    "spell.enabled": "Revisar la ortografía al escribir",
+    "spell.enabledDesc": "Las palabras mal escritas se subrayan en los campos de texto; haz clic derecho en una para ver sugerencias.",
+    "spell.languages": "Idiomas",
+    "spell.languagesDesc": "Las palabras se comprueban en todos los idiomas de esta lista.",
+    "spell.addLanguage": "Añadir un idioma al corrector",
+    "spell.dictionary": "Diccionario personal",
+    "spell.dictionaryDesc": "Las palabras que añadas nunca se marcan como mal escritas.",
+    "spell.addWordPlaceholder": "Añadir una palabra",
+    "spell.add": "Añadir"
   }
 }

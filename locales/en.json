@@ -233,6 +233,16 @@
     "closed.reopenTab": "Reopen closed tab",
     "closed.empty": "Nothing closed yet",
     "closed.window1": "Window: {title}",
-    "closed.windowN": "Window: {title} and {more} more"
+    "closed.windowN": "Window: {title} and {more} more",
+    "spell.title": "Spell check",
+    "spell.enabled": "Check spelling as you type",
+    "spell.enabledDesc": "Misspelled words are underlined in text fields; right-click one for suggestions.",
+    "spell.languages": "Languages",
+    "spell.languagesDesc": "Words are checked against every language listed here.",
+    "spell.addLanguage": "Add a spell-check language",
+    "spell.dictionary": "Custom dictionary",
+    "spell.dictionaryDesc": "Words you added are never marked as misspelled.",
+    "spell.addWordPlaceholder": "Add a word",
+    "spell.add": "Add"
   }
 }

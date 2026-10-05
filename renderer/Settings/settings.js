@@ -254,6 +254,120 @@
                 });
             })();
         }
+        // ── Appearance: Spell check ────────────────────────────────────────────
+        // On/off, the languages words are checked against, and the custom
+        // dictionary — for every space's session (features/spellcheck.js).
+        const spellApi = window.northstarSpellcheck;
+        const spellCard = document.getElementById('spellcheck-card');
+        if (spellApi && spellCard) {
+            const toggle = document.getElementById('spell-toggle');
+            const addLang = document.getElementById('spell-add-lang');
+            const langChips = document.getElementById('spell-langs');
+            const wordChips = document.getElementById('spell-words');
+            const wordForm = document.getElementById('spell-add-word');
+            const wordInput = document.getElementById('spell-word');
+            const X_ICON = '<svg width="10" height="10" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208.49,191.51a12,12,0,0,1-17,17L128,145,64.49,208.49a12,12,0,0,1-17-17L111,128,47.51,64.49a12,12,0,0,1,17-17L128,111l63.51-63.52a12,12,0,0,1,17,17L145,128Z"/></svg>';
+            // "en-GB" → "English (United Kingdom)", in the interface's language.
+            let names = null;
+            try { names = new Intl.DisplayNames([navigator.language || 'en'], { type: 'language' }); }
+            catch (e) { window.northstarLog?.debug('settings', 'DisplayNames: ' + e); }
+            const nameOf = (code) => { try { return (names && names.of(code)) || code; } catch { return code; } };
+            const chip = (label, onRemove, removeLabel) => {
+                const el = document.createElement('span');
+                el.className = 'spell-chip' + (onRemove ? '' : ' auto');
+                const t = document.createElement('span');
+                t.textContent = label;
+                el.appendChild(t);
+                if (onRemove) {
+                    const b = document.createElement('button');
+                    b.type = 'button';
+                    b.innerHTML = X_ICON;
+                    b.setAttribute('aria-label', removeLabel);
+                    b.addEventListener('click', onRemove);
+                    el.appendChild(b);
+                }
+                return el;
+            };
+            let st = null;
+            const renderLangs = () => {
+                spellCard.classList.toggle('off', !st.enabled);
+                toggle.checked = !!st.enabled;
+                // macOS: the system spell checker picks the language itself.
+                document.getElementById('spell-langs-row').hidden = st.systemLanguages;
+                langChips.hidden = st.systemLanguages;
+                langChips.innerHTML = '';
+                const chosen = st.automatic ? [] : st.languages;
+                if (st.automatic) {
+                    langChips.appendChild(chip('Automatic: ' + st.languages.map(nameOf).join(', ')));
+                }
+                for (const code of chosen) {
+                    langChips.appendChild(chip(nameOf(code), async () => {
+                        const next = chosen.filter(c => c !== code);
+                        st = await spellApi.set({ languages: next });
+                        renderLangs();
+                        showToast(next.length ? 'Language removed' : 'Spell check is back to automatic');
+                    }, 'Remove ' + nameOf(code)));
+                }
+                addLang.innerHTML = '';
+                const first = document.createElement('option');
+                first.value = '';
+                first.textContent = 'Add a language…';
+                addLang.appendChild(first);
+                const options = (st.available || [])
+                    .filter(c => !chosen.includes(c))
+                    .map(c => ({ c, n: nameOf(c) }))
+                    .sort((a, b) => a.n.localeCompare(b.n));
+                for (const { c, n } of options) {
+                    const o = document.createElement('option');
+                    o.value = c;
+                    o.textContent = n;
+                    addLang.appendChild(o);
+                }
+                addLang.value = '';
+            };
+            const renderWords = async () => {
+                const words = await spellApi.words();
+                wordChips.innerHTML = '';
+                for (const w of words) {
+                    wordChips.appendChild(chip(w, async () => {
+                        await spellApi.removeWord(w);
+                        renderWords();
+                    }, 'Remove ' + w + ' from the dictionary'));
+                }
+            };
+            (async () => {
+                st = await spellApi.state();
+                if (!st) return;
+                renderLangs();
+                renderWords();
+            })();
+            toggle.addEventListener('change', async () => {
+                st = await spellApi.set({ enabled: toggle.checked });
+                renderLangs();
+                showToast(toggle.checked ? 'Spell check on' : 'Spell check off');
+            });
+            addLang.addEventListener('change', async () => {
+                const code = addLang.value;
+                if (!code) return;
+                // Leaving automatic: start from what automatic was using, so
+                // adding one language never silently drops the others.
+                const base = st.automatic ? st.languages : st.languages.slice();
+                st = await spellApi.set({ languages: [...base, code] });
+                renderLangs();
+                showToast(nameOf(code) + ' added');
+            });
+            wordForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const w = wordInput.value.trim();
+                if (!w || /\s/.test(w)) {
+                    showToast('Add one word at a time');
+                    return;
+                }
+                await spellApi.addWord(w);
+                wordInput.value = '';
+                renderWords();
+            });
+        }
         // ── Appearance: Theme ──────────────────────────────────────────────────
         // The picker and editor are one instrument, shared with the popup that
         // opens from the sidebar's context menu — see renderer/lib/theme-editor.js.

@@ -23,6 +23,9 @@ const DEFAULTS = {
     trimReferrer: true,
     // Performance: discard renderer processes of long-inactive background tabs
     tabSleepEnabled: true,
+    // Spell check for every session (features/spellcheck.js). languages: []
+    // means automatic — the OS locale plus English.
+    spellcheck: { enabled: true, languages: [] },
     tabSleepMinutes: 30,
     // Mini player overlay for media playing in a background tab
     miniPlayerEnabled: true,

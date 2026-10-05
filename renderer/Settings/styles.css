@@ -388,6 +388,28 @@ input, textarea, select { user-select: text; -webkit-user-select: text; }
   cursor: pointer; font-size: var(--fs-lg); line-height: 1; padding: 2px var(--sp-2); border-radius: var(--r-xs);
 }
 .engine-row .del:hover { color: var(--danger); background: var(--hover); }
+
+/* ── Spell check: language and word chips ── */
+.spell-chips { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin-top: var(--sp-4); }
+.spell-chips:empty { display: none; }
+.card .spell-chips + .toggle-row { margin-top: var(--sp-6); }
+.spell-chip {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  height: 28px; padding: 0 var(--sp-2) 0 var(--sp-4); border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--text);
+  font-size: var(--fs-small);
+}
+.spell-chip.auto { padding-right: var(--sp-4); color: var(--text-2); }
+.spell-chip button {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; padding: 0; border: none; border-radius: var(--r-pill);
+  background: transparent; color: var(--text-3); cursor: pointer;
+}
+.spell-chip button:hover { background: var(--hover); color: var(--text); }
+.spell-chip button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.spell-add-word { display: flex; gap: var(--sp-3); flex: 0 0 auto; }
+.spell-add-word .text-input { width: 180px; flex: 0 0 auto; }
+#spellcheck-card.off #spell-langs-row, #spellcheck-card.off #spell-langs { opacity: 0.5; pointer-events: none; }
 .engine-row .del { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border-radius: var(--r-pill); }
 .engine-row .del:disabled { opacity: 0.25; cursor: default; }
 

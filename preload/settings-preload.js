@@ -47,6 +47,14 @@ contextBridge.exposeInMainWorld('northstarSettings', {
    editor explain a refusal instead of just rejecting the colour. */
 /* Settings is a tab, and a tab belongs to a window, and a window is in one
    space — so "the theme" on this page means this space's theme. */
+// Spell check (features/spellcheck.js): on/off, languages, custom dictionary.
+contextBridge.exposeInMainWorld('northstarSpellcheck', {
+    state: () => ipcRenderer.invoke('spellcheck:state'),
+    set: (patch) => ipcRenderer.invoke('spellcheck:set', patch),
+    words: () => ipcRenderer.invoke('spellcheck:words'),
+    addWord: (w) => ipcRenderer.invoke('spellcheck:add-word', w),
+    removeWord: (w) => ipcRenderer.invoke('spellcheck:remove-word', w),
+});
 contextBridge.exposeInMainWorld('northstarProfiles', {
     current: () => ipcRenderer.invoke('profiles:current'),
     update: (id, patch) => ipcRenderer.invoke('profiles:update', id, patch),
