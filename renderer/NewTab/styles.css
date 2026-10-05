@@ -18,14 +18,13 @@
 /* Buttons do not inherit the page's font by default — the tiles and recent
    rows were rendering in the UA's Arial while the field used the UI face. */
 .ntp button, .ntp input { font-family: inherit; }
-/* The app's mark above the field, as a browser's home page carries its own.
-   Neutral ink, not the accent: it is a signature, not a control. */
+/* The app's mark above the field, as a browser's home page carries its own:
+   the Aurora globe, in its own colours (renderer/assets/logo.svg). The SVG
+   includes its glow, so the box is a little larger than the globe itself. */
 .ntp-wrap::before {
-  content: ''; align-self: center; width: 56px; height: 56px;
+  content: ''; align-self: center; width: 80px; height: 80px;
   margin-bottom: calc(var(--sp-7, 48px) * -0.5);
-  background: var(--text-2);
-  -webkit-mask: url('../assets/mark-mask.svg') center / contain no-repeat;
-          mask: url('../assets/mark-mask.svg') center / contain no-repeat;
+  background: url('../assets/logo.svg') center / contain no-repeat;
 }
 .ntp-tabsearch .ntp-wrap::before { display: none; }
 

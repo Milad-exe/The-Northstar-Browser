@@ -608,12 +608,12 @@ html[data-tabbar="side"] .tab-favicon {
 html[data-tabbar="side"] .tab-button:not(.has-favicon)::before {
   content: ''; width: var(--icon); flex: 0 0 var(--icon);
 }
-/* A new-tab page shows the app's mark in that column (both tab layouts). */
+/* A new-tab page shows the app's mark in that column (both tab layouts): the
+   small Aurora globe, the simplified one drawn for icon sizes (no continents),
+   extracted from icons/icon.ico. */
 .tab-button[data-home="1"]:not(.has-favicon)::before {
   content: ''; width: var(--icon); height: var(--icon); flex: 0 0 var(--icon);
-  background: var(--text-2);
-  -webkit-mask: url('../assets/mark-mask.svg') center / contain no-repeat;
-          mask: url('../assets/mark-mask.svg') center / contain no-repeat;
+  background: image-set(url('../assets/mark-16.png') 1x, url('../assets/mark-32.png') 2x) center / contain no-repeat;
 }
 /* No favicon: a globe glyph in the secondary ink, not a lettered tile. */
 html[data-tabbar] .tab-favicon.default.globe {
