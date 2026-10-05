@@ -110,15 +110,19 @@ function register(ipcMain, { wm }) {
     // ── Recently closed ───────────────────────────────────────────────────────
     // The app menu's "Recently closed" row: close the app menu and open the
     // list (features/recently-closed.js) as a menu at that row.
-    ipcMain.handle('recently-closed-menu', (_e, rect) => {
+    ipcMain.handle('recently-closed-menu', (_e) => {
         const wd = wm.getWindowByWebContents(_e.sender);
         if (!wd)
             return false;
+        // Open where the app menu was — its top, against its right edge (the
+        // overlay clamps the list into the window, so it lines up with the
+        // menu's right side). At the clicked row it hung halfway down the
+        // window, detached from the button that opened it.
         let x = 0, y = 0;
         try {
             const b = wd.menu.getBounds();
-            x = b.x + (rect?.left || 0);
-            y = b.y + (rect?.top || 0);
+            x = b.x + b.width;
+            y = b.y;
         }
         catch (e) { log.debug('menu', 'recently-closed anchor', e); }
         closeWindowMenu(wd);

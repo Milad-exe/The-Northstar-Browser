@@ -56,6 +56,12 @@
            row cut off. Re-run once layout has settled. */
         const again = () => { if (menu.isConnected) clampInto(menu, x, y, parentRect); };
         requestAnimationFrame(again);
+        /* The overlay view is resized to the window as it opens, and the page
+           can still report the OLD (even zero) viewport at this point — a zero
+           viewport skips the clamp, so a wide menu opened near the right edge
+           ran off the window. Re-clamp when the viewport catches up; don't rely
+           on the frame above alone (a just-shown view's frames can lag). */
+        window.addEventListener('resize', again, { once: true });
         try { document.fonts?.ready.then(again); }
         catch (e) { /* re-clamp is best effort; the first pass already placed it */ }
     };
@@ -93,7 +99,15 @@
             const ic = document.createElement('span');
             ic.className = 'ctx-icon';
             ic.setAttribute('aria-hidden', 'true');
-            if (r.icon) ic.textContent = r.icon;
+            if (r.iconUrl && /^data:image\//.test(r.iconUrl)) {
+                // A site's favicon (recently closed): data: images only.
+                const img = document.createElement('img');
+                img.className = 'ctx-icon-img';
+                img.alt = '';
+                img.src = r.iconUrl;
+                ic.appendChild(img);
+            }
+            else if (r.icon) ic.textContent = r.icon;
             b.appendChild(ic);
             const lbl = document.createElement('span');
             lbl.className = 'row-title ctx-label';

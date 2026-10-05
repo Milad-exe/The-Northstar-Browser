@@ -55,6 +55,10 @@ function toRows(template) {
         // renderer/lib/keys.js formatAccelerator; only a string crosses IPC.
         if (typeof item.accelerator === 'string' && item.accelerator)
             row.accelerator = item.accelerator;
+        // A site's favicon for the icon column — data: images only, so a menu
+        // can never be made to fetch something.
+        if (typeof item.iconUrl === 'string' && /^data:image\//.test(item.iconUrl))
+            row.iconUrl = item.iconUrl;
         const sub = item.submenu && (Array.isArray(item.submenu) ? item.submenu : item.submenu.items);
         if (sub && sub.length)
             row.sub = toRows(sub);

@@ -13,6 +13,7 @@
  * browsers' list.
  */
 const i18n = require('./i18n');
+const favicons = require('./favicon-store');
 const log = require('./log');
 
 const MAX_WINDOWS = 10;
@@ -26,8 +27,13 @@ const T = (key, fallback, vars) => {
         return v;
     return vars ? String(fallback).replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m)) : fallback;
 };
+/** The cached favicon for a page's site ('' when none) — never a fetch. */
+const iconFor = (url) => {
+    try { return favicons.getForHost(new URL(url).host) || ''; } // host, as the store keys it
+    catch (e) { return ''; }
+};
 /** A title short enough for a menu row. */
-const clip = (s, n = 60) => {
+const clip = (s, n = 48) => {
     const t = String(s || '').trim();
     return t.length > n ? t.slice(0, n - 1).trimEnd() + '…' : t;
 };
@@ -119,14 +125,14 @@ function template(wd, wm) {
     out.push({ type: 'separator' });
     for (const e of rows) {
         if (e.kind === 'tab') {
-            out.push({ label: clip(e.item.title || e.item.url), click: () => reopenTab(wd, e.item) });
+            out.push({ label: clip(e.item.title || e.item.url), iconUrl: iconFor(e.item.url), click: () => reopenTab(wd, e.item) });
         }
         else {
             const n = e.item.tabs.length;
             const label = n === 1
                 ? T('closed.window1', 'Window: {title}', { title: clip(e.item.tabs[0].title, 44) })
                 : T('closed.windowN', 'Window: {title} and {more} more', { title: clip(e.item.tabs[0].title, 36), more: n - 1 });
-            out.push({ label, click: () => reopenWindow(wm, e.item) });
+            out.push({ label, iconUrl: iconFor(e.item.tabs[0].url), click: () => reopenWindow(wm, e.item) });
         }
     }
     return out;
