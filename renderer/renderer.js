@@ -370,6 +370,7 @@
         initProfiles();
         initEssentials();
         initHoverLabel();
+        initTabHoverCard();
         initPermissionChip();
         // ─────────────────────────────────────────────────────────────────────────
         // Hover label (ui-polish U1-7) — the chrome's own tooltip, replacing OS
@@ -446,6 +447,72 @@
             window.tab.onTabSwitched(() => setTimeout(render, 0));
             window.tab.onTabRemoved?.((_e, d) => { if (d && d.index != null) byTab.delete(d.index); });
         }
+        /* Tab hover card: rest on a tab and a card shows its full title, its
+           site and its state (sleeping, crashed, audio, camera, private). Same
+           timing as the hover label — --tooltip-delay before the first, then
+           instant while you move along the strip (a 300ms grace after one
+           hides). Any click, scroll, drag or key puts it away. The card is an
+           overlay view (features/tab-hover-card.js) so it can cover the page. */
+        function initTabHoverCard() {
+            const api = window.tabHoverCard;
+            const strip = document.getElementById('tabs-container');
+            if (!api || !strip) return;
+            const delay = () => parseInt(getComputedStyle(document.documentElement).getPropertyValue('--tooltip-delay'), 10) || 500;
+            const GRACE = 300;
+            let timer = null, current = null, open = false, hiddenAt = 0;
+            const siteOf = (u) => {
+                if (!/^https?:/i.test(u)) return '';
+                try { return new URL(u).hostname.replace(/^www\./, ''); }
+                catch { return ''; }
+            };
+            const stateOf = (btn, index) => {
+                if (btn.classList.contains('crashed')) return 'crashed';
+                const kind = btn.querySelector('.tab-indicator')?.dataset.kind;
+                if (kind === 'camera' || kind === 'mic') return kind;
+                if (btn.classList.contains('slept')) return 'slept';
+                if (kind === 'muted' || kind === 'audio') return kind;
+                if (!isPrivateWindow && tabPrivate.get(index)) return 'private';
+                return null;
+            };
+            const show = (btn) => {
+                if (!btn.isConnected || btn !== current) return;
+                const index = parseInt(btn.dataset.index, 10);
+                const url = String(tabUrls.get(index) || '');
+                const r = btn.getBoundingClientRect();
+                api.show({
+                    title: btn.querySelector('.tab-title')?.textContent || '',
+                    site: siteOf(url),
+                    state: stateOf(btn, index),
+                    side: document.documentElement.dataset.tabbar !== 'top',
+                    rect: { left: r.left, top: r.top, right: r.right, bottom: r.bottom },
+                });
+                open = true;
+            };
+            const hide = () => {
+                clearTimeout(timer);
+                timer = null;
+                current = null;
+                if (open) {
+                    open = false;
+                    hiddenAt = Date.now();
+                    api.hide();
+                }
+            };
+            strip.addEventListener('mouseover', (e) => {
+                const btn = e.target.closest('.tab-button');
+                if (!btn || btn === current || btn.classList.contains('dragging')) return;
+                current = btn;
+                clearTimeout(timer);
+                if (open || Date.now() - hiddenAt < GRACE) show(btn);
+                else timer = setTimeout(() => show(btn), delay());
+            });
+            strip.addEventListener('mouseleave', hide);
+            for (const ev of ['mousedown', 'wheel', 'dragstart', 'contextmenu'])
+                strip.addEventListener(ev, hide, { passive: true });
+            document.addEventListener('keydown', hide);
+            window.addEventListener('blur', hide);
+            window.tab.onTabRemoved?.(() => hide());
+        }
         function initHoverLabel() {
             const hl = window.Northstar?.hoverLabel;
             if (!hl) return;
@@ -454,6 +521,10 @@
                 content(el) {
                     const tab = el.closest('#tabs-container .tab-button');
                     if (!tab || el.closest('.tab-close, .tab-indicator')) return undefined; // controls inside a tab: their own tip
+                    // A tab row's label is its hover card (initTabHoverCard), which
+                    // can sit over the page; this label can't. Fall back to the
+                    // label only if the card isn't available.
+                    if (window.tabHoverCard) return null;
                     const de = document.documentElement;
                     if (de.dataset.tabbar !== 'top' && de.dataset.compact !== 'on') return null;
                     const title = tab.querySelector('.tab-title')?.textContent || '';

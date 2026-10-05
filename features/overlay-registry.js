@@ -34,7 +34,7 @@ function overlayViewsOf(wd) {
         wd.bookmarkPrompt, wd.folderDropdown, wd.downloadsPanel,
         wd.extensionsPanel, wd.passwordPrompt, wd.ctxMenu,
         wd.themePanel, wd.pageActions, wd.permView, wd.miniPlayer,
-        wd.siteInfoView, wd.hangPrompt,
+        wd.siteInfoView, wd.hangPrompt, wd.hoverCard,
     ].filter(Boolean);
 }
 

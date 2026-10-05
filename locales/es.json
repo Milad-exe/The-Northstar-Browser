@@ -220,6 +220,14 @@
     "perm.n.external": "Abrir aplicaciones",
     "perm.n.generic": "Permiso",
     "history.openNewTab": "Abrir en una pestaña nueva",
-    "ntp.privateNote": "Pestaña privada. Las páginas que visites aquí no se guardan en el historial, y las cookies y los datos de sitios de la pestaña se borran al cerrarla."
+    "ntp.privateNote": "Pestaña privada. Las páginas que visites aquí no se guardan en el historial, y las cookies y los datos de sitios de la pestaña se borran al cerrarla.",
+    "hovercard.slept": "En reposo para ahorrar memoria. Se recarga al abrirla.",
+    "hovercard.crashed": "Esta pestaña dejó de funcionar. Recárgala para volver a intentarlo.",
+    "hovercard.audio": "Reproduciendo audio",
+    "hovercard.muted": "Silenciada",
+    "hovercard.mic": "Usando el micrófono",
+    "hovercard.camera": "Usando la cámara",
+    "hovercard.private": "Pestaña privada",
+    "hovercard.untitled": "Sin título"
   }
 }

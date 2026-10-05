@@ -549,6 +549,12 @@ exposeInternal('browserBookmarks', {
     openInNewTab: (url, switchToTab) => ipcRenderer.invoke('open-url-in-new-tab', url, switchToTab),
     openInNewWindow: (url) => ipcRenderer.invoke('open-url-in-new-window', url),
 });
+// Tab hover card (features/tab-hover-card.js): the chrome says which tab is
+// under the pointer; main places the card over the page if need be.
+contextBridge.exposeInMainWorld('tabHoverCard', {
+    show: (data) => ipcRenderer.send('hovercard:show', data),
+    hide: () => ipcRenderer.send('hovercard:hide'),
+});
 // Reading position, reported so a restored session opens the page where the
 // user left it. Throttled hard (a scroll handler runs on every frame otherwise)
 // and only for real web pages — internal pages have nothing worth restoring.

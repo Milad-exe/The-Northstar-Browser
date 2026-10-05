@@ -220,6 +220,14 @@
     "perm.n.external": "Opening apps",
     "perm.n.generic": "Permission",
     "history.openNewTab": "Open in new tab",
-    "ntp.privateNote": "Private tab. Pages you visit here aren't saved to your history, and the tab's cookies and site data are deleted when you close it."
+    "ntp.privateNote": "Private tab. Pages you visit here aren't saved to your history, and the tab's cookies and site data are deleted when you close it.",
+    "hovercard.slept": "Sleeping to save memory. It reloads when you open it.",
+    "hovercard.crashed": "This tab stopped working. Reload to try again.",
+    "hovercard.audio": "Playing audio",
+    "hovercard.muted": "Muted",
+    "hovercard.mic": "Using your microphone",
+    "hovercard.camera": "Using your camera",
+    "hovercard.private": "Private tab",
+    "hovercard.untitled": "Untitled"
   }
 }
