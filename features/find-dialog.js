@@ -152,21 +152,25 @@ class FindDialog {
             return;
         this.currentSearchTerm = searchTerm;
         if (this.activeTab && searchTerm && !this.activeTab.webContents.isDestroyed()) {
-            this.activeTab.webContents.findInPage(searchTerm, { findNext: false });
+            // Electron's findNext means 'begin a NEW find session' — true for the first
+            // request of a term, false for the follow-ups. It was the other way
+            // round, so typing never started a session and the match count only
+            // appeared after Enter.
+            this.activeTab.webContents.findInPage(searchTerm, { findNext: true });
         }
     }
     handleNext() {
         if (this.isDestroyed)
             return;
         if (this.activeTab && this.currentSearchTerm && !this.activeTab.webContents.isDestroyed()) {
-            this.activeTab.webContents.findInPage(this.currentSearchTerm, { findNext: true });
+            this.activeTab.webContents.findInPage(this.currentSearchTerm, { findNext: false, forward: true });
         }
     }
     handlePrevious() {
         if (this.isDestroyed)
             return;
         if (this.activeTab && this.currentSearchTerm && !this.activeTab.webContents.isDestroyed()) {
-            this.activeTab.webContents.findInPage(this.currentSearchTerm, { findNext: true, forward: false });
+            this.activeTab.webContents.findInPage(this.currentSearchTerm, { findNext: false, forward: false });
         }
     }
     handleClear() {

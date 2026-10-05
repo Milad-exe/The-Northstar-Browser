@@ -20,6 +20,7 @@
         let currentMatchIndex = 0;
         let totalMatches = 0;
         let searchTimeout = null;
+        let lastSearched = ''; // the term the current find session is for
         findInput.focus();
         findInput.addEventListener('input', (e) => {
             const searchTerm = e.target.value.trim();
@@ -28,10 +29,13 @@
             }
             if (searchTerm) {
                 searchTimeout = setTimeout(() => {
+                    searchTimeout = null;
+                    lastSearched = searchTerm;
                     window.findAPI.search(searchTerm);
                 }, 300);
             }
             else {
+                lastSearched = '';
                 window.findAPI.clearSearch();
                 updateMatchCounter(0, 0);
             }
@@ -44,16 +48,21 @@
                     searchTimeout = null;
                 }
                 const searchTerm = findInput.value.trim();
-                if (searchTerm) {
+                if (!searchTerm)
+                    return;
+                // A new (or still-debouncing) term starts its search, which
+                // lands on the first match. The same term steps through the
+                // matches — it used to restart the search on every Enter, so
+                // the highlight jumped back to the start before stepping.
+                if (searchTerm !== lastSearched) {
+                    lastSearched = searchTerm;
                     window.findAPI.search(searchTerm);
-                    setTimeout(() => {
-                        if (e.shiftKey) {
-                            findPrevious();
-                        }
-                        else {
-                            findNext();
-                        }
-                    }, 50);
+                }
+                else if (e.shiftKey) {
+                    findPrevious();
+                }
+                else {
+                    findNext();
                 }
             }
             else if (e.key === 'Escape') {
