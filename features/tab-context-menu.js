@@ -107,6 +107,7 @@ class TabContextMenu {
                 click: () => wc.print(),
             }, {
                 label: 'View page source',
+                accelerator: 'CmdOrCtrl+U',
                 click: () => this.openInNewTab(`view-source:${currentUrl}`),
             });
             this.sep();

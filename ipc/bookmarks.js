@@ -115,6 +115,16 @@ function register(ipcMain, { wm, webContents }) {
         wd.tabs.loadUrl(idx, sanitizeUrl(url));
         return true;
     });
+    // Shift+Enter on an address-bar suggestion: open it in a NEW window, as a
+    // native browser does. From a private window the new one is private too.
+    ipcMain.handle('open-url-in-new-window', (_e, url) => {
+        const wd = wm.getWindowByWebContents(_e.sender);
+        const safe = sanitizeUrl(url);
+        if (!wd || !safe)
+            return false;
+        wm.createWindow(1000, 700, { url: safe, private: !!wd.tabs?.isPrivateWindow });
+        return true;
+    });
     ipcMain.handle('open-bookmarks-tab', (_e) => {
         const wd = wm.getWindowByWebContents(_e.sender);
         if (wd?.tabs)

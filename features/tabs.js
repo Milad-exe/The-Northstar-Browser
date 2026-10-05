@@ -444,7 +444,8 @@ class Tabs {
         // instead of racing it against the tab becoming visible mid-load.
         // Session restore keeps eager=false (loading 20 tabs at startup would
         // wreck launch time and memory).
-        if (eager && /^https?:/i.test(url || '')) {
+        // view-source: of a web page loads the same way (Ctrl+U, "View page source").
+        if (eager && /^(view-source:)?https?:/i.test(url || '')) {
             tab.lazyLoaded = true;
             tab.mutedUntilShown = true;
             tab.bgHoldMedia = true; // hold background autoplay until first viewed

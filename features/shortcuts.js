@@ -346,6 +346,12 @@ class Shortcuts {
         };
         this.registerShortcut('CmdOrCtrl+K', focusBar);
         this.registerShortcut('CmdOrCtrl+L', focusBar);
+        // Ctrl+E: the address bar in SEARCH mode — focused with a leading "?",
+        // which makes whatever follows a search even if it looks like an
+        // address (toNavigableUrl in renderer/lib/util.js).
+        this.registerShortcut('CmdOrCtrl+E', () => {
+            this.mainWindow.webContents.executeJavaScript('try { const el = document.getElementById("searchBar"); if (el) { el.focus(); el.value = "?"; el.setSelectionRange(1, 1); el.dispatchEvent(new Event("input", { bubbles: true })); } } catch {}').catch(() => { });
+        });
         // F6 moves between the page and the chrome,: from
         // the page it lands in the address bar (Tab then walks the toolbar and
         // the tab strip), and from the chrome it hands focus back to the page.
@@ -394,6 +400,23 @@ class Shortcuts {
             const tab = this.activeTab();
             if (tab)
                 tab.webContents.print();
+        });
+        // View page source — a new tab beside this one, as the page menu's
+        // "View page source" opens it.
+        this.registerShortcut('CmdOrCtrl+U', () => {
+            const tab = this.activeTab();
+            const url = tab?.webContents.getURL() || '';
+            if (!/^https?:/i.test(url))
+                return;
+            try {
+                const { sanitizeUrl } = require('./url-security');
+                let title = url;
+                try { title = new URL(url).hostname; }
+                catch (e) { log.debug('shortcuts', 'view-source title', e); }
+                const idx = this.tabManager.createLazyTab(sanitizeUrl('view-source:' + url), title, false, false, true, true);
+                this.tabManager.showTab(idx); // foreground, as Ctrl+U opens it
+            }
+            catch (e) { log.warn('shortcuts', 'view-source', e); }
         });
         // Save page as
         this.registerShortcut('CmdOrCtrl+S', () => {
@@ -508,6 +531,14 @@ class Shortcuts {
     }
     // ── Window shortcuts ───────────────────────────────────────────────────────
     registerWindowShortcuts() {
+        // F10 focuses the menu: on Windows that is the in-chrome menu bar (the
+        // same one an Alt tap opens). Elsewhere the native menu bar owns F10.
+        if (process.platform === 'win32') {
+            this.registerShortcut('F10', () => {
+                try { require('./menu-bar').toggle(this.getWindowData()); }
+                catch (e) { log.debug('shortcuts', 'F10 menu bar', e); }
+            });
+        }
         // Minimize
         this.registerShortcut('CmdOrCtrl+M', () => {
             if (!this.mainWindow.isDestroyed())

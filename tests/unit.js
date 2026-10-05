@@ -471,6 +471,10 @@ test('toNavigableUrl resolves typed text the same way the omnibox commits it', (
     assert.strictEqual(nav('file:///tmp/x'), 'file:///tmp/x');
     assert.strictEqual(nav('hello world'), 'https://www.google.com/search?q=hello%20world');
     assert.strictEqual(nav('   '), '', 'blank resolves to nothing');
+    // A leading ? forces a search (Ctrl+E), even for something address-shaped.
+    assert.strictEqual(nav('?example.com'), 'https://www.google.com/search?q=example.com');
+    assert.strictEqual(nav('? two words'), 'https://www.google.com/search?q=two%20words');
+    assert.strictEqual(nav('?'), '', 'a bare ? is nothing to search');
 });
 
 // New-tab page: suggestions under the field and the most-visited tiles. Local

@@ -200,6 +200,12 @@
         const t = String(text || '').trim();
         if (!t)
             return '';
+        // A leading "?" means "search for this", whatever it looks like
+        // (Ctrl+E puts the bar in this mode). A bare "?" is nothing to search.
+        if (t.startsWith('?')) {
+            const q = t.slice(1).trim();
+            return q ? searchUrl(q, engines, defaultId) : '';
+        }
         if (/^https?:\/\//i.test(t))
             return t;
         if (/^northstar:\/\//i.test(t))

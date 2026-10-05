@@ -547,6 +547,7 @@ exposeInternal('browserBookmarks', {
     showContextMenu: (url) => ipcRenderer.send('show-bookmark-context-menu', url),
     showBarContextMenu: (item) => ipcRenderer.send('show-bookmark-bar-context-menu', item),
     openInNewTab: (url, switchToTab) => ipcRenderer.invoke('open-url-in-new-tab', url, switchToTab),
+    openInNewWindow: (url) => ipcRenderer.invoke('open-url-in-new-window', url),
 });
 // Reading position, reported so a restored session opens the page where the
 // user left it. Throttled hard (a scroll handler runs on every frame otherwise)

@@ -1082,6 +1082,23 @@
                     return;
                 }
             }
+            // Shift+Enter otherwise opens the target in a NEW window (Chrome):
+            // the highlighted row's page or query, else what is in the bar.
+            // A tab-switch row has nothing to open, so it is left alone.
+            if (e.key === 'Enter' && e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
+                const item = activeSuggestionIndex >= 0 ? currentSuggestions[activeSuggestionIndex] : null;
+                if (item?.type !== 'switch-tab') {
+                    e.preventDefault();
+                    const target = item?.url || formatToUrl(item?.query || searchBar.value);
+                    if (target) {
+                        try { window.browserBookmarks.openInNewWindow(target); }
+                        catch (err) { window.northstarLog?.debug('renderer', 'shift-enter new window: ' + err); }
+                        hideSuggestions();
+                        searchBar.blur();
+                    }
+                    return;
+                }
+            }
             // Alt+Enter opens the target in a NEW tab rather than the current one
             // (P0-8), as in Chrome/Firefox. A highlighted url row uses its url;
             // otherwise the bar text is resolved the same way a normal commit is.
