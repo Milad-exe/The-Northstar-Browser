@@ -23,6 +23,44 @@ const { signalEnter, playOutThenHide } = require('./overlay-anim');
 
 const GAP = 6;   // between the tab and the card
 const EDGE = 8;  // keep this far from the window edges
+const PREVIEW_W = 600;      // px: the card shows it at 300 CSS px, so 2x for HiDPI
+const PREVIEW_FRESH = 4000; // ms a capture is reused while you move along the strip
+
+/* A picture of a BACKGROUND tab, as a native browser's hover card shows. The
+   active tab is the page you are looking at, so it gets none; a slept or
+   crashed tab has nothing to capture. capturePage works on a tab that is not
+   on screen (even one opened in the background and never shown). Captures are
+   cached per tab for a few seconds so moving along the strip stays instant. */
+async function previewFor(wd, index) {
+    const tab = wd.tabs?.tabMap?.get(index);
+    const wc = tab?.webContents;
+    if (!wc || wc.isDestroyed() || tab.slept || wc.isCrashed())
+        return null;
+    const url = wd.tabs.tabUrls?.get(index) || '';
+    if (!/^https?:/i.test(url))
+        return null;
+    wd.hoverCardThumbs = wd.hoverCardThumbs || new Map();
+    const hit = wd.hoverCardThumbs.get(index);
+    if (hit && hit.url === url && Date.now() - hit.at < PREVIEW_FRESH)
+        return hit.data;
+    try {
+        const img = await wc.capturePage();
+        if (!img || img.isEmpty())
+            return null;
+        const { width } = img.getSize();
+        const small = width > PREVIEW_W ? img.resize({ width: PREVIEW_W, quality: 'good' }) : img;
+        const data = 'data:image/jpeg;base64,' + small.toJPEG(78).toString('base64');
+        wd.hoverCardThumbs.set(index, { url, at: Date.now(), data });
+        // A small cache: drop the oldest once it holds more than a strip's worth.
+        if (wd.hoverCardThumbs.size > 24)
+            wd.hoverCardThumbs.delete(wd.hoverCardThumbs.keys().next().value);
+        return data;
+    }
+    catch (e) {
+        log.debug('tab-hover-card', 'preview', e);
+        return null;
+    }
+}
 
 async function ensureView(wd) {
     if (wd.hoverCard) {
@@ -82,6 +120,11 @@ async function show(wd, data) {
         const view = await ensureView(wd);
         if (wd.hoverCardSeq !== seq)
             return; // superseded while the view was loading
+        if (!data.active && Number.isInteger(data.index)) {
+            data = { ...data, preview: await previewFor(wd, data.index) };
+            if (wd.hoverCardSeq !== seq)
+                return;
+        }
         const size = await new Promise((resolve) => {
             const onSize = (_e, s) => { if (s && s.seq === seq) { view.webContents.ipc.removeListener('hovercard:size', onSize); resolve(s); } };
             view.webContents.ipc.on('hovercard:size', onSize);

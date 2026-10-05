@@ -31,3 +31,14 @@ html, body {
 }
 .hc-state[hidden] { display: none; }
 .hc-state.warn { color: var(--danger); }
+/* The page preview: a fixed 300px-wide card when there is one, the picture
+   cropped to a 16:10 window onto the top of the page. */
+#card.has-preview { width: 300px; }
+.hc-preview {
+  display: block; width: calc(100% + 2 * var(--sp-5)); aspect-ratio: 16 / 10;
+  margin: var(--sp-3) calc(var(--sp-5) * -1) calc(var(--sp-4) * -1);
+  object-fit: cover; object-position: top center;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+}
+.hc-preview[hidden] { display: none; }

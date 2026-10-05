@@ -480,6 +480,8 @@
                 const url = String(tabUrls.get(index) || '');
                 const r = btn.getBoundingClientRect();
                 api.show({
+                    index,
+                    active: index === activeTabIndex,
                     title: btn.querySelector('.tab-title')?.textContent || '',
                     site: siteOf(url),
                     state: stateOf(btn, index),

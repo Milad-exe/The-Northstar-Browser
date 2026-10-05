@@ -15,6 +15,7 @@
     const title = document.getElementById('title');
     const site = document.getElementById('site');
     const state = document.getElementById('state');
+    const preview = document.getElementById('preview');
 
     // What a tab's state means, in words. The chrome sends the state; the
     // sentence is decided here so it can be translated in one place.
@@ -35,12 +36,26 @@
         state.hidden = !s;
         state.textContent = s ? s[0] : '';
         state.classList.toggle('warn', !!(s && s[1]));
-        // Measure NOW (reading the rect forces layout) and report — main sizes
-        // the view to it. Not in requestAnimationFrame: the view is hidden
-        // until it has a size, and a hidden view's frames can be paused, so
-        // the size never arrived and the card silently never showed.
-        const r = card.getBoundingClientRect();
-        window.hoverCard.reportSize({ seq: d.seq, width: r.width, height: r.height });
+        // Measure (reading the rect forces layout) and report — main sizes the
+        // view to it. Not in requestAnimationFrame: the view is hidden until it
+        // has a size, and a hidden view's frames can be paused, so the size
+        // never arrived and the card silently never showed. A preview is
+        // decoded first so its height is in the measurement.
+        const report = () => {
+            const r = card.getBoundingClientRect();
+            window.hoverCard.reportSize({ seq: d.seq, width: r.width, height: r.height });
+        };
+        card.classList.toggle('has-preview', !!d.preview);
+        if (d.preview) {
+            preview.hidden = false;
+            preview.src = d.preview;
+            preview.decode().catch(() => { preview.hidden = true; card.classList.remove('has-preview'); }).then(report);
+        }
+        else {
+            preview.hidden = true;
+            preview.removeAttribute('src');
+            report();
+        }
     });
 
     // Enter/exit motion (P1-6): fade with the rest of the overlays.
