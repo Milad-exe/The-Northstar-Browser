@@ -36,6 +36,8 @@ async function ensureView(wd) {
             contextIsolation: true,
             nodeIntegration: false,
             sandbox: true,
+            // Hidden between hovers; it must still lay out and answer at once.
+            backgroundThrottling: false,
         },
     });
     view.setBackgroundColor('#00000000');
@@ -86,7 +88,11 @@ async function show(wd, data) {
             view.webContents.send('hovercard:data', { ...data, seq });
             setTimeout(() => { view.webContents.ipc.removeListener('hovercard:size', onSize); resolve(null); }, 400);
         });
-        if (!size || wd.hoverCardSeq !== seq)
+        if (!size) {
+            log.warn('tab-hover-card', 'the card did not report its size; not shown');
+            return;
+        }
+        if (wd.hoverCardSeq !== seq)
             return;
         view.setBounds(place(wd, data.rect, size, !!data.side));
         const wasOpen = wd.hoverCardOpen;

@@ -35,11 +35,12 @@
         state.hidden = !s;
         state.textContent = s ? s[0] : '';
         state.classList.toggle('warn', !!(s && s[1]));
-        // Measure after layout settles, then report — main sizes the view to it.
-        requestAnimationFrame(() => {
-            const r = card.getBoundingClientRect();
-            window.hoverCard.reportSize({ seq: d.seq, width: r.width, height: r.height });
-        });
+        // Measure NOW (reading the rect forces layout) and report — main sizes
+        // the view to it. Not in requestAnimationFrame: the view is hidden
+        // until it has a size, and a hidden view's frames can be paused, so
+        // the size never arrived and the card silently never showed.
+        const r = card.getBoundingClientRect();
+        window.hoverCard.reportSize({ seq: d.seq, width: r.width, height: r.height });
     });
 
     // Enter/exit motion (P1-6): fade with the rest of the overlays.
