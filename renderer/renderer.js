@@ -582,7 +582,13 @@
             document.getElementById('wc-close')?.addEventListener('click', () => window.windowControls.close());
             document.getElementById('wc-minimize')?.addEventListener('click', () => window.windowControls.minimize());
             document.getElementById('wc-maximize')?.addEventListener('click', () => window.windowControls.maximize());
+            // Maximized, the caption buttons run to the screen's top and right
+            // edges (CSS keys off data-maximized), so the pointer can be thrown
+            // into the corner to hit Close — as every Windows app behaves.
+            const markMaximized = (isMax) => { document.documentElement.dataset.maximized = isMax ? '1' : ''; };
+            window.windowControls.isMaximized?.().then(markMaximized).catch((e) => window.northstarLog?.debug('renderer', 'isMaximized: ' + e));
             window.windowControls.onMaximizeChanged((isMax) => {
+                markMaximized(isMax);
                 const btn = document.getElementById('wc-maximize');
                 if (!btn)
                     return;

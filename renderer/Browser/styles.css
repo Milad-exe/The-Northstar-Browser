@@ -167,6 +167,23 @@ html[data-tabbar="top"] #menu-bar { order: -1; }
 .wc-win .wc-btn svg { width: 10px; height: 10px; pointer-events: none; }
 .wc-win .wc-btn:hover { background: var(--hover); color: var(--text); }
 .wc-win .wc-close:hover { background: var(--danger); color: #fff; }
+/* Maximized (Windows/Linux): the caption buttons reach the screen's top and
+   right edges, so the pointer thrown into the top-right corner lands on Close.
+   The 6px of air above the chrome (--shell-top) is MIRRORED in JS — the page
+   view is placed from it — so it is not removed: it moves from the body into
+   the top bar (same total height, page card unmoved), and only the buttons
+   reach up into it. */
+html[data-maximized="1"]:not([data-platform="darwin"]) body { padding-top: 0; }
+html[data-maximized="1"][data-tabbar="top"]:not([data-platform="darwin"]) #tab-bar {
+  height: calc(var(--tabstrip-h) + var(--shell-top)); padding-top: var(--shell-top); padding-right: 0;
+}
+html[data-maximized="1"][data-tabbar="side"]:not([data-platform="darwin"]) #utility-bar {
+  height: calc(var(--bar-h) + var(--shell-top)); padding-top: var(--shell-top);
+}
+html[data-maximized="1"] .wc-win {
+  align-self: stretch; margin-top: calc(var(--shell-top) * -1);
+}
+html[data-maximized="1"] .wc-win .wc-btn { height: 100%; }
 
 /* ── Tab Bar (top strip) ─────────────────── */
 #tab-bar {
