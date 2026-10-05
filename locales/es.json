@@ -5,7 +5,7 @@
     "bookmarks.count": "{n} marcadores",
     "bookmarks.countOne": "1 marcador",
     "bookmarks.empty": "Aún no hay marcadores",
-    "bookmarks.emptyHint": "Pulsa la ★ de la barra de direcciones para guardar una página.",
+    "bookmarks.emptyHint": "Pulsa Ctrl+D, o la estrella de la barra de direcciones, para guardar una página.",
     "bookmarks.noMatches": "No hay marcadores que coincidan",
     "bookmarks.noMatchesHint": "Prueba con otra palabra.",
     "bookmarks.remove": "Quitar marcador",
@@ -219,6 +219,7 @@
     "perm.n.midi": "Dispositivos MIDI",
     "perm.n.external": "Abrir aplicaciones",
     "perm.n.generic": "Permiso",
-    "history.openNewTab": "Abrir en una pestaña nueva"
+    "history.openNewTab": "Abrir en una pestaña nueva",
+    "ntp.privateNote": "Pestaña privada. Las páginas que visites aquí no se guardan en el historial, y las cookies y los datos de sitios de la pestaña se borran al cerrarla."
   }
 }

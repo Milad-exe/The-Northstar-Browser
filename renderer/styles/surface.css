@@ -212,8 +212,7 @@
   }
   .surface-label {
     padding: var(--sp-3) var(--sp-4) var(--sp-2);
-    font-size: var(--fs-micro); font-weight: 600; letter-spacing: 0.06em;
-    text-transform: uppercase; color: var(--text-3);
+    font-size: var(--fs-small); font-weight: 600; color: var(--text-2);
   }
   .surface-pad { padding: var(--sp-2); }
 

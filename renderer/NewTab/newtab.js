@@ -26,6 +26,11 @@
     // space's open tabs, Enter jumps, Esc returns, and the page closes itself.
     const FLAGS = location.hash.replace(/^#/, '').split(',');
     const PRIVATE = FLAGS.includes('private');
+    // Say so: a private new-tab page looked exactly like a normal one.
+    if (PRIVATE) {
+        const note = document.getElementById('private-note');
+        if (note) note.hidden = false;
+    }
     const TABS = FLAGS.includes('tabs');
     const settings = (() => { try { return window.northstarSettings?.getSync() || {}; } catch (e) { return {}; } })();
     const engines = Array.isArray(settings.engines) ? settings.engines : [];

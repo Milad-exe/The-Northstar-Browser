@@ -5,7 +5,7 @@
     "bookmarks.count": "{n} bookmarks",
     "bookmarks.countOne": "1 bookmark",
     "bookmarks.empty": "No bookmarks yet",
-    "bookmarks.emptyHint": "Press the ★ in the address bar to keep a page.",
+    "bookmarks.emptyHint": "Press Ctrl+D, or the star in the address bar, to keep a page.",
     "bookmarks.noMatches": "No matching bookmarks",
     "bookmarks.noMatchesHint": "Try a different word.",
     "bookmarks.remove": "Remove bookmark",
@@ -52,7 +52,7 @@
     "chrome.menu": "Menu",
     "chrome.newTab": "New tab",
     "chrome.newWorkspace": "New workspace",
-    "chrome.omnibox": "Search or enter URL",
+    "chrome.omnibox": "Search or enter address",
     "chrome.pip": "Picture-in-Picture",
     "chrome.private": "Private",
     "chrome.profiles": "Profiles",
@@ -219,6 +219,7 @@
     "perm.n.midi": "MIDI devices",
     "perm.n.external": "Opening apps",
     "perm.n.generic": "Permission",
-    "history.openNewTab": "Open in new tab"
+    "history.openNewTab": "Open in new tab",
+    "ntp.privateNote": "Private tab. Pages you visit here aren't saved to your history, and the tab's cookies and site data are deleted when you close it."
   }
 }

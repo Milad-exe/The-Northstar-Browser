@@ -147,7 +147,7 @@
                     : (T('bookmarks.empty', 'No bookmarks yet'));
                 empty.append(strong, q
                     ? (T('bookmarks.noMatchesHint', 'Try a different word.'))
-                    : (T('bookmarks.emptyHint', 'Press the ★ in the address bar to keep a page.')));
+                    : (T('bookmarks.emptyHint', 'Press Ctrl+D, or the star in the address bar, to keep a page.')));
                 listEl.appendChild(empty);
                 return;
             }

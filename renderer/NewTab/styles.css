@@ -88,6 +88,11 @@
 #q::placeholder { color: var(--text-3); }
 
 .ntp-section { display: flex; flex-direction: column; gap: var(--sp-5, 14px); }
+/* Private tabs: one quiet line under the field saying what private means. */
+.ntp-private {
+  margin: calc(var(--sp-7, 48px) * -0.5) 0 0; text-align: center;
+  font-size: var(--fs-small); color: var(--text-2); line-height: 1.5;
+}
 .ntp-h {
   margin: 0 0 0 var(--sp-5, 12px); font-size: var(--fs-small); font-weight: 600; color: var(--text-2);
 }

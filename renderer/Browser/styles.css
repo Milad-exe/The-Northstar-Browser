@@ -1781,8 +1781,8 @@ browser-action-list::part(badge) {
 .bookmark-overflow-item.has-submenu-open .bookmark-overflow-submenu-arrow { opacity: 0.6; }
 .bookmark-overflow-sep { height: 1px; background: var(--border); margin: 4px 0; }
 .bookmark-folder-panel-header {
-  padding: 6px 12px 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.03em;
-  color: var(--text-3); text-transform: uppercase;
+  padding: 6px 12px 4px; font-size: var(--fs-small); font-weight: 600;
+  color: var(--text-2);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .bookmark-overflow-empty { padding: var(--sp-4) var(--sp-5); font-size: var(--fs-small); color: var(--text-3); }
@@ -1878,6 +1878,7 @@ html[data-tabbar="side"][data-compact="on"] #content-area { margin-left: var(--s
 .pom-close { position: absolute; top: var(--sp-4); right: var(--sp-4); }
 
 /* ── Private tab / window ────────────────── */
+html[data-private-window="true"] .tab-button .tab-private-icon { display: none !important; }
 .tab-button[data-private="true"] .tab-private-icon {
   color: var(--accent); display: flex; align-items: center; flex-shrink: 0; margin-right: 2px;
 }
@@ -1886,8 +1887,8 @@ html[data-tabbar="side"][data-compact="on"] #content-area { margin-left: var(--s
 
 .private-badge {
   display: none; align-items: center; gap: var(--sp-3);
-  font-family: var(--mono); font-size: var(--fs-micro); font-weight: 700;
-  letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent);
+  font-family: var(--font); font-size: var(--fs-small); font-weight: 600;
+  color: var(--accent);
   padding: 0 10px; background: var(--accent-wash);
   border: none; border-radius: var(--r-md);
   height: 24px; margin-right: 4px; flex-shrink: 0; white-space: nowrap;

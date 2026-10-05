@@ -26,7 +26,7 @@
     flex: 1; height: 40px;
     display: flex; align-items: center; justify-content: center;
     border: none; border-radius: var(--r-md); cursor: pointer;
-    background: var(--bg); color: var(--text-2); box-shadow: var(--ring);
+    background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text-2); box-shadow: none;
     transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
   }
   .pa-btn svg { width: var(--icon); height: var(--icon); }
@@ -35,7 +35,7 @@
   /* Not applicable to this page — dimmed and inert rather than removed, so the
      row does not change width as you browse. That silent reflow is exactly what
      made the toolbar restless. */
-  .pa-btn[disabled] { opacity: 0.35; cursor: default; background: transparent; box-shadow: none; }
+  .pa-btn[disabled] { opacity: 0.35; cursor: default; }
   .pa-btn.on { background: var(--active-bg); color: var(--text); }
 
   .bm-filled { display: none; }
