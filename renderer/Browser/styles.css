@@ -258,8 +258,14 @@ html[data-tabbar="top"] #sidebar-resizer  { display: none; }
 /* No sidebar to collapse in the top strip, so its toggle has no meaning. */
 html[data-tabbar="top"] #compact-btn { display: none; }
 
-/* The space switcher, as a compact pill at the strip's left. Same button and
-   menu as the sidebar's — only the layout differs. */
+/* The space name header ("🏠 Personal") is not shown in either layout: the
+   space is already on screen as an icon — the toolbar's space button in the top
+   strip, the avatar row in the sidebar's foot — and a second, text copy of it
+   cost a row of the rail and the left end of the strip. The button stays in the
+   DOM (its menu code is shared); Ctrl+Shift+M anchors to the visible icon. */
+html[data-tabbar] #space-header { display: none; }
+/* The space switcher, as a compact pill at the strip's left (hidden above;
+   kept for the layout should it return). */
 html[data-tabbar="top"] .space-header {
   display: flex; align-items: center; gap: var(--sp-3);
   flex: 0 0 auto; height: var(--control-h); max-width: 190px;
@@ -1197,15 +1203,17 @@ html[data-tabbar="side"] .tab-throbber {
   50%  { stroke-dasharray: 33 100; stroke-dashoffset: -5; }  /* 33/44 ≈ 270° */
   100% { stroke-dasharray: 1 100;  stroke-dashoffset: -44; }
 }
-/* Favicon handoff. Waiting: no icon yet, column reserved. Loading: the icon
-   sits INSIDE the ring (a circle of --icon − 2·stroke − 2). Loaded: the
-   throbber element is removed and the icon scales back to full over --dur-3 —
-   the "pop" (the transform transition lives on .tab-favicon above). */
-.tab-button.waiting .tab-favicon { visibility: hidden; flex: 0 0 var(--icon); }
-.tab-button.loading:not(.waiting) .tab-favicon {
-  flex: 0 0 var(--icon);
-  transform: scale(calc((var(--icon) - 2 * var(--throbber-stroke) - 2) / var(--icon)));
+/* Favicon handoff. While a tab loads the ring REPLACES its icon, as a native
+   strip does — the column stays reserved, the icon is hidden. (The icon used to
+   sit shrunk inside the ring; a square favicon's corners reach past a 16px
+   ring's inside, so the two overlapped.) When the throbber element is removed
+   the icon returns from a smaller scale over --dur-3 — the "pop" (the
+   transform transition lives on .tab-favicon above). The new-tab page's mark
+   and the blank-tab placeholder (::before) step aside the same way. */
+.tab-button.loading .tab-favicon {
+  visibility: hidden; flex: 0 0 var(--icon); transform: scale(0.6);
 }
+.tab-button.loading::before { background: transparent !important; }
 
 /* Slept / crashed row states (P1-8). The throbber is an inline SVG now, so
    ::after is free for these static marks. Both centre on the icon column the

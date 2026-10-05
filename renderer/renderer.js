@@ -2682,11 +2682,21 @@
                 });
             }
             catch (e) { window.northstarLog?.debug('renderer', 'refresh: ' + e); }
+            // The toolbar's space button (top strip) is THE space switcher now
+            // that the name header is hidden: it opens the same list the header
+            // did — names, icons, Ctrl+Alt+N hints, rename, new space — and
+            // right-click gives the space's own menu, as the foot avatar does.
+            // (It used to open an older native-style "Workspace" menu.)
             if (btn) {
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    const r = btn.getBoundingClientRect();
-                    window.profiles.menu(r.left, r.bottom + 4);
+                    btn.setAttribute('aria-expanded', 'true');
+                    openSpaceList(btn, true);
+                });
+                btn.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    spaceContextMenu(e.clientX, e.clientY, activeWorkspace);
                 });
             }
             // The space pill at the top of the rail: switch spaces, or make one.
@@ -2722,10 +2732,17 @@
             // Ctrl+Shift+M (P2-7): main routes the space-switcher shortcut here.
             try {
                 window.profiles.onOpenSwitcher?.(() => {
-                    const btn = document.getElementById('space-header');
+                    // The space header is hidden, so anchor to the space icon
+                    // that IS on screen: the toolbar's space button (top strip)
+                    // or the active avatar in the sidebar's foot, which opens
+                    // its menu upward.
+                    const shown = (el) => !!el && el.getClientRects().length > 0;
+                    const top = document.getElementById('profile-btn');
+                    const foot = document.querySelector('#sb-workspaces .sb-ws.active') || document.getElementById('sb-workspaces');
+                    const btn = shown(top) ? top : (shown(foot) ? foot : null);
                     if (btn) {
                         btn.setAttribute('aria-expanded', 'true');
-                        openSpaceList(btn, true);
+                        openSpaceList(btn, btn === top);
                     }
                 });
             }
@@ -3606,7 +3623,8 @@
                 const fn = _ctxPending;
                 _ctxPending = null;
                 _closeCtxMenu = null;
-                document.getElementById('space-header')?.setAttribute('aria-expanded', 'false');
+                for (const el of document.querySelectorAll('#space-header, #profile-btn, #sb-workspaces, #sb-workspaces .sb-ws'))
+                    if (el.getAttribute('aria-expanded') === 'true') el.setAttribute('aria-expanded', 'false');
                 if (fn) fn(result);
             });
         }

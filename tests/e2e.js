@@ -270,11 +270,12 @@ async function omniboxNavigate(page, text) {
             // U1-2: the tab menu's close row is "Close" (its hint, Ctrl+W, sits in the trailing column).
             return rows.includes('Close') ? `${rows.length} items` : false;
         });
-        await check('the space pill and the foot avatar offer the same menu', async () => {
-            const pill = await ctxRows('#space-header');
+        // The space-name header is hidden (the space is shown as an icon); the
+        // foot avatar is how the space menu is reached in the sidebar.
+        await check('the space header is hidden; the foot avatar opens the space menu', async () => {
+            const hidden = await chrome.evaluate(() => getComputedStyle(document.getElementById('space-header')).display === 'none');
             const avatar = await ctxRows('.sb-ws');
-            return pill.length > 3 && JSON.stringify(pill) === JSON.stringify(avatar)
-                ? `${pill.length} items each` : false;
+            return hidden && avatar.length > 3 ? `${avatar.length} items` : false;
         });
         // The space menu is shared by the pill and the foot avatar; its actions
         // live in initProfiles(), which is a different scope from the menu. When
@@ -282,9 +283,9 @@ async function omniboxNavigate(page, text) {
         await check('the space menu\'s rows actually do something', async () => {
             const invoke = async (label) => {
                 await chrome.evaluate(() => {
-                    const el = document.getElementById('space-header');
+                    const el = document.querySelector('#sb-workspaces .sb-ws.active') || document.querySelector('.sb-ws');
                     const r = el.getBoundingClientRect();
-                    el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: Math.round(r.left + 20), clientY: Math.round(r.bottom) }));
+                    el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: Math.round(r.left + r.width / 2), clientY: Math.round(r.top + r.height / 2) }));
                 });
                 await sleep(700);
                 const menu = app.windows().find(p => { try { return p.url().includes('CtxMenu/index.html'); } catch { return false; } });
