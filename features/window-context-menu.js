@@ -156,24 +156,22 @@ class WindowContextMenu {
                 toClose.forEach(i => windowData.tabs.removeTab(i));
             },
         });
-        // Reopen last closed tab if any
-        const closed = windowData.tabs.closedTabHistory;
-        if (closed && closed.length > 0) {
+        this.addRecentlyClosed(windowData);
+    }
+    /* "Reopen closed tab" and a "Recently closed" submenu with every closed tab
+       and window (features/recently-closed.js). Shown only when there is
+       something to bring back. */
+    addRecentlyClosed(windowData, withSep = true) {
+        const rc = require('./recently-closed');
+        const tpl = rc.template(windowData, this.windowManager || windowData.tabs?.windowManager);
+        const [reopen, , ...list] = tpl;
+        if (!reopen.enabled && !rc.entries(windowData).length)
+            return;
+        if (withSep)
             this.sep();
-            this.contextTemplate.push({
-                label: 'Reopen Closed Tab',
-                click: () => {
-                    const last = closed.pop();
-                    // Nothing to reopen means nothing happens — a blank tab is
-                    // not what "Reopen Closed Tab" promises, and this browser
-                    // has none to open.
-                    if (last && last.url && last.url !== 'newtab') {
-                        const newIndex = windowData.tabs.createTab();
-                        windowData.tabs.loadUrl(newIndex, last.url);
-                    }
-                },
-            });
-        }
+        this.contextTemplate.push(reopen);
+        if (list.length && list[0].enabled !== false)
+            this.contextTemplate.push({ label: i18n.t('closed.title'), submenu: list });
     }
     addTabBarItems(params) {
         // Show when right-clicking on empty tab bar space (not on a tab button)
@@ -189,22 +187,7 @@ class WindowContextMenu {
             label: i18n.t('chrome.newTab'),
             click: () => { windowData?.tabs?.openInternalPage('home'); },
         });
-        const closed = windowData.tabs.closedTabHistory;
-        if (closed && closed.length > 0) {
-            this.contextTemplate.push({
-                label: 'Reopen Closed Tab',
-                click: () => {
-                    const last = closed.pop();
-                    // Nothing to reopen means nothing happens — a blank tab is
-                    // not what "Reopen Closed Tab" promises, and this browser
-                    // has none to open.
-                    if (last && last.url && last.url !== 'newtab') {
-                        const newIndex = windowData.tabs.createTab();
-                        windowData.tabs.loadUrl(newIndex, last.url);
-                    }
-                },
-            });
-        }
+        this.addRecentlyClosed(windowData, false);
     }
 }
 

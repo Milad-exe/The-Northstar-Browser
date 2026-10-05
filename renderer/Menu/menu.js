@@ -51,6 +51,12 @@
         document.getElementById('btn-print').addEventListener('click', act(() => api.print()));
         document.getElementById('btn-history').addEventListener('click', act(() => api.openHistoryTab()));
         document.getElementById('btn-bookmarks').addEventListener('click', act(() => api.openBookmarksTab()));
+        // Recently closed: the app menu hands over to a list menu at this row.
+        document.getElementById('btn-recently-closed')?.addEventListener('click', async (e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            try { await api.openRecentlyClosed({ left: r.left, top: r.top, right: r.right, bottom: r.bottom }); }
+            catch (err) { window.northstarLog?.debug('menu', 'recently closed: ' + err); }
+        });
         document.getElementById('btn-passwords').addEventListener('click', act(() => api.openSettingsTab('passwords')));
         document.getElementById('btn-extensions').addEventListener('click', act(() => api.openSettingsTab('extensions')));
         document.getElementById('btn-bookmark-bar').addEventListener('click', act(() => api.toggleBookmarkBar()));

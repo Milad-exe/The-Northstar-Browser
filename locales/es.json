@@ -228,6 +228,11 @@
     "hovercard.mic": "Usando el micrófono",
     "hovercard.camera": "Usando la cámara",
     "hovercard.private": "Pestaña privada",
-    "hovercard.untitled": "Sin título"
+    "hovercard.untitled": "Sin título",
+    "closed.title": "Cerrado recientemente",
+    "closed.reopenTab": "Volver a abrir la pestaña cerrada",
+    "closed.empty": "Aún no has cerrado nada",
+    "closed.window1": "Ventana: {title}",
+    "closed.windowN": "Ventana: {title} y {more} más"
   }
 }

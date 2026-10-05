@@ -441,7 +441,9 @@ class WindowManager {
                 }
                 else {
                     // One window of several, closed by hand: the user threw it
-                    // away, so it should not come back next launch.
+                    // away, so it should not come back next launch — but it can
+                    // come back from "Recently closed" this session.
+                    require('./recently-closed').recordWindow(tabs);
                     this.persistence.forgetWindowState(windowId);
                 }
             }
@@ -606,6 +608,17 @@ class WindowManager {
                 this.restored = true;
                 // The rest of last session's windows, once this one is up.
                 this._restoreRemainingWindows();
+            }
+            else if (Array.isArray(options?.urls) && options.urls.length) {
+                // Reopened from "Recently closed": the window's tabs, in order,
+                // the first one showing.
+                let first = null;
+                for (const u of options.urls) {
+                    const idx = tabs.createTab(null, first === null, false);
+                    tabs.loadUrl(idx, u);
+                    if (first === null) first = idx;
+                }
+                if (first !== null) tabs.showTab(first);
             }
             else if (options?.url) {
                 // Opened FOR a link ("open in new window"): the window starts on

@@ -107,6 +107,24 @@ function register(ipcMain, { wm }) {
             }
         }
     });
+    // ── Recently closed ───────────────────────────────────────────────────────
+    // The app menu's "Recently closed" row: close the app menu and open the
+    // list (features/recently-closed.js) as a menu at that row.
+    ipcMain.handle('recently-closed-menu', (_e, rect) => {
+        const wd = wm.getWindowByWebContents(_e.sender);
+        if (!wd)
+            return false;
+        let x = 0, y = 0;
+        try {
+            const b = wd.menu.getBounds();
+            x = b.x + (rect?.left || 0);
+            y = b.y + (rect?.top || 0);
+        }
+        catch (e) { log.debug('menu', 'recently-closed anchor', e); }
+        closeWindowMenu(wd);
+        const tpl = require('../features/recently-closed').template(wd, wm);
+        return require('../features/overlay-menu').popup(wd, tpl, x, y);
+    });
     // ── Close ─────────────────────────────────────────────────────────────────
     ipcMain.handle('close-menu', (_e) => {
         const wd = wm.getWindowByWebContents(_e.sender);

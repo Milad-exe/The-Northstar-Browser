@@ -228,6 +228,11 @@
     "hovercard.mic": "Using your microphone",
     "hovercard.camera": "Using your camera",
     "hovercard.private": "Private tab",
-    "hovercard.untitled": "Untitled"
+    "hovercard.untitled": "Untitled",
+    "closed.title": "Recently closed",
+    "closed.reopenTab": "Reopen closed tab",
+    "closed.empty": "Nothing closed yet",
+    "closed.window1": "Window: {title}",
+    "closed.windowN": "Window: {title} and {more} more"
   }
 }

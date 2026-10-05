@@ -1489,7 +1489,7 @@ class Tabs {
                 title = tab?.webContents?.getTitle() || url;
             }
             catch (e) { log.debug('tabs', 'recordClosed', e); }
-            this.closedTabHistory.push({ url, title });
+            this.closedTabHistory.push({ url, title, closedAt: Date.now() });
             if (this.closedTabHistory.length > 20)
                 this.closedTabHistory.shift();
         }

@@ -1134,6 +1134,35 @@ test('emphasis bolds the typed match on page rows, the completion on search rows
     assert.strictEqual(bold(emphasis('Hello', '', 'completion')), '', 'empty query → nothing bold');
 });
 
+// Recently closed: tabs and hand-closed windows, newest first, each reopenable.
+test('recently closed lists tabs and windows newest first, and skips private', () => {
+    const rc = require(path.join(root, 'features/recently-closed'));
+    rc._closedWindows.length = 0;
+    const wd = { tabs: { closedTabHistory: [
+        { url: 'https://a.com/', title: 'A', closedAt: 100 },
+        { url: 'https://b.com/', title: 'B', closedAt: 300 },
+    ] } };
+    const fakeTabs = (rows, opts = {}) => ({
+        isPrivateWindow: !!opts.privateWindow, privateTabs: new Set(opts.privateIdx || []),
+        visualOrder: rows.map((_, i) => i), tabMap: new Map(rows.map((r, i) => [i, { webContents: { getTitle: () => r.title } }])),
+        tabUrls: new Map(rows.map((r, i) => [i, r.url])),
+    });
+    const realNow = Date.now;
+    try {
+        Date.now = () => 200;
+        rc.recordWindow(fakeTabs([{ url: 'https://w1.com/', title: 'W1' }, { url: 'northstar://home', title: 'Home' }, { url: 'https://w2.com/', title: 'W2' }], { privateIdx: [] }));
+        rc.recordWindow(fakeTabs([{ url: 'https://p.com/', title: 'P' }], { privateWindow: true }));
+        rc.recordWindow(fakeTabs([{ url: 'https://x.com/', title: 'X' }], { privateIdx: [0] }));
+    } finally { Date.now = realNow; }
+    const e = rc.entries(wd);
+    assert.deepStrictEqual(e.map(x => x.kind === 'tab' ? x.item.title : 'window:' + x.item.tabs.map(t => t.title).join('+')),
+        ['B', 'window:W1+W2', 'A'], 'newest first; internal pages, private windows and private tabs are left out');
+    const tpl = rc.template(wd, null);
+    assert.strictEqual(tpl[0].accelerator, 'CmdOrCtrl+Shift+T');
+    assert.ok(/W1 and 1 more/.test(tpl[3].label), tpl[3].label);
+    rc._closedWindows.length = 0;
+});
+
 // ── CSS drift guard (ui-polish U1-8) ─────────────────────────────────────────
 // Raw values in component CSS bypass the token system (and reduced motion, for
 // durations). Durations must be tokens, full stop. Font sizes and radii are a
