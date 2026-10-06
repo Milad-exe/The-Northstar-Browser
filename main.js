@@ -37,8 +37,12 @@ process.on('unhandledRejection', (reason) => {
 // associate the live window with it, so the taskbar groups it on its own and the
 // right-click jump list falls back to a stale/cached generic icon. Must be set
 // before any window is created. (appId — keep in sync with build.appId.)
+// A source run (npm start / npm run dev) gets its OWN id: with the installed
+// app's, Windows grouped the dev window under the installed shortcut and drew
+// THAT shortcut's icon — the one baked into the installed exe — so an icon
+// change never showed in dev however the window's own icon was set.
 if (process.platform === 'win32') {
-    app.setAppUserModelId('com.northstar.browser');
+    app.setAppUserModelId(app.isPackaged ? 'com.northstar.browser' : 'com.northstar.browser.dev');
 }
 // Single-instance lock — a browser must run as ONE process per profile.
 // Without it, a second launch (or a previous run that hasn't fully exited)
