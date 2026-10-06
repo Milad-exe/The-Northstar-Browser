@@ -1,26 +1,24 @@
 /**
  * The dock/taskbar icon.
  *
- * ONE mark, ONE palette, everywhere. It used to follow the theme — a rendered
- * PNG per ground, cached by colour — which was a nice mechanism and the wrong
- * idea: an app icon is how the app is recognised in a dock, a switcher and a
- * search result, and an icon that changes with a preference is one the user
- * cannot learn. It also meant the icon differed from the one in the About page
- * and from the window icon, because those read a file while the dock read a
- * render.
+ * ONE mark, ONE palette, everywhere. An app icon is how the app is recognised
+ * in a dock, a switcher and a search result, so it never follows the theme.
  *
- * So the palette is fixed here, the binaries beside renderer/assets/logo.svg
- * are built from it (`npm run icons`), and this module only hands the right
- * file to the right platform API.
+ * The mark is "Aurora": the Earth tipped toward its north pole, northern lights
+ * circling the pole, a white polar cap. Its source is renderer/assets/logo.svg;
+ * the binaries (logo.png, logo-win.png, icons/icon.{png,ico,icns},
+ * renderer/assets/icon.png) are rendered from that design, the small .ico
+ * sizes from a simplified globe without continents. This module only hands
+ * the right file to the right platform API.
  */
 const { app, nativeImage } = require('electron');
 const { resolveAppFile } = require('../app-paths');
 const log = require('./log');
 
-/* The mark's colours. Change them here, then run `npm run icons` — nothing
-   reads them at runtime, they are the source for the build. */
-const FIELD = '#2d6ad6';
-const MARK = '#ffffff';
+/* The mark's two anchor colours (ocean, polar cap), kept for anything that
+   wants to match the icon. Nothing reads them to draw the icon itself. */
+const FIELD = '#162c76';
+const MARK = '#f4fbff';
 
 let cached = null;
 
