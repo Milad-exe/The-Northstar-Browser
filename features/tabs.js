@@ -1025,7 +1025,7 @@ class Tabs {
     // Browser/styles.css). The page floats in a rounded card on a tinted shell
     // instead of filling the window edge-to-edge.
     static SHELL_PAD = 8;
-    static PAGE_RADIUS = 12;
+    static PAGE_RADIUS = 8;
     // Width of the left tab sidebar (tabBarSide: 'side').
     static SIDEBAR_W = 256;
     static SIDEBAR_MAX = 460; // resize clamp (min 180)
@@ -1049,7 +1049,11 @@ class Tabs {
     // edge-to-edge and square there; otherwise the rounded floating card.
     _pageRadius() {
         const fs = this.isHtmlFullScreen || (this.mainWindow && this.mainWindow.isSimpleFullScreen && this.mainWindow.isSimpleFullScreen());
-        return fs ? 0 : Tabs.PAGE_RADIUS;
+        // Top strip: the page is flush with the window under the toolbar band,
+        // square like any top-tabs browser (Browser/styles.css mirrors this on
+        // #content-area). Only the sidebar layout keeps the rounded card.
+        const top = (this.persistence?.get('tabBarSide') ?? 'side') === 'top';
+        return (fs || top) ? 0 : Tabs.PAGE_RADIUS;
     }
 
     // The rendered sidebar width for THIS window, using the renderer's own
@@ -1087,17 +1091,20 @@ class Tabs {
                 height = 0;
             return { x: leftInset, y: yOffset, width: Math.floor(width), height: Math.floor(height) };
         }
-        // shell top inset (see body padding-top in Browser/styles.css) +
-        // tab-bar + utility-bar + optional bookmark-bar (30px)
-        const yOffset = Tabs.TAB_BAR_H + Tabs.UTILITY_BAR_H + Tabs.SHELL_PAD
+        // Top strip: shell top inset (body padding-top) + tab strip + toolbar
+        // band + optional bookmark bar, then the page FLUSH to the window's
+        // left, right and bottom edges — no card inset, as in any top-tabs
+        // browser. Browser/styles.css mirrors this (html[data-tabbar="top"]
+        // #content-area { margin: 0 }).
+        const yOffset = Tabs.TAB_BAR_H + Tabs.UTILITY_BAR_H
             + Tabs.SHELL_TOP + (this.bookmarkBarHeight || 0);
-        let width = contentBounds.width - pad * 2 - rightInset;
-        let height = contentBounds.height - yOffset - pad;
+        let width = contentBounds.width - rightInset;
+        let height = contentBounds.height - yOffset;
         if (width < 0)
             width = 0;
         if (height < 0)
             height = 0;
-        return { x: pad, y: yOffset, width: Math.floor(width), height: Math.floor(height) };
+        return { x: 0, y: yOffset, width: Math.floor(width), height: Math.floor(height) };
     }
     isYouTubeUrl(url) {
         try {

@@ -32,7 +32,6 @@ html, body {
 body::before {
   content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
   background:
-    radial-gradient(140% 46% at 50% 0%, color-mix(in srgb, var(--text) 5%, transparent), transparent 70%),
     /* The wash: a user theme's picked colours, painted OVER --shell rather than
        replacing it, so everything reading --shell as a flat colour (the
        vibrancy mix, the tab-strip scroll fades) still works. `none` for every
@@ -159,7 +158,7 @@ html[data-tabbar="top"] #menu-bar { order: -1; }
 
 .wc-win { margin-left: auto; order: 999; }
 .wc-win .wc-btn {
-  width: 44px; height: 42px; border: none;
+  width: 46px; height: 42px; border: none;
   background: transparent; color: var(--text-2); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: background var(--dur-1) var(--ease); padding: 0; border-radius: 0;
@@ -357,7 +356,7 @@ html[data-tabbar="top"] #space-create:not(.hidden) {
   border-radius: var(--r-md);
   background: transparent; border: none;
   color: var(--text-2);
-  font-family: var(--font); font-size: var(--fs-body); font-weight: 400;
+  font-family: var(--font); font-size: var(--fs-small); font-weight: 400;
   letter-spacing: var(--tracking);
   cursor: pointer;
   transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease),
@@ -421,6 +420,28 @@ html[data-tabbar="top"] .tab-button.pinned:not(.has-favicon)::before {
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--ring);
+}
+html[data-tabbar="top"] #tabs-container { padding-bottom: 0; }
+html[data-tabbar="top"] #tabs-container > .tab-button:not(.in-folder) {
+  align-self: flex-end; height: calc(var(--row-h) - 2px);
+  border-radius: var(--r-md) var(--r-md) 0 0;
+}
+html[data-tabbar="top"] .tab-button.active:not(.in-folder) {
+  background: var(--surface); box-shadow: none; font-weight: 500;
+}
+/* The toolbar band: one surface with the active tab, a clear step above the
+   frame (--surface, not --page: on the dark grounds --page sits too close to
+   the frame to read as a band), with a hairline where it meets the page. */
+html[data-tabbar="top"] #utility-bar {
+  background: var(--surface);
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+/* The page is flush under the band (getTabBounds in tabs.js): no card margin,
+   corners or ring in this layout. */
+html[data-tabbar="top"] #bookmark-bar { background: var(--surface); box-shadow: inset 0 -1px 0 var(--border); }
+html[data-tabbar="top"] #content-area,
+html[data-tabbar="top"][data-vibrancy="true"] #content-area {
+  margin: 0; border-radius: 0; box-shadow: none;
 }
 
 /* An Essential's view has no row in the strip: its tile at the top of the
@@ -631,7 +652,7 @@ html[data-tabbar="side"] .tab-favicon.default {
 /* Pinned tabs are workspace-scoped and read as NORMAL rows docked above the
    loose tabs (the big favicon tiles are the Essentials treatment, not this one).
    Only the title weight marks them out. */
-html[data-tabbar="side"] .tab-button { position: relative; grid-column: 1 / -1; }
+html[data-tabbar="side"] .tab-button { position: relative; grid-column: 1 / -1; height: calc(var(--row-h) - 4px); }
 html[data-tabbar="side"] .tab-button.pinned {
   padding: 0 var(--sp-3) 0 var(--gutter); gap: var(--sp-4); justify-content: flex-start;
 }
@@ -1522,7 +1543,7 @@ html[data-tabbar="top"] .tab-button.pinned .tab-close { top: 1px; right: 1px; wi
      between it and the icons. A browser's address bar is the widest thing in
      the chrome for a reason — the URLs it holds are long. */
   width: 100%;
-  display: flex; align-items: center; height: var(--control-h);
+  display: flex; align-items: center; height: calc(var(--control-h) + 2px);
   /* A tonal pill, the way a native address bar is drawn: one step of ink over
      the shell in both modes, no hairline at rest. (It was a near-black well,
      which on a dark ground read as a hole cut in the toolbar.) Focus lifts it to
@@ -1533,13 +1554,15 @@ html[data-tabbar="top"] .tab-button.pinned .tab-close { top: 1px; right: 1px; wi
   transition: background var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease);
 }
 .omnibox:hover:not(:focus-within) { background: color-mix(in srgb, var(--text) 12%, var(--shell)); }
+html[data-tabbar="top"] .omnibox { background: var(--shell); }
+html[data-tabbar="top"] .omnibox:hover:not(:focus-within) { background: color-mix(in srgb, var(--text) 4%, var(--shell)); }
 /* Sidebar mode: the page card starts after the sidebar, so the toggle's column
    is exactly that wide and NAVIGATION begins where the card does. Compact mode
    hides the sidebar → the column falls back to its own width and the nav
    buttons follow the toggle directly. */
-html[data-tabbar="side"]:not([data-compact="on"]) #utility-bar {
-  --omni-left: var(--sidebar-w, 256px);
-}
+/* (Sidebar mode used to push the nav buttons out to the page card's edge,
+   leaving a sidebar-wide empty stretch of toolbar before Back. They now follow
+   the toggle at the leading edge in every layout.) */
 
 .omnibox:focus-within {
   background: var(--page);

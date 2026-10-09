@@ -1742,7 +1742,10 @@
             const resting = document.activeElement !== searchBar && !barEdited &&
                 !!parts && searchBar.value === currentTabUrl;
             if (resting) {
-                const [pre, host, rest] = parts;
+                const [scheme, host, rest] = parts;
+                // A secure page drops its scheme at rest; http:// stays visible
+                // because it is the warning.
+                const pre = /^https:\/\/$/i.test(scheme) ? '' : scheme;
                 urlDisplay.textContent = '';
                 const hostEl = document.createElement('span');
                 hostEl.className = 'host';

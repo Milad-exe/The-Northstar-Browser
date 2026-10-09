@@ -747,7 +747,7 @@ html[data-private-window="true"], html[data-private-tab="true"] {
   --shell-pad:   8px;    /* (JS SHELL_PAD)   gutter around the page card */
   --bar-h:      40px;    /* (JS UTILITY_BAR_H) toolbar */
   --tabstrip-h: 44px;    /* (JS TAB_BAR_H)   top-mode tab strip */
-  --card-radius: 12px;   /* (JS PAGE_RADIUS) page card corner */
+  --card-radius: 8px;   /* (JS PAGE_RADIUS) page card corner */
 
   /* Control and row heights */
   --row-h:     36px;     /* sidebar rows */
