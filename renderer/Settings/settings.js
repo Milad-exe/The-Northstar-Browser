@@ -14,7 +14,7 @@
         // northstar://settings/<section> url and typing one lands on that section.
         const navItems = document.querySelectorAll('.nav-item');
         const sections = document.querySelectorAll('.section');
-        const VALID = ['general', 'appearance', 'focus', 'privacy', 'passwords', 'extensions', 'data', 'about'];
+        const VALID = ['general', 'appearance', 'focus', 'privacy', 'passwords', 'extensions', 'data', 'import', 'about'];
         function activateSection(section) {
             if (!VALID.includes(section))
                 section = 'general';
@@ -739,12 +739,110 @@
         document.getElementById('export-history')?.addEventListener('click', async () => {
             report(await window.userData.exportHistory(), 'export', 'history entry');
         });
-        // ── Import from another browser ───────────────────────────────────────
-        // Opens the dedicated wizard (source + profile + data-type picker).
-        document.getElementById('open-import')?.addEventListener('click', () => {
-            try { window.northstarImport?.openWizard(); }
-            catch (e) { window.northstarLog?.debug('settings', 'open import: ' + e); }
-        });
+        // ── Import from another browser (inline; was a popup window) ─────────
+        // The browsers found on this computer as a radio list, what to bring
+        // over as checkboxes, and the result in a status line. Each browser
+        // shows its own app icon when the main process could read it, else a
+        // neutral globe (never a bundled brand logo).
+        (async () => {
+            const api = window.northstarImport;
+            const $ = (id) => document.getElementById(id);
+            if (!api || !$('imp-card'))
+                return;
+            const GLOBE = '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M128,20A108,108,0,1,0,236,128,108.12,108.12,0,0,0,128,20Zm0,187a113.4,113.4,0,0,1-20.39-35h40.82a116.94,116.94,0,0,1-10,20.77A108.61,108.61,0,0,1,128,207Zm-26.49-59a135.42,135.42,0,0,1,0-40h53a135.42,135.42,0,0,1,0,40ZM44,128a83.49,83.49,0,0,1,2.43-20H77.25a160.63,160.63,0,0,0,0,40H46.43A83.49,83.49,0,0,1,44,128Zm84-79a113.4,113.4,0,0,1,20.39,35H107.59a116.94,116.94,0,0,1,10-20.77A108.61,108.61,0,0,1,128,49Zm50.73,59h30.82a83.52,83.52,0,0,1,0,40H178.75a160.63,160.63,0,0,0,0-40Zm20.77-24H173.71a140.82,140.82,0,0,0-15.5-34.36A84.51,84.51,0,0,1,199.52,84ZM97.79,49.64A140.82,140.82,0,0,0,82.29,84H56.48A84.51,84.51,0,0,1,97.79,49.64ZM56.48,172H82.29a140.82,140.82,0,0,0,15.5,34.36A84.51,84.51,0,0,1,56.48,172Zm101.73,34.36A140.82,140.82,0,0,0,173.71,172h25.81A84.51,84.51,0,0,1,158.21,206.36Z"/></svg>';
+            let sources = [];
+            let selected = null;
+            const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+            const summary = (src) => {
+                const parts = [];
+                if (src.bookmarks) parts.push(plural(src.bookmarks, 'bookmark', 'bookmarks'));
+                if (src.history) parts.push('history');
+                if (src.engines) parts.push('search engines');
+                return parts.join(' · ') || 'Nothing to import';
+            };
+            const types = [['bm', 'bookmarks'], ['hist', 'history'], ['eng', 'engines']];
+            const updateRun = () => {
+                $('imp-run').disabled = !selected || !types.some(([k]) => { const b = $('imp-t-' + k); return !b.disabled && b.checked; });
+            };
+            const select = (id) => {
+                selected = sources.find(x => x.id === id) || null;
+                for (const row of document.querySelectorAll('.imp-row')) {
+                    const on = row.dataset.id === id;
+                    row.classList.toggle('sel', on);
+                    row.setAttribute('aria-checked', String(on));
+                }
+                $('imp-types').hidden = $('imp-actions').hidden = !selected;
+                if (!selected) return;
+                const avail = { bm: selected.bookmarks > 0, hist: !!selected.history, eng: !!selected.engines };
+                for (const [k] of types) {
+                    const box = $('imp-t-' + k);
+                    box.disabled = !avail[k];
+                    box.checked = avail[k];
+                    box.closest('.imp-type').classList.toggle('disabled', !avail[k]);
+                }
+                $('imp-m-bm').textContent = selected.bookmarks ? String(selected.bookmarks) : 'none';
+                $('imp-m-hist').textContent = selected.history ? '' : 'none';
+                $('imp-m-eng').textContent = selected.engines ? '' : 'none';
+                $('imp-status').textContent = '';
+                updateRun();
+            };
+            for (const [k] of types) $('imp-t-' + k).addEventListener('change', updateRun);
+            $('imp-run').addEventListener('click', async () => {
+                if (!selected) return;
+                const want = types.filter(([k]) => { const b = $('imp-t-' + k); return !b.disabled && b.checked; }).map(([, t]) => t);
+                const btn = $('imp-run');
+                btn.disabled = true;
+                btn.textContent = 'Importing…';
+                $('imp-status').textContent = '';
+                let res = null;
+                try { res = await api.run(selected.id, want); }
+                catch (e) { window.northstarLog?.debug('settings', 'import run: ' + e); }
+                btn.textContent = 'Import';
+                updateRun();
+                if (!res || !res.ok) {
+                    $('imp-status').textContent = 'Could not read ' + selected.browser + '. Close it and try again.';
+                    return;
+                }
+                const parts = [];
+                if (typeof res.bookmarks === 'number') parts.push(plural(res.bookmarks, 'bookmark', 'bookmarks'));
+                if (typeof res.history === 'number') parts.push(plural(res.history, 'history entry', 'history entries'));
+                if (typeof res.engines === 'number' && res.engines) parts.push(plural(res.engines, 'search engine', 'search engines'));
+                $('imp-status').textContent = parts.length ? 'Imported ' + parts.join(', ') + '.' : 'Nothing new to import.';
+            });
+            try { sources = (await api.sources()) || []; }
+            catch (e) { window.northstarLog?.debug('settings', 'import sources: ' + e); }
+            $('imp-loading').hidden = true;
+            if (!sources.length) { $('imp-empty').hidden = false; return; }
+            const list = $('imp-list');
+            for (const src of sources) {
+                const row = document.createElement('button');
+                row.type = 'button';
+                row.className = 'imp-row';
+                row.setAttribute('role', 'radio');
+                row.dataset.id = src.id;
+                const icon = document.createElement('span');
+                icon.className = 'imp-icon';
+                if (src.icon && /^data:image\//.test(src.icon)) {
+                    const img = document.createElement('img');
+                    img.src = src.icon; img.alt = ''; img.width = 24; img.height = 24;
+                    icon.appendChild(img);
+                }
+                else icon.innerHTML = GLOBE;
+                const main = document.createElement('span');
+                main.className = 'imp-main';
+                const name = document.createElement('span');
+                name.className = 'imp-name';
+                name.textContent = src.browser + (src.profile ? ' · ' + src.profile : '');
+                const meta = document.createElement('span');
+                meta.className = 'imp-meta';
+                meta.textContent = summary(src);
+                main.append(name, meta);
+                row.append(icon, main);
+                row.addEventListener('click', () => select(src.id));
+                list.appendChild(row);
+            }
+            select(sources[0].id);
+        })();
         // How the saved-password key is protected — stated, not assumed.
         (async () => {
             const el = document.getElementById('key-protection');

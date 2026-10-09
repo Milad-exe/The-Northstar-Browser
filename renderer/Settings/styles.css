@@ -480,3 +480,29 @@ input, textarea, select { user-select: text; -webkit-user-select: text; }
    styles/theme-editor.css. It is gone: a <button> nested in a
    <button role="radio"> is invalid markup no keyboard could reach, so editing
    moved to the named caption under the row, where it is a control of its own. */
+
+/* ── Import & export: the browsers found on this computer ── */
+.imp-muted { font-size: var(--fs-small); color: var(--text-2); }
+.imp-list { display: flex; flex-direction: column; gap: var(--sp-2); }
+.imp-list:empty { display: none; }
+.imp-row {
+  display: flex; align-items: center; gap: var(--sp-5); width: 100%;
+  min-height: var(--list-row-h); padding: var(--sp-3) var(--sp-4);
+  border: none; border-radius: var(--r-md); background: transparent;
+  color: var(--text); font-family: var(--font); text-align: left; cursor: pointer;
+  box-shadow: var(--ring); transition: background var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
+}
+.imp-row:hover { background: var(--hover); }
+.imp-row.sel { background: var(--active-bg); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.imp-row:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.imp-icon { width: 24px; height: 24px; flex: 0 0 24px; display: flex; align-items: center; justify-content: center; color: var(--text-2); }
+.imp-icon img, .imp-icon svg { width: 24px; height: 24px; }
+.imp-main { display: flex; flex-direction: column; min-width: 0; }
+.imp-name { font-size: var(--fs-body); font-weight: 500; }
+.imp-meta { font-size: var(--fs-small); color: var(--text-2); }
+.imp-types { display: flex; gap: var(--sp-6); flex-wrap: wrap; margin-top: var(--sp-5); }
+.imp-type { display: inline-flex; align-items: center; gap: var(--sp-3); font-size: var(--fs-body); cursor: pointer; }
+.imp-type.disabled { opacity: 0.45; cursor: default; }
+.imp-type .imp-meta { margin-left: var(--sp-1); }
+.imp-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-5); margin-top: var(--sp-5); }
+.imp-status { font-size: var(--fs-small); color: var(--text-2); margin-right: auto; }

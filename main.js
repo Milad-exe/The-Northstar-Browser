@@ -327,8 +327,8 @@ class Northstar {
             try { log.info('main', require('./features/build-info').label()); }
             catch (e) { log.debug('main', 'build-info', e); }
             this.windowManager.createWindow(800, 600, { profile: startProfile });
-            // First launch: offer the import wizard once, the way other browsers
-            // do — but only if there is actually another browser to import from.
+            // First launch: open Settings > Import & export once in a tab, the way
+            // other browsers offer import — only if there is another browser.
             setTimeout(() => {
                 try {
                     const p = this.windowManager.persistence;
@@ -338,7 +338,7 @@ class Northstar {
                     if (importer.detectSources().length) {
                         const wd = this.windowManager.getPrimaryWindow();
                         if (wd?.window && !wd.window.isDestroyed())
-                            require('./ipc/import-wizard').open(wd.window, wd.profileId || startProfile);
+                            require('./ipc/import-wizard').open(wd);
                     }
                     p.set('importPrompted', true);
                 }

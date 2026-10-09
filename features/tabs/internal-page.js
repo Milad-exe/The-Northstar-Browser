@@ -23,7 +23,7 @@ const INTERNAL_PAGES = {
     // it a page here would change blank-tab behaviour everywhere at once.
     home: { file: 'renderer/NewTab/index.html', title: 'New Tab' },
 };
-const SETTINGS_SECTIONS = ['general', 'appearance', 'focus', 'privacy', 'passwords', 'extensions', 'data', 'about'];
+const SETTINGS_SECTIONS = ['general', 'appearance', 'focus', 'privacy', 'passwords', 'extensions', 'data', 'import', 'about'];
 
 // Parse a northstar:// URL → { type, section } (section only for settings), or null.
 function parseNorthstarUrl(raw) {
