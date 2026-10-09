@@ -128,7 +128,7 @@
     letter-spacing: var(--tracking);
     user-select: text; -webkit-user-select: text;
   }
-  .surface-field input::placeholder { color: var(--text-3); }
+  .surface-field input::placeholder { color: var(--text-2); }
 
   /* ── Anatomy ────────────────────────────────────────────────────────────── */
   /* The head names the panel. It is a label, not a title bar: sentence case at

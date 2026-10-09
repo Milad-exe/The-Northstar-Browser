@@ -1338,6 +1338,12 @@ class Tabs {
                 miniPlayer.onTabSwitch(this.getWindowData(), prevActiveIndex, index);
             }
             catch (e) { log.debug('tabs', 'prevActiveIndex', e); }
+            // Picture the tab you just left, for its hover card (as Chromium
+            // does on tab-backgrounded). It survives that tab going to sleep.
+            if (prevActiveIndex !== index && prevActiveIndex != null) {
+                try { require('./tab-hover-card').captureOnBackground(this.getWindowData(), prevActiveIndex); }
+                catch (e) { log.debug('tabs', 'hover-card capture', e); }
+            }
             if (tab.lazyLoaded === false) {
                 tab.lazyLoaded = true;
                 const lazyUrl = this.tabUrls.get(index);

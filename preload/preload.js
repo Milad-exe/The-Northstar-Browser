@@ -232,6 +232,7 @@ exposeInternal("tab", {
     setLabel: (index, label) => ipcRenderer.invoke('tab:setLabel', index, label),
     setIcon: (index, icon) => ipcRenderer.invoke('tab:setIcon', index, icon),
     unload: (index) => ipcRenderer.invoke('tab:unload', index),
+    closePinnedPage: (index) => ipcRenderer.invoke('tab:closePinnedPage', index),
     setHome: (index, url) => ipcRenderer.invoke('tab:setHome', index, url),
     getHome: (index) => ipcRenderer.invoke('tab:getHome', index),
     resetPinned: (index) => ipcRenderer.invoke('tab:resetPinned', index),

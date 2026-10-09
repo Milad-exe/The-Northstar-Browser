@@ -26,40 +26,118 @@ const EDGE = 8;  // keep this far from the window edges
 const PREVIEW_W = 600;      // px: the card shows it at 300 CSS px, so 2x for HiDPI
 const PREVIEW_FRESH = 4000; // ms a capture is reused while you move along the strip
 
-/* A picture of a BACKGROUND tab, as a native browser's hover card shows. The
-   active tab is the page you are looking at, so it gets none; a slept or
-   crashed tab has nothing to capture. capturePage works on a tab that is not
-   on screen (even one opened in the background and never shown). Captures are
-   cached per tab for a few seconds so moving along the strip stays instant. */
-async function previewFor(wd, index) {
+/* Pictures of tabs, the way a native browser keeps them (Chromium's
+   ThumbnailTabHelper):
+   - taken the moment you switch AWAY from a tab (captureOnBackground), so a
+     background tab always has the page as you left it;
+   - KEPT when the tab sleeps or crashes. A slept tab has no renderer to
+     capture, and it used to show no picture at all, which with tab sleep on
+     by default meant most background tabs had none;
+   - never bought by waking a tab: a slept tab is not reloaded for a preview;
+   - saved, encrypted, on quit and read back on start, so the tabs a restored
+     session brings back unloaded still show what they were (Chromium does not
+     do this; it reloads them instead, which we never do).
+   Private windows and private tabs are never captured or saved. */
+const THUMB_MAX = 60;       // pictures kept per window, newest first
+const SAVED_MAX = 60;       // pictures written to disk on quit
+let saved = null;           // url → data URL, read once from disk
+const thumbFile = () => path.join(require('electron').app.getPath('userData'), 'northstar', 'tab-thumbs.enc');
+function savedThumbs() {
+    if (saved) return saved;
+    saved = new Map();
+    try {
+        const fs = require('fs');
+        if (fs.existsSync(thumbFile())) {
+            const { decrypt } = require('./encryption');
+            for (const [u, d] of JSON.parse(decrypt(fs.readFileSync(thumbFile(), 'utf8'))))
+                if (typeof u === 'string' && typeof d === 'string' && d.startsWith('data:image/jpeg;base64,'))
+                    saved.set(u, d);
+        }
+    }
+    catch (e) { log.warn('tab-hover-card', 'saved tab previews unreadable, starting without them', e); }
+    return saved;
+}
+const isPrivate = (wd, index) => !!(wd?.tabs?.isPrivateWindow || wd?.tabs?.privateTabs?.has?.(index));
+function remember(wd, index, url, data) {
+    wd.hoverCardThumbs = wd.hoverCardThumbs || new Map();
+    wd.hoverCardThumbs.delete(index); // re-insert: Map order is the recency order
+    wd.hoverCardThumbs.set(index, { url, at: Date.now(), data });
+    for (const k of [...wd.hoverCardThumbs.keys()]) {
+        if (wd.hoverCardThumbs.size <= THUMB_MAX) break;
+        if (!wd.tabs?.tabMap?.has(k) || wd.hoverCardThumbs.size > THUMB_MAX) wd.hoverCardThumbs.delete(k);
+    }
+}
+async function capture(wd, index) {
     const tab = wd.tabs?.tabMap?.get(index);
     const wc = tab?.webContents;
-    if (!wc || wc.isDestroyed() || tab.slept || wc.isCrashed())
+    const url = wd.tabs?.tabUrls?.get(index) || '';
+    if (!wc || wc.isDestroyed() || tab.slept || wc.isCrashed() || tab.lazyLoaded === false)
         return null;
-    const url = wd.tabs.tabUrls?.get(index) || '';
+    if (!/^https?:/i.test(url) || isPrivate(wd, index))
+        return null;
+    const img = await wc.capturePage();
+    if (!img || img.isEmpty())
+        return null;
+    const { width } = img.getSize();
+    const small = width > PREVIEW_W ? img.resize({ width: PREVIEW_W, quality: 'good' }) : img;
+    const data = 'data:image/jpeg;base64,' + small.toJPEG(78).toString('base64');
+    remember(wd, index, url, data);
+    return data;
+}
+/** Picture the tab you just left (called on every tab switch). */
+function captureOnBackground(wd, index) {
+    if (!wd || !Number.isInteger(index) || index < 0)
+        return;
+    capture(wd, index).catch((e) => log.debug('tab-hover-card', 'capture on background', e));
+}
+/* The picture for a BACKGROUND tab's card. The active tab is the page you are
+   looking at, so it gets none. A live background tab is re-captured when its
+   picture is more than a few seconds old (pages change while hidden); a slept,
+   crashed or not-yet-loaded tab shows the last picture it had. */
+async function previewFor(wd, index) {
+    if (isPrivate(wd, index))
+        return null;
+    const url = wd.tabs?.tabUrls?.get(index) || '';
     if (!/^https?:/i.test(url))
         return null;
-    wd.hoverCardThumbs = wd.hoverCardThumbs || new Map();
-    const hit = wd.hoverCardThumbs.get(index);
+    const hit = wd.hoverCardThumbs?.get(index);
+    const last = (hit && hit.url === url) ? hit.data : (savedThumbs().get(url) || null);
     if (hit && hit.url === url && Date.now() - hit.at < PREVIEW_FRESH)
         return hit.data;
     try {
-        const img = await wc.capturePage();
-        if (!img || img.isEmpty())
-            return null;
-        const { width } = img.getSize();
-        const small = width > PREVIEW_W ? img.resize({ width: PREVIEW_W, quality: 'good' }) : img;
-        const data = 'data:image/jpeg;base64,' + small.toJPEG(78).toString('base64');
-        wd.hoverCardThumbs.set(index, { url, at: Date.now(), data });
-        // A small cache: drop the oldest once it holds more than a strip's worth.
-        if (wd.hoverCardThumbs.size > 24)
-            wd.hoverCardThumbs.delete(wd.hoverCardThumbs.keys().next().value);
-        return data;
+        return (await capture(wd, index)) || last;
     }
     catch (e) {
         log.debug('tab-hover-card', 'preview', e);
-        return null;
+        return last;
     }
+}
+/** On quit: keep the pictures of the tabs a restored session will bring back. */
+function saveThumbs(wm) {
+    try {
+        const out = new Map();
+        for (const wd of wm.getAllWindows()) {
+            if (wd.tabs?.isPrivateWindow) continue;
+            for (const [index, t] of [...(wd.hoverCardThumbs || new Map())].reverse()) {
+                if (out.size >= SAVED_MAX) break;
+                if (!wd.tabs?.tabMap?.has(index) || isPrivate(wd, index) || out.has(t.url)) continue;
+                out.set(t.url, t.data);
+            }
+        }
+        // Tabs that never loaded this session keep the picture they came in with.
+        for (const wd of wm.getAllWindows()) {
+            if (wd.tabs?.isPrivateWindow) continue;
+            for (const [index] of wd.tabs?.tabMap || []) {
+                const u = wd.tabs.tabUrls?.get(index);
+                if (out.size >= SAVED_MAX) break;
+                if (u && !out.has(u) && !isPrivate(wd, index) && savedThumbs().has(u)) out.set(u, savedThumbs().get(u));
+            }
+        }
+        const fs = require('fs');
+        const { encrypt } = require('./encryption');
+        fs.writeFileSync(thumbFile(), encrypt(JSON.stringify([...out])));
+    }
+    catch (e) { log.warn('tab-hover-card', 'could not save tab previews', e); }
 }
 
 async function ensureView(wd) {
@@ -164,4 +242,4 @@ function hide(wd) {
     playOutThenHide(wd.hoverCard);
 }
 
-module.exports = { show, hide, place };
+module.exports = { show, hide, place, captureOnBackground, saveThumbs };

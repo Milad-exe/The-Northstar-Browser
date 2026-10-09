@@ -695,7 +695,7 @@ html[data-tabbar="side"] .folder-header:hover { background: var(--hover); color:
   flex-shrink: 0; min-width: 18px; padding: 0 var(--sp-2);
   border-radius: var(--r-sm); background: var(--hover);
   font-size: var(--fs-micro); font-weight: 600; line-height: 18px;
-  text-align: center; color: var(--text-3);
+  text-align: center; color: var(--text-2);
   transition: opacity var(--dur-1) var(--ease);
 }
 .folder-count.hidden { display: none; }
@@ -853,7 +853,7 @@ html[data-tabbar="side"] #tab-actions.after-folders {
 html[data-tabbar="side"] #new-tab-btn {
   width: 100%; height: var(--row-h); border-radius: var(--r-md);
   display: flex; justify-content: flex-start; align-items: center;
-  padding: 0 var(--sp-4) 0 var(--gutter); gap: var(--sp-5); color: var(--text-3);
+  padding: 0 var(--sp-4) 0 var(--gutter); gap: var(--sp-5); color: var(--text-2);
   transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
 }
 html[data-tabbar="side"] .tab-add-glyph {
@@ -910,17 +910,20 @@ html[data-tabbar="side"] .essentials:empty { display: none; }
   color: var(--accent); font-size: var(--fs-micro); font-weight: 700;
   display: flex; align-items: center; justify-content: center; pointer-events: none;
 }
-.essential-tile .ess-remove {
-  position: absolute; top: -4px; right: -4px; width: 15px; height: 15px;
-  border: none; border-radius: 50%; background: var(--surface-2, var(--surface));
-  color: var(--text-3); font-size: 9px; line-height: 1; cursor: pointer;
-  display: none; align-items: center; justify-content: center;
-  box-shadow: var(--ring-2);
+/* An Essential's sound: the speaker takes the favicon's place while its tab
+   plays, and mutes on click (paintEssentialSound in renderer.js). */
+.essential-tile.has-sound > img,
+.essential-tile.has-sound > .ess-fallback { display: none; }
+.essential-tile .ess-sound {
+  width: 20px; height: 20px; padding: 0; border: none; border-radius: var(--r-sm);
+  background: transparent; color: var(--text-2); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: color var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
 }
-.essential-tile:hover .ess-remove,
-.essential-tile:focus-within .ess-remove { display: flex; }
-.essential-tile .ess-remove svg { width: 8px; height: 8px; }
-.essential-tile .ess-remove:hover { color: var(--danger); }
+.essential-tile .ess-sound svg { width: 16px; height: 16px; }
+.essential-tile .ess-sound:hover { color: var(--text); background: var(--hover); }
+.essential-tile .ess-sound.rec { color: var(--danger); cursor: default; }
+html[data-tabbar="top"] .essential-tile .ess-sound svg { width: 14px; height: 14px; }
 
 /* Tabs not in the active workspace are hidden from the strip. */
 .tab-button.ws-hidden { display: none !important; }
@@ -979,7 +982,7 @@ html[data-tabbar="side"] #tab-bar.creating-space > *:not(#space-create):not(#win
 .space-create { display: flex; flex-direction: column; gap: 8px; padding: 6px 4px; -webkit-app-region: no-drag; }
 .space-create.hidden { display: none; }
 .sc-title { font-size: var(--fs-lg); font-weight: 650; color: var(--text); }
-.sc-sub { font-size: var(--fs-small); line-height: 1.45; color: var(--text-3); margin-bottom: 4px; }
+.sc-sub { font-size: var(--fs-small); line-height: 1.45; color: var(--text-2); margin-bottom: 4px; }
 .sc-namerow {
   display: flex; align-items: center; gap: 8px; padding: 5px;
   background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
@@ -1096,7 +1099,7 @@ html[data-tabbar="side"] .sidebar-foot {
 }
 .emoji-opt:hover { background: var(--hover); }
 .emoji-none::before { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--text-3); }
-.prf-hint { margin-top: 7px; font-size: 11px; color: var(--text-3); }
+.prf-hint { margin-top: 7px; font-size: var(--fs-small); color: var(--text-2); }
 #tab-bar.merge-target::after {
   content: ''; position: absolute; inset: 4px 6px;
   border: 1.5px dashed var(--accent); border-radius: var(--r-md);
@@ -1184,14 +1187,14 @@ html[data-tabbar="side"] .sidebar-foot {
 .tab-indicator.clickable { cursor: pointer; }
 .tab-indicator.clickable:hover { color: var(--text); }
 html[data-tabbar="side"] .tab-button.has-indicator:not(:hover) .tab-close { display: none; }
-/* Top-strip pinned tiles have no room for a glyph: a 6px dot on the icon's
-   corner. (Sidebar pinned rows show their title, so they get the glyph.) */
-html[data-tabbar="top"] .tab-button.pinned .tab-indicator {
-  position: absolute; top: 5px; right: 5px; width: 6px; height: 6px;
-  border-radius: 50%; background: var(--text-2); box-shadow: 0 0 0 1.5px var(--shell);
-}
-html[data-tabbar="top"] .tab-button.pinned .tab-indicator svg { display: none; }
-html[data-tabbar="top"] .tab-button.pinned .tab-indicator.rec { background: var(--danger); }
+/* Top-strip pinned tiles are icon-only, so sound takes the favicon's place, as
+   on a pinned tab in Chromium: you see WHICH pin is playing, and the icon you
+   see is the one you click to mute. (Sidebar pinned rows show their title, so
+   the speaker sits in its trailing slot like any row's.) */
+html[data-tabbar="top"] .tab-button.pinned.has-indicator .tab-favicon,
+html[data-tabbar="top"] .tab-button.pinned.has-indicator::before { display: none; }
+html[data-tabbar="top"] .tab-button.pinned .tab-indicator { width: var(--icon); height: var(--icon); }
+html[data-tabbar="top"] .tab-button.pinned .tab-indicator svg { width: 14px; height: 14px; }
 
 /* Loading throbber (P1-1): an inline SVG <circle> ring in the favicon slot, not
    a ::after border-spinner. The no-favicon placeholder that reserves the icon
@@ -1281,6 +1284,32 @@ html[data-tabbar="side"] .tab-button.crashed::after {
 .tab-button.pinned { min-width: 0; padding: 0 9px; justify-content: center; }
 .tab-button.pinned .tab-title,
 .tab-button.pinned .tab-close { display: none; }
+/* ✕ means "close the page" on every kind of tab (a pin keeps its place; see
+   closeTabPage in renderer.js), so pinned tabs get one too: the row's own in
+   the sidebar, a corner badge on the icon tile in the top strip. */
+html[data-tabbar="side"] .tab-button.pinned .tab-close { display: flex; }
+html[data-tabbar="top"] .tab-button.pinned { position: relative; }
+html[data-tabbar="top"] .tab-button.pinned .tab-close,
+.essential-tile .ess-remove {
+  position: absolute; top: -4px; right: -4px; width: 15px; height: 15px; margin: 0; padding: 0;
+  border: none; border-radius: 50%; background: var(--surface-2, var(--surface));
+  color: var(--text-2); cursor: pointer; box-shadow: var(--ring-2);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+html[data-tabbar="top"] .tab-button.pinned .tab-close svg,
+.essential-tile .ess-remove svg { width: 8px; height: 8px; flex-shrink: 0; }
+html[data-tabbar="top"] .tab-button.pinned:hover .tab-close,
+html[data-tabbar="top"] .tab-button.pinned:focus-within .tab-close,
+.essential-tile.has-tab:hover .ess-remove,
+.essential-tile.has-tab:focus-within .ess-remove { opacity: 1; pointer-events: auto; }
+html[data-tabbar="top"] .tab-button.pinned .tab-close:hover,
+.essential-tile .ess-remove:hover { color: var(--text); }
+/* The strip clips anything outside a tab, so the top-strip pin carries its ✕
+   just inside its own corner (the Essentials tile in the sidebar has room
+   to hang it outside). */
+html[data-tabbar="top"] .tab-button.pinned .tab-close { top: 1px; right: 1px; width: 13px; height: 13px; }
 
 #new-tab-btn {
   width: 30px; height: 30px; border-radius: 8px;
@@ -1458,7 +1487,9 @@ html[data-tabbar="side"] .tab-button.crashed::after {
 .profile-badge {
   width: var(--icon); height: var(--icon); border-radius: 50%; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  background: var(--pf-color, var(--accent)); color: #fff;
+  /* Ink is near-black, not white: every profile colour (and the accent it
+     falls back to) is a mid-to-light tone, and white on them read at 2-3:1. */
+  background: var(--pf-color, var(--accent)); color: rgb(10 10 12 / 0.88);
   font-family: var(--mono); font-size: var(--fs-micro); font-weight: 700; line-height: 1;
   text-transform: uppercase; pointer-events: none;
 }
@@ -1621,7 +1652,7 @@ html[data-tabbar="side"]:not([data-compact="on"]) #utility-bar {
   font-family: var(--font); font-size: var(--fs-body); font-weight: 400;
   letter-spacing: -0.01em; color: var(--text);
 }
-#searchBar::placeholder { color: var(--text-3); }
+#searchBar::placeholder { color: var(--text-2); }
 
 /* Inline completion. Must match #searchBar's metrics exactly — the typed half
    is painted transparent and only spaces the dim remainder into place. */
@@ -1810,7 +1841,7 @@ browser-action-list::part(badge) {
   color: var(--text-2);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.bookmark-overflow-empty { padding: var(--sp-4) var(--sp-5); font-size: var(--fs-small); color: var(--text-3); }
+.bookmark-overflow-empty { padding: var(--sp-4) var(--sp-5); font-size: var(--fs-small); color: var(--text-2); }
 
 /* ── Content Area (behind the floating page card) ── */
 /* The page view floats over this. With no tab open (or a space emptied) the
@@ -2061,6 +2092,6 @@ html[data-tabbar="side"] .tab-button.multi-selected { box-shadow: inset 0 0 0 1.
 .hover-label.shown { opacity: 1; }
 .hover-label[hidden] { display: none; }
 .hover-label-line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hover-label-sub { color: var(--text-3); font-size: var(--fs-micro); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hover-label-sub { color: var(--text-2); font-size: var(--fs-micro); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) { .hover-label { transition: none; } }
 

@@ -525,7 +525,7 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
             return;
         const current = wd.profileId || '1';
         const renameTarget = targetId || current;
-        const template = [{ label: 'Workspace', enabled: false }, { type: 'separator' }];
+        const template = [{ label: 'Spaces', enabled: false }, { type: 'separator' }];
         for (const p of profiles.list()) {
             template.push({
                 label: p.name, type: 'checkbox', checked: p.id === current,
@@ -533,7 +533,7 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
             });
         }
         template.push({ type: 'separator' }, {
-            label: 'New Workspace…',
+            label: 'New space…',
             click: () => {
                 const p = profiles.create();
                 broadcastProfiles();
@@ -541,10 +541,10 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
                 try { wd.window.webContents.send('rename-profile', p.id); } catch (e) { log.debug('tabs', 'profiles:menu', e); } // prompt to name it
             },
         }, {
-            label: 'Open in New Window',
+            label: 'Open in new window',
             submenu: profiles.list().map(p => ({ label: p.name, click: () => wm.createWindow(1000, 700, { profile: p.id }) })),
         }, {
-            label: 'Rename Workspace…',
+            label: 'Rename space…',
             click: () => { try { wd.window.webContents.send('rename-profile', renameTarget); } catch (e) { log.debug('tabs', 'profiles:menu', e); } },
         });
         try {
@@ -740,6 +740,7 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
     ipcMain.handle('tab:resetPinned', (_e, index) => wm.getWindowByWebContents(_e.sender)?.tabs?.resetPinnedTab(index) || false);
     ipcMain.handle('tab:getHome', (_e, index) => wm.getWindowByWebContents(_e.sender)?.tabs?.pinnedHome.get(Number(index)) || '');
     ipcMain.handle('tab:unload', (_e, index) => wm.getWindowByWebContents(_e.sender)?.tabs?.unloadTab(index) || false);
+    ipcMain.handle('tab:closePinnedPage', (_e, index) => wm.getWindowByWebContents(_e.sender)?.tabs?.closePinnedPage(index) || false);
     ipcMain.handle('tab:unloadWorkspace', (_e, ws) => wm.getWindowByWebContents(_e.sender)?.tabs?.unloadWorkspace(ws) || 0);
     ipcMain.handle('tab:setIcon', (_e, index, icon) => {
         wm.getWindowByWebContents(_e.sender)?.tabs?.setTabIcon(index, icon);

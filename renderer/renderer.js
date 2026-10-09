@@ -2334,8 +2334,16 @@
                     const rm = document.createElement('button');
                     rm.className = 'ess-remove';
                     rm.innerHTML = '<svg width="12" height="12" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208.49,191.51a12,12,0,0,1-17,17L128,145,64.49,208.49a12,12,0,0,1-17-17L111,128,47.51,64.49a12,12,0,0,1,17-17L128,111l63.51-63.52a12,12,0,0,1,17,17L145,128Z"/></svg>';
-                    rm.title = 'Remove from Essentials';
-                    rm.addEventListener('click', (e) => { e.stopPropagation(); window.essentials.remove(it.url, it.profile || null); });
+                    /* ✕ means the same on every kind of tab: close the PAGE. On an
+                       Essential that closes its tab and keeps the tile, ready to
+                       open fresh; removing the Essential is in its menu. Shown
+                       only while the Essential has a tab to close. */
+                    rm.setAttribute('aria-label', 'Close');
+                    rm.title = 'Close';
+                    rm.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (tile.dataset.tabIndex) window.tab.remove(Number(tile.dataset.tabIndex));
+                    });
                     tile.appendChild(rm);
                     // Click: focus an already-open tab of this site, else open one
                     // (profile-bound essentials reopen in their profile).
@@ -2347,6 +2355,12 @@
                     // copy of itself.
                     tile.addEventListener('click', () => {
                         window.essentials.open(it.url, it.profile || null);
+                    });
+                    // Middle-click closes its page, as on any tab.
+                    tile.addEventListener('auxclick', (e) => {
+                        if (e.button !== 1 || !tile.dataset.tabIndex) return;
+                        e.preventDefault();
+                        window.tab.remove(Number(tile.dataset.tabIndex));
                     });
                     // Essentials get their own menu — "Remove from Essentials"
                     // rather than the tab strip's unpin.
@@ -2380,8 +2394,11 @@
                             ['Change icon…', () => openEmojiPicker(ev.clientX, ev.clientY,
                                 (emo) => window.essentials.setIcon(it.url, it.profile || null, emo), true)],
                             ['Bookmark…', () => window.browserBookmarks.add(it.url, it.title || '')],
+                            ...(tile.dataset.tabIndex ? [['sep'],
+                                [tile.classList.contains('is-muted') ? 'Unmute' : 'Mute', () => window.tab.toggleMute(Number(tile.dataset.tabIndex)), '', { glyph: tile.classList.contains('is-muted') ? 'unmute' : 'mute' }],
+                                ['Close', () => window.tab.remove(Number(tile.dataset.tabIndex)), '', { glyph: 'close' }]] : []),
                             ['sep'],
-                            ['Remove from essentials', () => window.essentials.remove(it.url, it.profile || null)], // re-addable: neutral
+                            ['Remove from Essentials', () => window.essentials.remove(it.url, it.profile || null)], // re-addable: neutral
                         ]);
                     });
                     grid.appendChild(tile);
@@ -2397,6 +2414,9 @@
                         const state = byKey.get(tile.dataset.key || '');
                         tile.classList.toggle('has-tab', !!state);
                         tile.classList.toggle('is-active', !!state?.active);
+                        tile.dataset.tabIndex = state ? String(state.index) : '';
+                        // Re-draw its sound state now the tile knows its tab.
+                        paintEssentialSound(tile, state ? (tabs.get(state.index)?._indicator || null) : null);
                     }
                     /* An Essential IS its tile — it does not also get a row in
                        the strip below. Two entries for one thing meant the strip
@@ -2648,8 +2668,8 @@
                     let named = [];
                     try { named = (await window.containers.listNamed()) || []; } catch (e) { window.northstarLog?.debug('renderer', 'setContainer: ' + e); }
                     const rows = [
-                        ['Own (isolated)', () => setContainer(null, 'Own')],
-                        ['Default (shared)', () => setContainer('default', 'Default')],
+                        ['Separate for this space', () => setContainer(null, 'Separate')],
+                        ['Shared with other spaces', () => setContainer('default', 'Shared')],
                     ];
                     if (named.length) rows.push(['sep']);
                     for (const c of named) rows.push([c.name, () => setContainer(c.id, c.name)]);
@@ -2986,7 +3006,7 @@
                 }
                 else if (e.key === 'Delete' || e.key === 'Backspace') {
                     e.preventDefault();
-                    window.tab.remove(parseInt(btn.dataset.index));
+                    closeTabPage(btn, parseInt(btn.dataset.index));
                 }
                 else if (e.key === NEXT || e.key === PREV || e.key === 'Home' || e.key === 'End') {
                     e.preventDefault();
@@ -3012,7 +3032,7 @@
             // mousedown (not click) so the freeze is set before the removal's
             // relayout runs; the pointer is still over the strip (P1-3).
             closeBtn.addEventListener('mousedown', (e) => { if (e.button === 0) freezeTopStripClose(); });
-            closeBtn.onclick = (e) => { e.stopPropagation(); window.tab.remove(parseInt(index)); };
+            closeBtn.onclick = (e) => { e.stopPropagation(); closeTabPage(btn, parseInt(index)); };
             if (isPrivate) {
                 const shield = document.createElement('span');
                 shield.className = 'tab-private-icon';
@@ -3033,7 +3053,7 @@
                 e.preventDefault();
                 e.stopPropagation();
                 freezeTopStripClose(); // middle-click is a mouse close too (P1-3)
-                window.tab.remove(parseInt(index));
+                closeTabPage(btn, parseInt(index));
             });
             // Right-click a sidebar tab → a custom menu (pin, folder, close, …).
             btn.addEventListener('dblclick', (e) => {
@@ -3160,7 +3180,7 @@
                     ['sep'],
                     // Neutral, not red: a closed tab comes back with Ctrl+Shift+T.
                     [sel.length > 1 ? `Close ${sel.length} tabs` : 'Close',
-                        () => { for (const i of sel) window.tab.remove(i); clearSelection(); },
+                        () => { for (const i of sel) closeTabPage(tabs.get(i), i); clearSelection(); },
                         '', sel.length > 1 ? { glyph: 'close' } : { accelerator: 'CmdOrCtrl+W', glyph: 'close' }],
                     ['Close others', [
                         ['Close duplicate tabs', async () => {
@@ -3323,7 +3343,7 @@
                         const mem = el?.closest?.('.tab-button.in-folder');
                         dropFolder = fh ? fh.dataset.folder
                             : (mem && mem !== btn) ? (folderState.assign.get(+mem.dataset.index) || null)
-                            : null;
+                            : folderAtSlot(btn);
                         tabsContainer.querySelectorAll('.folder-header.drop-target').forEach(h => h.classList.remove('drop-target'));
                         if (dropFolder) tabsContainer.querySelector(`.folder-header[data-folder="${CSS.escape(dropFolder)}"]`)?.classList.add('drop-target');
                         // Spring-load: hold over a COLLAPSED folder and it opens, so a
@@ -3381,19 +3401,24 @@
                         return;
                     } // aborted
                     if (!wasOutside) { // reorder commit
-                        // The drag preview places the tab by hand; re-compose so
-                        // it settles into the right section before we persist.
+                        tabsContainer.querySelectorAll('.folder-header.drop-target').forEach(h => h.classList.remove('drop-target'));
+                        /* Membership FIRST, locally, then compose and persist the
+                           order. Composing with the old membership put a tab
+                           dragged out of a folder straight back inside it, saved
+                           that order, and then jumped it out again when main's
+                           folders-changed arrived. */
+                        const idxN = parseInt(index);
+                        const cur = folderState.assign.get(idxN) || null;
+                        const next = dropFolder === undefined ? cur : (dropFolder || null);
+                        if (cur !== next) {
+                            if (next) folderState.assign.set(idxN, next);
+                            else folderState.assign.delete(idxN);
+                        }
                         layoutFolders();
                         const ordered = [...tabsContainer.querySelectorAll('.tab-button')].map(el => parseInt(el.dataset.index));
                         if (ordered.length)
                             window.tab.reorder(ordered);
-                        // Apply folder membership from where it was dropped.
-                        tabsContainer.querySelectorAll('.folder-header.drop-target').forEach(h => h.classList.remove('drop-target'));
-                        if (dropFolder !== undefined) {
-                            const cur = folderState.assign.get(parseInt(index)) || null;
-                            const next = dropFolder || null;
-                            if (cur !== next) { try { window.folders.assign(parseInt(index), next); } catch (e) { window.northstarLog?.debug('renderer', 'finish: ' + e); } }
-                        }
+                        if (cur !== next) { try { window.folders.assign(idxN, next); } catch (e) { window.northstarLog?.debug('renderer', 'finish: ' + e); } }
                         return;
                     }
                     // Released outside the strip → main decides: split into a page
@@ -3829,9 +3854,9 @@
                 ['Change icon…', () => openProfileModal(p.id), '', { glyph: 'icon' }],
                 ['Edit theme…', () => openThemePanel(p.id), '', { glyph: 'palette' }],
                 ['Unload space', () => window.tab.unloadWorkspace(p.id), '', { glyph: 'unload' }],
-                ['Set profile', [
-                    ['Own (isolated)', () => window.profiles.update(p.id, { container: null })],
-                    ['Default (shared)', () => window.profiles.update(p.id, { container: 'default' })],
+                ['Logins', [
+                    ['Separate for this space', () => window.profiles.update(p.id, { container: null })],
+                    ['Shared with other spaces', () => window.profiles.update(p.id, { container: 'default' })],
                     ['sep'],
                     ...(_containersCache || []).map(c => [c.name, () => window.profiles.update(p.id, { container: c.id })]),
                     ...(_containersCache.length ? [['sep'], ['Manage containers',
@@ -4008,7 +4033,11 @@
                         if (btn.classList.contains('active')) anyActive = true;
                         frag.appendChild(btn);
                         grouped.add(btn);
-                        count++;
+                        // Count what the folder shows you: a member that is
+                        // another space's tab or now lives as an Essential tile
+                        // has no row here, and counting it made "3" over two tabs.
+                        if (!btn.classList.contains('ws-hidden') && !btn.classList.contains('is-essential'))
+                            count++;
                     }
                     // Top strip only: light the chip when you're inside one of its
                     // tabs (that active tab is the one member still shown in-strip).
@@ -4095,6 +4124,10 @@
                         : (d.audible || d.playing) ? 'audio'
                             : null;
             btn.classList.toggle('has-indicator', !!kind);
+            btn._indicator = kind;
+            // An Essential's row is hidden (the tile is the tab): show it there.
+            const tile = document.querySelector('.essential-tile[data-tab-index="' + index + '"]');
+            if (tile) paintEssentialSound(tile, kind);
             if (!kind) {
                 el?.remove();
                 return;
@@ -4122,6 +4155,39 @@
                 el.classList.toggle('rec', kind === 'mic' || kind === 'camera');
                 el.classList.toggle('clickable', kind === 'audio' || kind === 'muted');
                 el.title = INDICATOR_TITLE[kind];
+            }
+        }
+        /* ✕, middle-click and Delete mean one thing on every kind of tab: close
+           the page. A pinned tab keeps its pin (its row goes back to its home
+           and unloads); an Essential keeps its tile; anything else closes. */
+        function closeTabPage(btn, index) {
+            if (btn?.classList.contains('pinned')) window.tab.closePinnedPage(index);
+            else window.tab.remove(index);
+        }
+        /* An Essential's sound state, on its tile: the speaker REPLACES the
+           favicon while it plays (as a pinned tile does in the top strip), and
+           clicking it mutes without opening the tab. */
+        function paintEssentialSound(tile, kind) {
+            let el = tile.querySelector('.ess-sound');
+            tile.classList.toggle('has-sound', !!kind);
+            tile.classList.toggle('is-muted', kind === 'muted');
+            if (!kind) { el?.remove(); return; }
+            if (!el) {
+                el = document.createElement('button');
+                el.type = 'button';
+                el.className = 'ess-sound';
+                el.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if ((el.dataset.kind === 'audio' || el.dataset.kind === 'muted') && tile.dataset.tabIndex)
+                        window.tab.toggleMute(Number(tile.dataset.tabIndex));
+                });
+                tile.appendChild(el);
+            }
+            if (el.dataset.kind !== kind) {
+                el.dataset.kind = kind;
+                el.innerHTML = INDICATOR_SVG[kind];
+                el.classList.toggle('rec', kind === 'mic' || kind === 'camera');
+                el.setAttribute('aria-label', INDICATOR_TITLE[kind]);
             }
         }
         function updateTabTitle(index, title, faviconUrl) {
@@ -4326,6 +4392,31 @@
         }
         /** Reorder preview: place the dragged tab under the cursor, keeping the
          *  pinned block intact at the start of the strip. */
+        /* The folder a dragged tab would join where it sits now: right under an
+           open folder's header, or between two of the same folder's tabs. A tab
+           dropped after a folder's LAST tab leaves the folder unless the pointer
+           is on that folder (handled by the caller), so you can always drag a
+           tab out downwards. Hidden rows (other spaces, collapsed members,
+           Essentials) are skipped: they take no room on screen. */
+        function folderAtSlot(btn) {
+            const shown = (el) => el && el.offsetParent !== null;
+            const step = (el, dir) => {
+                let s = dir < 0 ? el.previousElementSibling : el.nextElementSibling;
+                while (s && (!shown(s) || s === btn)) s = dir < 0 ? s.previousElementSibling : s.nextElementSibling;
+                return s;
+            };
+            const folderOf = (el) => {
+                if (!el) return null;
+                if (el.classList.contains('folder-header')) return el.dataset.folder;
+                if (el.classList.contains('in-folder')) return folderState.assign.get(+el.dataset.index) || null;
+                return null;
+            };
+            const prev = step(btn, -1), next = step(btn, 1);
+            if (prev?.classList.contains('folder-header'))
+                return prev.classList.contains('collapsed') ? null : prev.dataset.folder;
+            const f = folderOf(prev);
+            return f && folderOf(next) === f ? f : null;
+        }
         function placeDraggedTab(btn, x) {
             const pinned = btn.classList.contains('pinned');
             const after = getDragAfterElement(tabsContainer, x, pinned);

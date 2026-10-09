@@ -14,6 +14,8 @@ function register(ipcMain, { wm }) {
     ipcMain.on('hovercard:hide', (e) => {
         hoverCard.hide(wm.getWindowByWebContents(e.sender));
     });
+    // Keep the tab pictures a restored session will show (while windows exist).
+    require('electron').app.on('before-quit', () => hoverCard.saveThumbs(wm));
 }
 
 module.exports = { register };

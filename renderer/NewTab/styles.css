@@ -84,7 +84,7 @@
   font-family: var(--font); font-size: var(--fs-lg); font-weight: 400;
   color: var(--text);
 }
-#q::placeholder { color: var(--text-3); }
+#q::placeholder { color: var(--text-2); }
 
 .ntp-section { display: flex; flex-direction: column; gap: var(--sp-5, 14px); }
 /* Private tabs: one quiet line under the field saying what private means. */

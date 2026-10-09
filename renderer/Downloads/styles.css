@@ -20,7 +20,7 @@ html, body {
 #clear-btn {
   flex-shrink: 0; height: var(--control-h); padding: 0 var(--sp-4);
   border: none; border-radius: var(--r-md); background: transparent;
-  color: var(--text-3); cursor: pointer;
+  color: var(--text-2); cursor: pointer;
   font-family: var(--font); font-size: var(--fs-small); font-weight: 500;
   letter-spacing: var(--tracking);
   transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
@@ -44,7 +44,7 @@ html, body {
   font-size: var(--fs-body); color: var(--text); font-weight: 500;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.dl-status { font-size: var(--fs-micro); color: var(--text-3); white-space: nowrap; }
+.dl-status { font-size: var(--fs-micro); color: var(--text-2); white-space: nowrap; }
 .dl-status.error { color: var(--danger); }
 .dl-status.warn { color: var(--danger); font-weight: 600; }
 /* Dangerous type (P1-5): tint the icon and name so the warning reads before

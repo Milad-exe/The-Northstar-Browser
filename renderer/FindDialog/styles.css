@@ -27,7 +27,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
   font-family: inherit; font-size: var(--fs-body); letter-spacing: var(--tracking);
   color: var(--text);
 }
-#find-input::placeholder { color: var(--text-3); }
+#find-input::placeholder { color: var(--text-2); }
 
 /* The count only appears once there is something to count, so an empty field
    is not sitting next to "0 of 0". */

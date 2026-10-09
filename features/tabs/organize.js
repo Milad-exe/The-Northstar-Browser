@@ -118,6 +118,27 @@ module.exports = {
         this.openUrlUserInitiated(i, home);
         return true;
     },
+    /* ✕ on a pinned tab: close the PAGE, keep the PIN. The tab goes back to its
+       home and unloads, so the row stays where you put it and opens fresh the
+       next time you click it (Arc's model). Removing the pin is Unpin, in its
+       menu. Closing the tab you are on first moves you to a neighbour, as
+       closing any tab would. */
+    closePinnedPage(index) {
+        const i = Number(index);
+        if (!this.pinnedTabs.has(i) || !this.tabMap.has(i))
+            return false;
+        if (i === this.activeTabIndex) {
+            const next = this._neighborInWorkspace(i);
+            if (next != null && next !== i && this.tabMap.has(next))
+                this.showTab(next);
+            else
+                this.openNewTabPage();
+        }
+        const home = this.pinnedHome.get(i);
+        if (home && /^https?:/i.test(home))
+            this.tabUrls.set(i, home);
+        return this.unloadTab(i);
+    },
     unloadTab(index) {
         const i = Number(index);
         const tab = this.tabMap.get(i);

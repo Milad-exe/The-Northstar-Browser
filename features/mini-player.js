@@ -14,7 +14,7 @@ const log = require('./log');
 const { PANEL_RADIUS } = require('./overlay-bounds');
 const path = require('path');
 const { resolveAppFile } = require('../app-paths');
-const { WebContentsView } = require('electron');
+const { WebContentsView, webContents } = require('electron');
 // One full-width bar, floating over the page. The margin is the shell's own
 // gutter doubled (--sp-6), not a number of its own.
 const BAR_MAXW = 760, BAR_H = 84, MARGIN = 16;
@@ -112,6 +112,24 @@ function show(wd, tabIndex) {
         return;
     }
     wd.miniPlayerTab = tabIndex;
+    /* The panel is a pointer surface: it must never take keyboard focus from
+       what you were doing. A fresh WebContentsView grabs focus as its page
+       loads, and a click on one of its buttons focuses it too, so whatever
+       had focus (the page you switched to, or the address bar) lost it and
+       your next keystroke went nowhere. Hand focus straight back. */
+    const before = webContents.getFocusedWebContents();
+    const giveBack = (toBefore) => {
+        try {
+            // On first appearance, back to exactly what had focus; after a click
+            // on the panel, to the page you are looking at (the tab that had
+            // focus back then may be a background tab by now).
+            const active = wd.tabs?.tabMap?.get(wd.tabs.activeTabIndex)?.webContents;
+            const target = (toBefore && before && !before.isDestroyed() && before !== view.webContents) ? before : active;
+            if (target && !target.isDestroyed() && view.webContents.isFocused())
+                target.focus();
+        }
+        catch (e) { log.debug('mini-player', 'give focus back', e); }
+    };
     const view = new WebContentsView({
         webPreferences: {
             preload: path.join(__dirname, '../preload/miniplayer-preload.js'),
@@ -138,7 +156,8 @@ function show(wd, tabIndex) {
         catch (e) { log.debug('mini-player', 'onResize', e); }
         clearInterval(poll);
     };
-    view.webContents.once('did-finish-load', () => pushState(wd));
+    view.webContents.once('did-finish-load', () => { pushState(wd); giveBack(true); });
+    view.webContents.on('focus', () => setImmediate(() => giveBack(false)));
 }
 function hide(wd) {
     if (!wd || !wd.miniPlayer)

@@ -25,7 +25,7 @@ h3 {
 }
 
 .field { display: flex; flex-direction: column; gap: var(--sp-3); }
-.field label { font-size: var(--fs-small); font-weight: 500; color: var(--text-3); }
+.field label { font-size: var(--fs-small); font-weight: 500; color: var(--text-2); }
 .field input {
   height: var(--field-h); padding: 0 var(--sp-4);
   font-family: var(--font); font-size: var(--fs-body);

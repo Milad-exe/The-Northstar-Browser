@@ -14,7 +14,7 @@ html, body {
   font-size: var(--fs-body); font-weight: 600; color: var(--text);
   letter-spacing: var(--tracking);
 }
-.hang-detail { font-size: var(--fs-micro); color: var(--text-2); line-height: 1.4; }
+.hang-detail { font-size: var(--fs-small); color: var(--text-2); line-height: 1.4; }
 .hang-actions { display: flex; justify-content: flex-end; gap: var(--sp-5); margin-top: var(--sp-3); }
 .hang-btn {
   padding: 6px 14px; border-radius: var(--r-md); border: none; cursor: pointer;
