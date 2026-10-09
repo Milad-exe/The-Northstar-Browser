@@ -1647,7 +1647,7 @@
             catch (e) { window.northstarLog?.debug('renderer', 'pageActionsState: ' + e); }
             return {
                 available,
-                bookmarked: !!document.getElementById('bookmark-btn')?.classList.contains('active'),
+                bookmarked: !!document.getElementById('bookmark-btn')?.classList.contains('bookmarked'),
                 focus: !!document.getElementById('focus-btn')?.classList.contains('active'),
                 secure: /^https:/i.test(url),
                 internal,

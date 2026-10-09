@@ -1293,7 +1293,7 @@ html[data-tabbar="side"] .tab-button.crashed::after {
   flex-shrink: 0; margin-left: auto;
   width: 20px; height: 20px; border-radius: var(--r-pill);
   background: transparent; border: none; line-height: 1;
-  color: var(--text-3); cursor: pointer;
+  color: var(--text-2); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   opacity: 0; transition: opacity var(--dur-1) var(--ease), color var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
 }
@@ -1500,9 +1500,17 @@ html[data-tabbar="top"] .tab-button.pinned .tab-close { top: 1px; right: 1px; wi
 #utility-bar #reader-btn,
 #utility-bar #pip-btn,
 #utility-bar #downloads-btn,
-#utility-bar #bookmark-btn,
-#utility-bar #focus-btn,
-#utility-bar #extensions-btn { display: none; }
+#utility-bar #focus-btn { display: none; }
+/* The star and the extensions puzzle are back where every browser keeps
+   them: the star inside the field's trailing edge, the puzzle on the toolbar.
+   The star steps aside while you edit the address (.showing-url is off: the
+   field shows what you typed, not the page's URL) and where there is no page
+   to bookmark (an empty field, an internal page). Not on :focus-within — a
+   press on the star focuses the field first, which hid the star under the
+   pointer before its click could land. */
+.omnibox:not(.showing-url) #bookmark-btn,
+.omnibox[data-omni="search"] #bookmark-btn,
+.omnibox[data-omni="internal"] #bookmark-btn { display: none; }
 
 /* Profile switcher badge: coloured circle with the profile's initial. */
 .profile-badge {
@@ -1584,7 +1592,7 @@ html[data-tabbar="top"] .omnibox:hover:not(:focus-within) { background: color-mi
   display: flex; align-items: center; justify-content: center;
   width: 26px; height: 26px; margin-right: -3px;
   flex-shrink: 0; padding: 0; border: none; border-radius: var(--r-sm);
-  background: transparent; color: var(--text-3); cursor: pointer;
+  background: transparent; color: var(--text-2); cursor: pointer;
   transition: color var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
 }
 .omni-action svg { width: var(--icon); height: var(--icon); }
