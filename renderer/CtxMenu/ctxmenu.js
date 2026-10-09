@@ -107,6 +107,18 @@
                 img.src = r.iconUrl;
                 ic.appendChild(img);
             }
+            else if (r.glyph && window.Northstar?.menuGlyphs?.[r.glyph]) {
+                // A named Phosphor icon (renderer/lib/menu-glyphs.js), drawn
+                // from the map so the row's data never becomes markup.
+                const NS = 'http://www.w3.org/2000/svg';
+                const svg = document.createElementNS(NS, 'svg');
+                svg.setAttribute('viewBox', '0 0 256 256');
+                svg.setAttribute('fill', 'currentColor');
+                const p = document.createElementNS(NS, 'path');
+                p.setAttribute('d', window.Northstar.menuGlyphs[r.glyph]);
+                svg.appendChild(p);
+                ic.appendChild(svg);
+            }
             else if (r.icon) ic.textContent = r.icon;
             b.appendChild(ic);
             const lbl = document.createElement('span');

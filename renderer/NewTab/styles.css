@@ -191,7 +191,8 @@
 .ntp-tile-act:focus-visible { opacity: 1; outline: none; box-shadow: var(--focus-ring); }
 .ntp-tile-add { background: transparent; }
 .ntp-tile-add:hover { background: var(--hover); }
-.ntp-fav-add { font-size: var(--fs-lg); font-weight: 400; color: var(--text-2); }
+.ntp-fav-add { color: var(--text-2); }
+.ntp-fav-add svg { width: 18px; height: 18px; }
 
 /* Minimal: the field alone, a little lower on the page. */
 .ntp-minimal .ntp-wrap { padding-top: 28vh; }

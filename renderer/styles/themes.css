@@ -256,9 +256,13 @@ html[data-private-tab="true"] {
     font-family: var(--font); font-size: var(--fs-body); font-weight: 500;
     letter-spacing: var(--tracking); white-space: nowrap; cursor: pointer;
     transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease),
-                box-shadow var(--dur-1) var(--ease), filter var(--dur-1) var(--ease);
+                box-shadow var(--dur-1) var(--ease), filter var(--dur-1) var(--ease),
+                transform var(--dur-1) var(--ease);
   }
   .btn:hover { background: var(--hover); }
+  /* Press feedback: the button gives a little, so a click is felt before its
+     result lands. Durations are tokens, so reduced motion flattens it. */
+  .btn:active:not(:disabled) { transform: scale(0.97); }
   .btn:disabled { opacity: 0.45; cursor: default; }
   .btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
   .btn svg { width: var(--icon); height: var(--icon); }

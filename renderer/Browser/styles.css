@@ -857,9 +857,11 @@ html[data-tabbar="side"] #new-tab-btn {
   transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
 }
 html[data-tabbar="side"] .tab-add-glyph {
-  width: var(--icon); flex: 0 0 var(--icon); text-align: center;
-  font-size: 16px; font-weight: 300; line-height: 1;
+  width: var(--icon); flex: 0 0 var(--icon);
+  display: flex; align-items: center; justify-content: center;
 }
+/* Phosphor plus, not a "+" character (ui-polish rule 5). */
+.tab-add-glyph svg { width: 14px; height: 14px; display: block; }
 html[data-tabbar="side"] .tab-add-label {
   display: block; min-width: 0;
   font-size: var(--fs-body); font-weight: 400; letter-spacing: var(--tracking);
@@ -1061,7 +1063,8 @@ html[data-tabbar="side"] .sidebar-foot {
    brightness lift would have blown them out. */
 .sb-ws:not(.active) .profile-badge { opacity: 0.75; filter: grayscale(0.55); }
 .sb-ws:hover .profile-badge { opacity: 1; filter: none; }
-.sb-add-ws { flex-shrink: 0; width: var(--control-h); height: var(--control-h); font-size: 16px; font-weight: 300; color: var(--text-3); }
+.sb-add-ws { flex-shrink: 0; width: var(--control-h); height: var(--control-h); display: flex; align-items: center; justify-content: center; color: var(--text-3); }
+.sb-add-ws svg { width: 14px; height: 14px; }
 .sb-add-ws:hover { color: var(--text); }
 .sb-settings, .sb-downloads { flex-shrink: 0; width: var(--control-h); height: var(--control-h); }
 .sb-downloads.hidden { display: none; }
@@ -1419,6 +1422,11 @@ html[data-tabbar="side"] .tab-button.crashed::after {
 .icon-btn:hover { color: var(--text); background: var(--hover); }
 .nav-btn:active,
 .icon-btn:active { background: var(--active-bg); }
+/* The icon gives a little under the pointer, so a click registers before the
+   page reacts. Only the glyph moves: the button keeps its hit area. */
+.nav-btn svg, .icon-btn svg { transition: transform var(--dur-instant) var(--ease); }
+.nav-btn:active:not(:disabled) svg,
+.icon-btn:active svg { transform: scale(0.9); }
 .nav-btn:disabled { opacity: 0.3; background: transparent; cursor: default; }
 /* The nav icons carried NO size rule at all, so they fell back to the browser's
    default for a viewBox-only SVG in a flex box — 20px, next to the sidebar

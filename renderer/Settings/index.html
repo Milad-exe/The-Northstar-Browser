@@ -86,7 +86,7 @@
           <div class="engine-add">
             <input id="engine-name" class="text-input" placeholder="Name" maxlength="40">
             <input id="engine-keyword" class="text-input kw" placeholder="Keyword" maxlength="12">
-            <input id="engine-url" class="text-input url" placeholder="https://example.com/search?q=%s">
+            <input id="engine-url" class="text-input url" placeholder="https://example.com/?q=%s">
             <button class="btn" id="engine-save">Add engine</button>
           </div>
           <div class="card-desc engine-hint">Use <code>%s</code> where the query goes. A keyword lets you search this engine from the address bar without switching default.</div>
@@ -414,7 +414,7 @@
 
         <div class="card">
           <div class="card-title">Tracking protection</div>
-          <div class="card-desc">Block ads, trackers and cross-site profiling everywhere. Every layer is on for maximum privacy — switch one off only if a site misbehaves.</div>
+          <div class="card-desc">Block ads, trackers and cross-site profiling everywhere. Every layer is on by default. Switch one off only if a site stops working.</div>
 
           <div class="privacy-stat">
             <span class="privacy-stat-num" id="privacy-count">0</span>
@@ -432,7 +432,7 @@
           <div class="toggle-row">
             <div>
               <div class="row-label">Block third-party cookies</div>
-              <div class="row-desc">Drops cross-site cookies used to follow you between sites — may sign you out of some embedded content</div>
+              <div class="row-desc">Drops the cross-site cookies used to follow you between sites. Some embedded content may sign you out.</div>
             </div>
             <label class="toggle"><input type="checkbox" id="thirdparty-toggle"><span class="switch-track"></span></label>
           </div>
@@ -456,7 +456,7 @@
           <div class="toggle-row">
             <div>
               <div class="row-label">Send “Do Not Track” &amp; GPC signals</div>
-              <div class="row-desc">Asks sites not to sell or share your data — Global Privacy Control is legally binding in some regions</div>
+              <div class="row-desc">Asks sites not to sell or share your data. Global Privacy Control is legally binding in some regions.</div>
             </div>
             <label class="toggle"><input type="checkbox" id="signals-toggle"><span class="switch-track"></span></label>
           </div>
@@ -589,7 +589,7 @@
           <div class="toggle-row">
             <div>
               <div class="row-label">Import passwords</div>
-              <div class="row-desc">From a CSV file with url, username and password columns — the format browsers and password managers export.</div>
+              <div class="row-desc">From a CSV file with url, username and password columns, the format browsers and password managers export.</div>
             </div>
             <button class="btn" id="import-passwords">Import…</button>
           </div>
@@ -677,7 +677,7 @@
           <img src="../assets/logo.svg" class="about-logo" alt="Northstar">
           <div class="about-name">Northstar</div>
           <div class="about-version" id="about-version">Version —</div>
-          <div class="about-desc">A focused, productivity-first web browser.</div>
+          <div class="about-desc">A quiet browser for people with too many tabs.</div>
         </div>
 
         <div class="card">

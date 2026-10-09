@@ -853,13 +853,29 @@
                     if (v.mode) bits.push(v.mode);
                     av.textContent = bits.join(' · ');
                 }
+                // Meaning, not data (ui-polish rule 4): readable labels and
+                // values, and nothing said twice (a dev build has no build date).
+                const OS = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
+                const LABELS = {
+                    app: ['Version'], commit: ['Commit'],
+                    builtAt: ['Built', (x) => (x && x !== 'dev' ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(x)) : null)],
+                    mode: ['Build', (x) => (x === 'dev' ? 'Development' : x ? x[0].toUpperCase() + x.slice(1) : null)],
+                    electron: ['Electron'], chrome: ['Engine'], node: ['Node.js'],
+                    platform: ['Platform', (x) => { const [os, arch] = String(x).split(' '); return (OS[os] || os) + (arch ? ' (' + arch + ')' : ''); }],
+                };
                 for (const [k, val] of Object.entries(v)) {
+                    const [label, fmt] = LABELS[k] || [k];
+                    let shown = val;
+                    try { shown = fmt ? fmt(val) : val; }
+                    catch (e) { window.northstarLog?.debug('settings', 'version label: ' + e); }
+                    if (shown == null || shown === '' || shown === 'unknown')
+                        continue;
                     const key = document.createElement('span');
                     key.className = 'k';
-                    key.textContent = k;
+                    key.textContent = label;
                     const value = document.createElement('span');
                     value.className = 'v';
-                    value.textContent = val;
+                    value.textContent = shown;
                     grid.append(key, value);
                 }
             }
@@ -873,7 +889,7 @@
             const res = await window.userData.checkUpdate(true);
             releaseUrl = res?.url || '';
             if (res?.status === 'update-available') {
-                updateState.textContent = `Version ${res.latest} is available — you have ${res.current}.`;
+                updateState.textContent = `Version ${res.latest} is available. You have ${res.current}.`;
                 releaseBtn.classList.remove('hidden');
             }
             else if (res?.status === 'current') {

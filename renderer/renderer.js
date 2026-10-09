@@ -3126,21 +3126,21 @@
                 // row is normally display:none (it lives as a tile), but "Add" on
                 // a tab that already is one would be a lie.
                 const essentialRow = btn.classList.contains('is-essential')
-                    ? ['Remove from essentials', async () => {
+                    ? ['Remove from Essentials', async () => {
                         const url = await tabUrl();
                         if (/^https?:/i.test(url || '')) window.essentials.remove(url, null);
-                    }]
-                    : [isPinned ? 'Move to essentials' : 'Add to essentials', async () => {
+                    }, '', { glyph: 'star' }]
+                    : [isPinned ? 'Move to Essentials' : 'Add to Essentials', async () => {
                         const url = await tabUrl();
                         const title = btn.querySelector('.tab-title')?.textContent || '';
                         if (!/^https?:/i.test(url || '')) return;
                         const ok = await window.essentials.add(url, title, null);
                         if (ok && isPinned) window.tab.pin(idx);
-                    }];
+                    }, '', { glyph: 'star' }];
                 const rows = [
-                    [T('chrome.newTab', 'New tab'), () => window.tab.newPage(), '', { accelerator: 'CmdOrCtrl+T' }],
+                    [T('chrome.newTab', 'New tab'), () => window.tab.newPage(), '', { accelerator: 'CmdOrCtrl+T', glyph: 'plus' }],
                     ['sep'],
-                    ['Reload', () => window.tab.reload(idx), '', { accelerator: 'CmdOrCtrl+R' }],
+                    ['Reload', () => window.tab.reload(idx), '', { accelerator: 'CmdOrCtrl+R', glyph: 'reload' }],
                     ['Duplicate', async () => {
                         const url = await tabUrl();
                         const ni = await window.tab.add();
@@ -3149,19 +3149,19 @@
                         // loadable URLs; northstarUrlFor maps them.
                         const target = northstarUrlFor(url);
                         if (target) window.tab.loadUrl(ni, target);
-                    }, '', { accelerator: 'CmdOrCtrl+Shift+K' }],
-                    [isPinned ? 'Unpin' : 'Pin', () => window.tab.pin(idx), '', { accelerator: 'CmdOrCtrl+Shift+L' }],
-                    [btn.dataset.muted ? 'Unmute tab' : 'Mute tab', () => window.tab.toggleMute(idx)],
+                    }, '', { accelerator: 'CmdOrCtrl+Shift+K', glyph: 'duplicate' }],
+                    [isPinned ? 'Unpin' : 'Pin', () => window.tab.pin(idx), '', { accelerator: 'CmdOrCtrl+Shift+L', glyph: isPinned ? 'unpin' : 'pin' }],
+                    [btn.dataset.muted ? 'Unmute tab' : 'Mute tab', () => window.tab.toggleMute(idx), '', { glyph: btn.dataset.muted ? 'unmute' : 'mute' }],
                     ['sep'],
                     essentialRow,
-                    ['Move to', moveSub],
-                    ['Open in', openSub],
-                    ['Customise', customSub],
+                    ['Move to', moveSub, '', { glyph: 'move' }],
+                    ['Open in', openSub, '', { glyph: 'open' }],
+                    ['Customize', customSub, '', { glyph: 'edit' }],
                     ['sep'],
                     // Neutral, not red: a closed tab comes back with Ctrl+Shift+T.
                     [sel.length > 1 ? `Close ${sel.length} tabs` : 'Close',
                         () => { for (const i of sel) window.tab.remove(i); clearSelection(); },
-                        '', sel.length > 1 ? {} : { accelerator: 'CmdOrCtrl+W' }],
+                        '', sel.length > 1 ? { glyph: 'close' } : { accelerator: 'CmdOrCtrl+W', glyph: 'close' }],
                     ['Close others', [
                         ['Close duplicate tabs', async () => {
                             const all = [...document.querySelectorAll('#tabs-container .tab-button:not(.ws-hidden)')];
@@ -3182,7 +3182,7 @@
                             for (const b of [...document.querySelectorAll('#tabs-container .tab-button:not(.ws-hidden):not(.pinned)')])
                                 if (+b.dataset.index !== idx) window.tab.remove(+b.dataset.index);
                         }],
-                    ]],
+                    ], '', { glyph: 'closeOthers' }],
                 ];
                 openCtxMenu(e.clientX, e.clientY, rows);
             });
@@ -3742,13 +3742,15 @@
                 if (r[0] === 'sep') return { sep: true };
                 const sub = Array.isArray(r[1]) ? r[1] : null;
                 // r[3] is optional row flags: { checked } draws a trailing check,
-                // { accelerator } a shortcut hint, { icon } an emoji in the icon column.
+                // { accelerator } a shortcut hint, { icon } an emoji in the icon column,
+                // { glyph } a named Phosphor icon (renderer/lib/menu-glyphs.js).
                 const f = r[3] || {};
                 return {
                     label: r[0], cls: r[2] || '',
                     ...(f.checked ? { checked: true } : {}),
                     ...(typeof f.accelerator === 'string' ? { accelerator: f.accelerator } : {}),
                     ...(typeof f.icon === 'string' && f.icon ? { icon: f.icon } : {}),
+                    ...(typeof f.glyph === 'string' && f.glyph ? { glyph: f.glyph } : {}),
                     ...(sub ? { sub: serialize(sub) } : {}),
                 };
             });
@@ -3821,12 +3823,12 @@
                 return;
             const rows = [];
             if (p.id !== activeWorkspace)
-                rows.push(['Switch to this space', () => window.profiles.switch(p.id)], ['sep']);
+                rows.push(['Switch to this space', () => window.profiles.switch(p.id), '', { glyph: 'switch' }], ['sep']);
             rows.push(
-                ['Change name…', () => openProfileModal(p.id)],
-                ['Change icon…', () => openProfileModal(p.id)],
-                ['Edit theme…', () => openThemePanel(p.id)],
-                ['Unload space', () => window.tab.unloadWorkspace(p.id)],
+                ['Change name…', () => openProfileModal(p.id), '', { glyph: 'edit' }],
+                ['Change icon…', () => openProfileModal(p.id), '', { glyph: 'icon' }],
+                ['Edit theme…', () => openThemePanel(p.id), '', { glyph: 'palette' }],
+                ['Unload space', () => window.tab.unloadWorkspace(p.id), '', { glyph: 'unload' }],
                 ['Set profile', [
                     ['Own (isolated)', () => window.profiles.update(p.id, { container: null })],
                     ['Default (shared)', () => window.profiles.update(p.id, { container: 'default' })],
@@ -3840,15 +3842,15 @@
                             }, 'danger'],
                         ]]),
                     ]] : []),
-                ]],
+                ], '', { glyph: 'profile' }],
                 ['sep'],
-                ['New folder', () => newFolderInline()],
-                ['New space…', () => openCreateSpace()],
+                ['New folder', () => newFolderInline(), '', { glyph: 'folderPlus' }],
+                ['New space…', () => openCreateSpace(), '', { glyph: 'spaces' }],
                 ...(_spacesCache.length > 1 && String(p.id) !== '1' ? [['sep'], ['Delete space', [
                     // Wipes the space's logins and closes its tabs, so it asks
                     // rather than acting on one click.
                     [`Delete “${p.name}” and its data`, () => window.profiles.remove(p.id), 'danger'],
-                ]]] : []),
+                ], '', { glyph: 'trash' }]] : []),
             );
             openCtxMenu(x, y, rows);
         }
