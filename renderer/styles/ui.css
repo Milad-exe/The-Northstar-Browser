@@ -813,7 +813,6 @@ html[data-private-window="true"], html[data-private-tab="true"] {
   --throbber-arc: 667ms;
   --throbber-wait: var(--border-2);   /* grey ring, before the response commits */
   --throbber-load: var(--accent);     /* accent ring, once content is arriving */
-  --discard-ring: var(--text-3);      /* dotted ring on a slept (discarded) tab */
   /* "Not secure" omnibox chip (P2-1): amber warn, milder than --danger (which
      stays reserved for a cert error). Translucent so it reads on any theme. */
   --chip-warn: color-mix(in srgb, #f6a93b 22%, transparent);

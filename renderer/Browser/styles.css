@@ -847,13 +847,13 @@ html[data-tabbar="top"] .tab-button.in-folder .tab-favicon { border-radius: 5px;
    to separate pills, the pre-fusion look.) The active member keeps its own
    surface + ring from .tab-button.active, so "you are here" still reads inside
    the group. */
-html[data-tabbar="top"] .folder-header:has(+ .tab-button.in-folder:not(.folder-collapsed)) {
+html[data-tabbar="top"] .folder-header.has-open-members {
   border-top-right-radius: 0; border-bottom-right-radius: 0;
 }
 html[data-tabbar="top"] #tabs-container > .tab-button.in-folder {
   border-radius: 0; align-self: flex-end; height: calc(var(--row-h) - 10px); margin-bottom: 4px;
 }
-html[data-tabbar="top"] #tabs-container > .tab-button.in-folder:not(:has(+ .tab-button.in-folder)) {
+html[data-tabbar="top"] #tabs-container > .tab-button.in-folder.folder-last {
   border-top-right-radius: var(--r-md); border-bottom-right-radius: var(--r-md);
 }
 html[data-tabbar="top"] .folder-header + .tab-button.in-folder,
@@ -1309,14 +1309,9 @@ html[data-tabbar="side"] .tab-throbber {
    ::after is free for these static marks. Both centre on the icon column the
    same way the throbber does. A row is slept OR crashed, never both, and either
    clears the moment the tab next loads (setTabLoading). */
-.tab-button.slept .tab-favicon { opacity: 0.75; }
-.tab-button.slept::after {
-  content: ''; position: absolute; top: 50%; margin-top: calc(var(--throbber-size) / -2);
-  left: calc(var(--sp-4, 8px) + var(--icon, 16px) / 2 - var(--throbber-size) / 2);
-  width: var(--throbber-size); height: var(--throbber-size); box-sizing: border-box;
-  border: 1.5px dotted var(--discard-ring); border-radius: 50%;
-  pointer-events: none; animation: discard-ring-in calc(var(--dur-4) * 3) var(--ease) both; /* a deliberately slow fade; still 0 under reduced motion */
-}
+/* A slept tab is only a little dimmer — no ring round its icon. It reloads
+   the moment you open it, so it needs no more announcement than that. */
+.tab-button.slept .tab-favicon { opacity: 0.6; }
 .tab-button.crashed .tab-favicon { visibility: hidden; }
 .tab-button.crashed .tab-title { color: var(--text-2); }
 .tab-button.crashed::after {
@@ -1327,13 +1322,10 @@ html[data-tabbar="side"] .tab-throbber {
   font-size: 11px; line-height: 1; color: var(--danger); pointer-events: none;
 }
 /* The sidebar indents rows by --gutter rather than --sp-4. */
-html[data-tabbar="side"] .tab-button.slept::after,
 html[data-tabbar="side"] .tab-button.crashed::after {
   left: calc(var(--gutter, 12px) + var(--icon, 16px) / 2 - var(--throbber-size) / 2);
 }
-.tab-button.pinned.slept::after,
 .tab-button.pinned.crashed::after { left: 50%; margin-left: calc(var(--throbber-size) / -2); }
-@keyframes discard-ring-in { from { opacity: 0; } to { opacity: 1; } }
 
 .tab-close {
   flex-shrink: 0; margin-left: auto;

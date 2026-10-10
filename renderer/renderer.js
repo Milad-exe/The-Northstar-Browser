@@ -4086,9 +4086,11 @@
                     frag.appendChild(header);
                     let count = 0;
                     let anyActive = false;
+                    let lastShown = null;
                     for (const btn of normal) {
                         if (folderState.assign.get(+btn.dataset.index) !== f.id) continue;
                         btn.classList.add('in-folder');
+                        btn.classList.remove('folder-last');
                         btn.style.setProperty('--depth', String(depth + 1));
                         if (hidden || f.collapsed) btn.classList.add('folder-collapsed');
                         if (btn.classList.contains('active')) anyActive = true;
@@ -4097,9 +4099,18 @@
                         // Count what the folder shows you: a member that is
                         // another space's tab or now lives as an Essential tile
                         // has no row here, and counting it made "3" over two tabs.
-                        if (!btn.classList.contains('ws-hidden') && !btn.classList.contains('is-essential'))
+                        if (!btn.classList.contains('ws-hidden') && !btn.classList.contains('is-essential')) {
                             count++;
+                            lastShown = btn;
+                        }
                     }
+                    // The top strip draws an open folder as one pill: the chip
+                    // squares its right edge only when a tile follows, and the
+                    // last tile you can SEE caps it. A hidden member (another
+                    // space's tab, an Essential) can't be the end — CSS sibling
+                    // selectors counted it, leaving the pill cut off square.
+                    lastShown?.classList.add('folder-last');
+                    header.classList.toggle('has-open-members', !!lastShown && !f.collapsed && !hidden);
                     // Top strip only: light the chip when you're inside one of its
                     // tabs (that active tab is the one member still shown in-strip).
                     header.classList.toggle('has-active-member', anyActive);
