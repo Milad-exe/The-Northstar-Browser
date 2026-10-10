@@ -4103,6 +4103,8 @@
                     // Top strip only: light the chip when you're inside one of its
                     // tabs (that active tab is the one member still shown in-strip).
                     header.classList.toggle('has-active-member', anyActive);
+                    // Rebuilt headers lose their speaker; repainted after the layout.
+                    queueMicrotask(syncFolderSound);
                     // How many tabs are in there — the one thing a collapsed
                     // folder cannot tell you by looking at it.
                     const countEl = header.querySelector('.folder-count');
@@ -4186,6 +4188,7 @@
                             : null;
             btn.classList.toggle('has-indicator', !!kind);
             btn._indicator = kind;
+            if (!kind) syncFolderSound();
             // An Essential's row is hidden (the tile is the tab): show it there.
             const tile = document.querySelector('.essential-tile[data-tab-index="' + index + '"]');
             if (tile) paintEssentialSound(tile, kind);
@@ -4217,6 +4220,42 @@
                 el.classList.toggle('clickable', kind === 'audio' || kind === 'muted');
                 el.title = INDICATOR_TITLE[kind];
             }
+            syncFolderSound();
+        }
+        /* A collapsed folder hides its tabs, and with them their speakers — so
+           the chip carries the loudest one (recording outranks audio), the way
+           it already lights up for the active tab. */
+        function syncFolderSound() {
+            if (!tabsContainer || !folderState.assign)
+                return;
+            tabsContainer.querySelectorAll('.folder-header').forEach(h => {
+                let kind = null;
+                for (const [idx, fid] of folderState.assign) {
+                    if (fid !== h.dataset.folder)
+                        continue;
+                    const b = tabs.get(idx);
+                    if (!b || b.classList.contains('ws-hidden') || b.classList.contains('is-essential') || !b._indicator)
+                        continue;
+                    if (b._indicator === 'mic' || b._indicator === 'camera') { kind = b._indicator; break; }
+                    if (!kind || kind === 'muted') kind = b._indicator;
+                }
+                let el = h.querySelector('.folder-sound');
+                if (!kind) {
+                    el?.remove();
+                    return;
+                }
+                if (!el) {
+                    el = document.createElement('span');
+                    el.className = 'folder-sound';
+                    el.setAttribute('aria-hidden', 'true');
+                    h.insertBefore(el, h.querySelector('.folder-count'));
+                }
+                if (el.dataset.kind !== kind) {
+                    el.dataset.kind = kind;
+                    el.innerHTML = INDICATOR_SVG[kind];
+                    el.classList.toggle('rec', kind === 'mic' || kind === 'camera');
+                }
+            });
         }
         /* ✕, middle-click and Delete mean one thing on every kind of tab: close
            the page. A pinned tab keeps its pin (its row goes back to its home

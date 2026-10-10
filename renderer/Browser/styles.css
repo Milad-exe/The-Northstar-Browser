@@ -790,8 +790,10 @@ html[data-tabbar="side"] .tab-button.folder-collapsed { display: none !important
    the name/× stack below it. */
 html[data-tabbar="top"] .folder-header {
   display: inline-flex; align-items: center; gap: var(--sp-4);
-  flex: 0 0 auto; align-self: center; height: var(--row-h); max-width: 170px;
-  padding: 0 var(--sp-4); border-radius: var(--r-md);
+  /* On the tabs' baseline at the tabs' height, top corners rounded — a tab
+     in the row, not a pill floating above it. */
+  flex: 0 0 auto; align-self: flex-end; height: calc(var(--row-h) - 2px); max-width: 170px;
+  padding: 0 var(--sp-4); border-radius: var(--r-md) var(--r-md) 0 0;
   /* A faint resting fill so the folder reads as one defined group chip in the
      flow of tabs (Chrome's group label), not a run of loose text against them. */
   background: color-mix(in srgb, var(--text) 6%, transparent);
@@ -842,11 +844,13 @@ html[data-tabbar="top"] .tab-button.in-folder .tab-favicon { border-radius: 5px;
    surface + ring from .tab-button.active, so "you are here" still reads inside
    the group. */
 html[data-tabbar="top"] .folder-header:has(+ .tab-button.in-folder:not(.folder-collapsed)) {
-  border-top-right-radius: 0; border-bottom-right-radius: 0;
+  border-top-right-radius: 0;
 }
-html[data-tabbar="top"] .tab-button.in-folder { border-radius: 0; }
+html[data-tabbar="top"] .tab-button.in-folder {
+  border-radius: 0; align-self: flex-end; height: calc(var(--row-h) - 2px);
+}
 html[data-tabbar="top"] .tab-button.in-folder:not(:has(+ .tab-button.in-folder)) {
-  border-top-right-radius: var(--r-md); border-bottom-right-radius: var(--r-md);
+  border-top-right-radius: var(--r-md);
 }
 html[data-tabbar="top"] .folder-header + .tab-button.in-folder,
 html[data-tabbar="top"] .tab-button.in-folder + .tab-button.in-folder {
@@ -1247,10 +1251,13 @@ html[data-tabbar="side"] .tab-button.has-indicator:not(:hover) .tab-close { disp
    on a pinned tab in Chromium: you see WHICH pin is playing, and the icon you
    see is the one you click to mute. (Sidebar pinned rows show their title, so
    the speaker sits in its trailing slot like any row's.) */
-html[data-tabbar="top"] .tab-button.pinned.has-indicator .tab-favicon,
-html[data-tabbar="top"] .tab-button.pinned.has-indicator::before { display: none; }
-html[data-tabbar="top"] .tab-button.pinned .tab-indicator { width: var(--icon); height: var(--icon); }
-html[data-tabbar="top"] .tab-button.pinned .tab-indicator svg { width: 14px; height: 14px; }
+/* A folder's tabs are the same icon-only tiles in the strip, so the same
+   rule holds — without it the speaker sat beside the favicon and spilled out
+   of the 34px tile. */
+html[data-tabbar="top"] .tab-button:is(.pinned, .in-folder).has-indicator .tab-favicon,
+html[data-tabbar="top"] .tab-button:is(.pinned, .in-folder).has-indicator::before { display: none; }
+html[data-tabbar="top"] .tab-button:is(.pinned, .in-folder) .tab-indicator { width: var(--icon); height: var(--icon); }
+html[data-tabbar="top"] .tab-button:is(.pinned, .in-folder) .tab-indicator svg { width: 14px; height: 14px; }
 
 /* Loading throbber (P1-1): an inline SVG <circle> ring in the favicon slot, not
    a ::after border-spinner. The no-favicon placeholder that reserves the icon
@@ -2180,3 +2187,10 @@ html[data-tabbar="side"] .tab-button.multi-selected { box-shadow: inset 0 0 0 1.
 #notice-text { color: var(--text); }
 #notice-icon { display: none; width: var(--icon); height: var(--icon); color: var(--accent); flex-shrink: 0; }
 #notice-bar.has-icon #notice-icon { display: block; }
+
+/* A collapsed folder's chip shows when one of its hidden tabs plays sound or
+   records (syncFolderSound in renderer.js). Expanded, the tabs show it. */
+.folder-sound { display: flex; align-items: center; flex-shrink: 0; color: var(--text-2); }
+.folder-sound svg { width: 14px; height: 14px; }
+.folder-sound.rec { color: var(--danger); }
+.folder-header:not(.collapsed) .folder-sound { display: none; }
