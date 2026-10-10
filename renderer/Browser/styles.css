@@ -305,7 +305,7 @@ html[data-tabbar="top"] #space-header { position: relative; }
 
 /* Essentials as a horizontal row of favicon tiles — pinned-tab style. */
 html[data-tabbar="top"] .essentials {
-  display: flex; align-items: center; gap: 2px; flex: 0 0 auto;
+  display: flex; align-items: flex-end; align-self: stretch; gap: 2px; flex: 0 0 auto;
   padding: 0; margin: 0; position: relative; -webkit-app-region: no-drag;
 }
 html[data-tabbar="top"] .essentials:empty { display: none; }
@@ -321,15 +321,19 @@ html[data-tabbar="top"] .essentials:not(:empty)::after {
    the strip an Essential is a compact favicon tile: a faint fill so it reads as
    a defined tile rather than a favicon floating on the shell, brighter on hover.
    Shares its resting fill with pinned tabs and folder members below. */
+/* Same footprint as a tab — bottom-aligned, the tab's height, top corners
+   rounded — so the strip reads as one row of tabs of which the first few are
+   icon-only, as pinned tabs are in other browsers. Flat at rest like a resting
+   tab; the fill is the hover. */
 html[data-tabbar="top"] .essential-tile {
-  width: var(--row-h); height: var(--row-h);
-  border-radius: var(--r-md);
-  background: color-mix(in srgb, var(--text) 6%, transparent); box-shadow: none;
+  width: 38px; height: calc(var(--row-h) - 2px); margin-bottom: 0;
+  border-radius: var(--r-md) var(--r-md) 0 0;
+  background: transparent; box-shadow: none;
   /* Explicit: the strip is a drag region, and a child with no app-region can
      inherit it and swallow the click. */
   -webkit-app-region: no-drag;
 }
-html[data-tabbar="top"] .essential-tile:hover { background: color-mix(in srgb, var(--text) 12%, transparent); box-shadow: none; }
+html[data-tabbar="top"] .essential-tile:hover { background: var(--hover); box-shadow: none; }
 html[data-tabbar="top"] .essential-tile img,
 html[data-tabbar="top"] .essential-tile .ess-fallback { width: var(--icon); height: var(--icon); }
 html[data-tabbar="top"] .essential-tile img { border-radius: 5px; }
@@ -402,6 +406,22 @@ html[data-tabbar="top"] .tab-button:not(.pinned):not(.in-folder):not(.active):no
   background-size: 1px 16px; background-position: left center; background-repeat: no-repeat;
 }
 html[data-tabbar="top"] .tab-favicon { flex: 0 0 var(--icon); }
+/* Titles use the whole tab. ✕ floats over the trailing edge instead of holding
+   a slot, and the title fades out rather than ending in "…" — so a resting tab
+   shows as much of its title as fits, and showing ✕ (hover, or the active tab)
+   only pulls the fade in, never moves the text. */
+html[data-tabbar="top"] .tab-button:not(.pinned):not(.in-folder) .tab-title {
+  text-overflow: clip;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
+          mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
+}
+html[data-tabbar="top"] .tab-button:not(.pinned):not(.in-folder) .tab-close {
+  position: absolute; right: var(--sp-3); top: 50%; margin-top: -10px;
+}
+/* Room for ✕ when it shows — on the row, so a sound indicator moves over too. */
+html[data-tabbar="top"] .tab-button:not(.pinned):not(.in-folder):is(:hover, .active, :focus-within) {
+  padding-right: calc(var(--sp-3) + 22px);
+}
 html[data-tabbar="top"] .tab-button:not(.has-favicon)::before {
   content: ''; width: var(--icon); flex: 0 0 var(--icon);
 }

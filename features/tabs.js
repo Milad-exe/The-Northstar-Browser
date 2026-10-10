@@ -426,6 +426,9 @@ class Tabs {
         this.mainWindow.webContents.send('tab-created', {
             index: tabIndex,
             title: tab.lazyTitle,
+            // A restored tab is never loaded until shown, so no url-updated
+            // follows; send its address now (it picks the internal-page icon).
+            url: this.tabUrls.get(tabIndex) || '',
             totalTabs: this.tabMap.size,
             afterIndex: afterPos !== -1 ? afterIdx : null,
             active: false,

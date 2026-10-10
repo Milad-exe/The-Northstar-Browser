@@ -1886,6 +1886,10 @@
             window.tab.onTabCreated((_e, data) => {
                 tabPrivate.set(data.index, !!data.private);
                 createTabButton(data.index, data.title, data.afterIndex ?? null, data.active !== false, !!data.private, !!data.container, data.workspace || '1', !!data.essential);
+                if (data.url) {
+                    tabUrls.set(data.index, data.url);
+                    markHomeTab(data.index, data.url);
+                }
                 setTimeout(() => { updateTabWidths(data.totalTabs); updateScrollShadows(); }, 10);
             });
             // Speaker on audible tabs; mic/camera in danger colour while recording.
@@ -1918,6 +1922,10 @@
                     if (cur) cur.replaceWith(el);
                     else btn.insertBefore(el, btn.firstChild);
                     btn.classList.add('has-favicon');
+                }
+                else {
+                    const cur = btn.querySelector('.tab-favicon.internal');
+                    if (cur) { cur.remove(); btn.classList.remove('has-favicon'); }
                 }
             };
             window.tab.onTabSwitched((_e, data) => {
@@ -4288,7 +4296,9 @@
                     faviconEl.src = faviconUrl;
                 }
             }
-            else if (faviconEl) {
+            // No favicon: clear a page's stale one, but keep an internal page's
+            // glyph (markHomeTab owns that, and drops it when the tab leaves).
+            else if (faviconEl && !faviconEl.classList.contains('internal')) {
                 faviconEl.remove();
                 btn.classList.remove('has-favicon');
             }
@@ -4396,7 +4406,10 @@
                 const PINNED_W = 34;
                 const MIN_W = 120; // comfortable resting minimum
                 const COMFY_W = 200; // preferred width when there's room to spare
-                const allTabs = [...tabs.values()];
+                // An Essential's row is never drawn in the strip (its tile is), so
+                // it claims no width — counting it shrank every visible tab. Nor
+                // does another space's tab, hidden while this space shows.
+                const allTabs = [...tabs.values()].filter(t => !t.classList.contains('is-essential') && !t.classList.contains('ws-hidden'));
                 // Pinned tabs AND a folder's member tabs render as compact favicon
                 // tiles (PINNED_W); everything else is a full-width tab.
                 const isCompact = t => t.classList.contains('pinned') || t.classList.contains('in-folder');
@@ -4412,7 +4425,15 @@
                 // Only tiles actually on screen claim width — a collapsed folder's
                 // members are display:none and reserve nothing.
                 const shownCompact = compact.filter(t => !t.classList.contains('folder-collapsed')).length;
-                const remaining = barW - shownCompact * PINNED_W;
+                // The gaps between rows and the container's own padding take
+                // room too; leaving them out made a full strip overflow by a
+                // few px per tab, which clipped the last tab and raised the
+                // scroll arrow when everything should have fit.
+                const cs = getComputedStyle(tabsContainer);
+                const gap = parseFloat(cs.columnGap) || 0;
+                const pad = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+                const rows = shownCompact + unpinned.length;
+                const remaining = barW - shownCompact * PINNED_W - pad - gap * Math.max(0, rows - 1);
                 const ideal = Math.floor(Math.max(0, remaining) / unpinned.length);
                 // Tabs sit at a comfortable fixed width (COMFY_W), left-packed. With
                 // many tabs they shrink evenly to share the bar, down to MIN_W, after
