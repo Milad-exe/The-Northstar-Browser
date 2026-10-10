@@ -979,26 +979,54 @@
             }
             catch (e) { window.northstarLog?.debug('settings', 'renderZoom: ' + e); }
         })();
+        // ── About: updates (features/updates.js) ───────────────────────────
+        // One renderer for every state, fed live by 'update-state'.
         const updateState = document.getElementById('update-state');
+        const updateDetail = document.getElementById('update-detail');
+        const checkBtn = document.getElementById('check-update');
+        const installBtn = document.getElementById('install-update');
         const releaseBtn = document.getElementById('open-release');
+        const progress = document.getElementById('update-progress');
+        const progressBar = document.getElementById('update-progress-bar');
+        const autoToggle = document.getElementById('auto-update');
         let releaseUrl = '';
-        document.getElementById('check-update')?.addEventListener('click', async () => {
-            updateState.textContent = 'Checking…';
-            const res = await window.userData.checkUpdate(true);
-            releaseUrl = res?.url || '';
-            if (res?.status === 'update-available') {
-                updateState.textContent = `Version ${res.latest} is available. You have ${res.current}.`;
-                releaseBtn.classList.remove('hidden');
+        const DEFAULT_DETAIL = updateDetail?.textContent || '';
+        function renderUpdate(s) {
+            if (!s || !updateState) return;
+            const show = (el, on) => el?.classList.toggle('hidden', !on);
+            releaseUrl = s.url || '';
+            show(installBtn, s.status === 'ready');
+            show(releaseBtn, s.status === 'available' && !!releaseUrl);
+            show(checkBtn, s.status !== 'ready');
+            checkBtn.disabled = s.status === 'checking' || s.status === 'downloading';
+            show(progress, s.status === 'downloading');
+            if (progressBar) progressBar.style.width = (s.percent || 0) + '%';
+            updateDetail.textContent = DEFAULT_DETAIL;
+            switch (s.status) {
+                case 'checking': updateState.textContent = 'Checking for updates…'; break;
+                case 'current': updateState.textContent = `Northstar ${s.current} is up to date.`; break;
+                case 'downloading': updateState.textContent = `Downloading Northstar ${s.latest}… ${s.percent || 0}%`; break;
+                case 'ready':
+                    updateState.textContent = `Northstar ${s.latest} is ready to install.`;
+                    updateDetail.textContent = 'Relaunch now, or it installs the next time you quit. Your tabs come back.';
+                    break;
+                case 'available':
+                    updateState.textContent = `Version ${s.latest} is available. You have ${s.current}.`;
+                    updateDetail.textContent = 'This build cannot update itself. Download the new version from the release page.';
+                    break;
+                case 'error': updateState.textContent = s.error || 'Could not check for updates.'; break;
+                default: updateState.textContent = `Version ${s.current}.`;
             }
-            else if (res?.status === 'current') {
-                updateState.textContent = `Northstar ${res.current} is up to date.`;
-                releaseBtn.classList.add('hidden');
-            }
-            else {
-                updateState.textContent = res?.error ? `Could not check: ${res.error}` : 'Could not check for updates.';
-                releaseBtn.classList.toggle('hidden', !releaseUrl);
-            }
-        });
+            if (autoToggle) autoToggle.checked = s.auto !== false;
+        }
+        checkBtn?.addEventListener('click', async () => renderUpdate(await window.userData.checkUpdate(true)));
+        installBtn?.addEventListener('click', () => window.userData.installUpdate());
         releaseBtn?.addEventListener('click', () => { if (releaseUrl) window.userData.openRelease(releaseUrl); });
+        autoToggle?.addEventListener('change', async () => {
+            await save('autoUpdate', autoToggle.checked);
+            showToast(autoToggle.checked ? 'Northstar will update automatically' : 'Automatic updates are off');
+        });
+        window.userData.onUpdateState?.(renderUpdate);
+        window.userData.updateState?.().then(renderUpdate).catch((e) => window.northstarLog?.debug('settings', 'update state: ' + e));
     });
 })();

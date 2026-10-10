@@ -1531,6 +1531,13 @@ html[data-tabbar="top"] .tab-button.pinned .tab-close { top: 1px; right: 1px; wi
   background: var(--pf-color, var(--accent));
 }
 
+/* An update is downloaded and waiting (features/updates.js): an accent dot on
+   the menu button, where every browser puts it, until it is installed. */
+#menu-btn.has-update::after {
+  content: ''; position: absolute; top: 5px; right: 5px; width: 7px; height: 7px;
+  border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1.5px var(--shell);
+}
+
 /* ── Address bar (omnibox) ───────────────── */
 /* The wrapper is the column between the lead cluster and the trailing icons,
    so it already starts on the page card's left edge; its right padding is the

@@ -481,6 +481,10 @@ input, textarea, select { user-select: text; -webkit-user-select: text; }
    <button role="radio"> is invalid markup no keyboard could reach, so editing
    moved to the named caption under the row, where it is a control of its own. */
 
+/* ── About: update download progress ── */
+.update-progress { height: 4px; margin-top: var(--sp-5); border-radius: var(--r-pill); background: var(--hover); overflow: hidden; }
+.update-progress > span { display: block; height: 100%; width: 0; background: var(--accent); transition: width var(--dur-2) var(--ease); }
+
 /* ── Import & export: the browsers found on this computer ── */
 .imp-muted { font-size: var(--fs-small); color: var(--text-2); }
 .imp-list { display: flex; flex-direction: column; gap: var(--sp-2); }

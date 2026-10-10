@@ -322,7 +322,29 @@
             catch (e) { window.northstarLog?.debug('renderer', 'extActions: ' + e); }
         }
 
+        /* An update is downloaded and waiting: say so once per launch with a
+           Relaunch action (no id, so it is not "dismissed forever" — the next
+           launch is either the new version or asks again), and keep a dot on
+           the menu button until it is installed. */
+        let updateNoticeShown = null;
+        function applyUpdateState(s) {
+            const ready = s?.status === 'ready';
+            document.getElementById('menu-btn')?.classList.toggle('has-update', ready);
+            if (ready && updateNoticeShown !== s.latest) {
+                updateNoticeShown = s.latest;
+                showNotice({
+                    text: T_NOTICE('notice.updateReady', 'Northstar {v} is ready to install.').replace('{v}', s.latest || ''),
+                    action: T_NOTICE('notice.relaunch', 'Relaunch'),
+                    onAction: () => window.electronAPI.installUpdate?.(),
+                });
+            }
+        }
         function initNotices() {
+            try {
+                window.electronAPI.updateState?.().then(applyUpdateState).catch(() => { });
+                window.electronAPI.onUpdateState?.(applyUpdateState);
+            }
+            catch (e) { window.northstarLog?.debug('renderer', 'update state: ' + e); }
             try {
                 window.electronAPI.pendingNotices?.().then((list) => {
                     const n = (list || [])[0];

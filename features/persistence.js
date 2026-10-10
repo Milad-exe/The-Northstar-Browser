@@ -78,6 +78,8 @@ const DEFAULTS = {
     // minimal, field-only page), the user's own shortcut tiles
     // [{ url, title }], and the urls of tiles they removed with ×.
     newTabPage: { shortcuts: true, recent: true, tiles: [], hidden: [] },
+    // Check for, download and install updates in the background (features/updates.js).
+    autoUpdate: true,
 };
 class Persistence {
     dir; // ~/<userData>/northstar

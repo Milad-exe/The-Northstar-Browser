@@ -112,7 +112,10 @@ async function buildWatchingSignature(platform, archNames) {
     process.stdout.write = (c, ...a) => { sniff(c.toString()); return origOut(c, ...a); };
     process.stderr.write = (c, ...a) => { sniff(c.toString()); return origErr(c, ...a); };
     try {
-        const artifacts = await builder.build({ targets: target });
+        // --publish (npm run release): upload installers + latest.yml to a DRAFT
+        // GitHub release (needs GH_TOKEN). Publish the draft on GitHub to ship it.
+        const publish = process.argv.includes('--publish') ? 'always' : 'never';
+        const artifacts = await builder.build({ targets: target, publish });
         return { artifacts, ...seen };
     } finally {
         process.stdout.write = origOut;

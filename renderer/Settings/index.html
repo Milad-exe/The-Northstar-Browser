@@ -705,10 +705,24 @@
 
         <div class="card">
           <div class="card-title">Updates</div>
-          <div class="card-desc" id="update-state">Not checked yet.</div>
-          <div class="btn-row">
-            <button class="btn" id="check-update">Check for updates</button>
-            <button class="btn hidden" id="open-release">Open release page</button>
+          <div class="toggle-row">
+            <div>
+              <div class="row-label" id="update-state" role="status" aria-live="polite">Not checked yet.</div>
+              <div class="row-desc" id="update-detail">Northstar checks for updates in the background and installs them when you relaunch or quit.</div>
+            </div>
+            <div class="btn-row">
+              <button class="btn" id="check-update">Check for updates</button>
+              <button class="btn btn-primary hidden" id="install-update">Relaunch to update</button>
+              <button class="btn hidden" id="open-release">Open release page</button>
+            </div>
+          </div>
+          <div class="update-progress hidden" id="update-progress"><span id="update-progress-bar"></span></div>
+          <div class="toggle-row" style="margin-top: var(--sp-6)">
+            <div>
+              <div class="row-label">Update automatically</div>
+              <div class="row-desc">Download new versions in the background. Off: Northstar only checks when you press the button.</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="auto-update" role="switch"><span class="switch-track"></span></label>
           </div>
         </div>
 

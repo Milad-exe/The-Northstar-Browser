@@ -115,6 +115,21 @@ npm run dist:mac      # or dist:win / dist:linux
 
 Builds are Widevine-signed through castlabs so DRM video plays. Set `SKIP_VMP=1` for an unsigned local build.
 
+### Ship an update
+
+Installed copies check GitHub Releases shortly after launch and every few hours, download a newer version in the background, then offer **Relaunch** (it also installs on quit).
+
+1. Bump `version` in `package.json` (e.g. `npm version minor --no-git-tag-version`). It must be higher than the latest release.
+2. Build and upload to a **draft** release (needs a GitHub token with `repo` scope):
+   ```bash
+   GH_TOKEN=... npm run release win
+   ```
+3. Check the draft on GitHub (installer, `latest.yml`, blockmap), then press **Publish**. Users get it from that moment.
+
+To rehearse the update flow from a source run, serve a `latest.yml` plus the installer it names from any folder and start Northstar with `NORTHSTAR_UPDATE_FEED=http://host/folder`.
+
+Windows and Linux (AppImage) builds update themselves. macOS only can when the app is code-signed; until then Mac users get a link to the release page.
+
 ### Tests
 
 ```bash

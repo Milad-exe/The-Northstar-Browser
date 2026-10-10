@@ -205,7 +205,15 @@ function register(ipcMain, { wm, webContents, app }) {
     });
 
     // ── Updates / diagnostics / default browser ──────────────────────────────
-    ipcMain.handle('app:check-update', (_e, force) => updates.check({ force: !!force }));
+    // Updates (features/updates.js): background checks from launch, a check on
+    // demand, the live state for the chrome and About, and Relaunch.
+    updates.start(wm);
+    ipcMain.handle('app:check-update', () => updates.check());
+    ipcMain.handle('app:update-state', () => updates.state());
+    ipcMain.handle('app:install-update', (e) => {
+        if (!trusted(e, 'app:install-update')) return false;
+        return updates.install();
+    });
     ipcMain.handle('app:open-release', async (_e, url) => {
         // openExternal hands the URL to the OS, so only http/https — not the
         // file:/about:/view-source: that sanitizeUrl would let through.
