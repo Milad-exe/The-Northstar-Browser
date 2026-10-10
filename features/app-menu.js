@@ -86,7 +86,7 @@ function template() {
     const fileMenu = {
         label: 'File',
         submenu: [
-            { label: 'New Tab', ...acc('CmdOrCtrl+T'), click: newTab },
+            { label: 'New tab', ...acc('CmdOrCtrl+T'), click: newTab },
             { label: 'New Window', ...acc('CmdOrCtrl+N'), click: () => { try { wmRef.createWindow(); } catch (e) { log.debug('app-menu', 'new win', e); } } },
             { label: 'New Private Window', ...acc('CmdOrCtrl+Shift+N'), click: () => { try { wmRef.createWindow(800, 600, { private: true }); } catch (e) { log.debug('app-menu', 'new priv', e); } } },
             { type: 'separator' },

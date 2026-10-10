@@ -103,7 +103,7 @@
     <div class="trailing-icons">
       <!-- Profile switcher: coloured initial of this window's profile -->
       <button id="profile-btn" class="icon-btn" title="Profiles" data-i18n-title="chrome.profiles">
-        <span id="profile-badge" class="profile-badge">P</span>
+        <span id="profile-badge" class="profile-badge">P</span><span class="profile-name" id="profile-name"></span>
       </button>
       <!-- Extension browser-action buttons (electron-chrome-extensions) -->
       <browser-action-list id="ext-actions"></browser-action-list>
@@ -147,7 +147,7 @@
       <div class="sc-sub">Spaces keep their own tabs, essentials and history.</div>
       <div class="sc-namerow">
         <button type="button" id="sc-emoji" class="sc-emoji" aria-label="Choose icon" title="Choose icon" data-i18n-label="chrome.chooseIcon" data-i18n-title="chrome.chooseIcon"></button>
-        <input id="sc-name" class="sc-input" maxlength="24" placeholder="Space name" data-i18n-placeholder="chrome.spaceName">
+        <input id="sc-name" class="sc-input" maxlength="24" aria-label="Space name" placeholder="Space name" data-i18n-placeholder="chrome.spaceName">
       </div>
       <div id="sc-emoji-picker" class="emoji-picker hidden" role="listbox" aria-label="Icon"></div>
       <!-- Which cookie jar this space's tabs use: its own, the shared Default,
@@ -171,9 +171,9 @@
       <span class="space-name" id="space-name">Space</span>
       <svg width="14" height="14" class="space-chevron" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216.49,104.49l-80,80a12,12,0,0,1-17,0l-80-80a12,12,0,0,1,17-17L128,159l71.51-71.52a12,12,0,0,1,17,17Z"/></svg>
     </button>
-    <button id="tab-scroll-left" class="tab-scroll-btn" aria-label="Scroll tabs left" data-i18n-label="chrome.scrollTabsLeft">‹</button>
+    <button id="tab-scroll-left" class="tab-scroll-btn" aria-label="Scroll tabs left" data-i18n-label="chrome.scrollTabsLeft"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M168.49,199.51a12,12,0,0,1-17,17l-80-80a12,12,0,0,1,0-17l80-80a12,12,0,0,1,17,17L97,128Z"/></svg></button>
     <div id="tabs-container" role="tablist" aria-label="Tabs" data-i18n-label="chrome.tabs"></div>
-    <button id="tab-scroll-right" class="tab-scroll-btn" aria-label="Scroll tabs right" data-i18n-label="chrome.scrollTabsRight">›</button>
+    <button id="tab-scroll-right" class="tab-scroll-btn" aria-label="Scroll tabs right" data-i18n-label="chrome.scrollTabsRight"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M184.49,136.49l-80,80a12,12,0,0,1-17-17L159,128,87.51,56.49a12,12,0,1,1,17-17l80,80A12,12,0,0,1,184.49,136.49Z"/></svg></button>
     <div id="tab-actions">
       <button id="new-tab-btn" class="tab-add" aria-label="New tab" data-i18n-label="chrome.newTab"><span class="tab-add-glyph" aria-hidden="true"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M228,128a12,12,0,0,1-12,12H140v76a12,12,0,0,1-24,0V140H40a12,12,0,0,1,0-24h76V40a12,12,0,0,1,24,0v76h76A12,12,0,0,1,228,128Z"/></svg></span><span class="tab-add-label" data-i18n="chrome.newTab">New tab</span></button>
     </div>
@@ -192,7 +192,7 @@
         <svg class="icon-svg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path class="i-line" d="M47.51,112.49a12,12,0,0,1,17-17L116,147V32a12,12,0,0,1,24,0V147l51.51-51.52a12,12,0,0,1,17,17l-72,72a12,12,0,0,1-17,0ZM216,204H40a12,12,0,0,0,0,24H216a12,12,0,0,0,0-24Z"/><path class="i-fill" d="M50.34,117.66A8,8,0,0,1,56,104h64V32a8,8,0,0,1,16,0v72h64a8,8,0,0,1,5.66,13.66l-72,72a8,8,0,0,1-11.32,0ZM216,208H40a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16Z"/></svg>
       </button>
       <button id="sb-settings" class="icon-btn sb-settings" title="Settings" data-i18n-title="chrome.settings">
-        <svg class="icon-svg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M40,92H70.06a36,36,0,0,0,67.88,0H216a12,12,0,0,0,0-24H137.94a36,36,0,0,0-67.88,0H40a12,12,0,0,0,0,24Zm64-24A12,12,0,1,1,92,80,12,12,0,0,1,104,68Zm112,96H201.94a36,36,0,0,0-67.88,0H40a12,12,0,0,0,0,24h94.06a36,36,0,0,0,67.88,0H216a12,12,0,0,0,0-24Zm-48,24a12,12,0,1,1,12-12A12,12,0,0,1,168,188Z"/></svg>
+        <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true" class="icon-svg"><path d="M128,76a52,52,0,1,0,52,52A52.06,52.06,0,0,0,128,76Zm0,80a28,28,0,1,1,28-28A28,28,0,0,1,128,156Zm92-27.21v-1.58l14-17.51a12,12,0,0,0,2.23-10.59A111.75,111.75,0,0,0,225,71.89,12,12,0,0,0,215.89,66L193.61,63.5l-1.11-1.11L190,40.1A12,12,0,0,0,184.11,31a111.67,111.67,0,0,0-27.23-11.27A12,12,0,0,0,146.3,22L128.79,36h-1.58L109.7,22a12,12,0,0,0-10.59-2.23A111.75,111.75,0,0,0,71.89,31.05,12,12,0,0,0,66,40.11L63.5,62.39,62.39,63.5,40.1,66A12,12,0,0,0,31,71.89,111.67,111.67,0,0,0,19.77,99.12,12,12,0,0,0,22,109.7l14,17.51v1.58L22,146.3a12,12,0,0,0-2.23,10.59,111.75,111.75,0,0,0,11.29,27.22A12,12,0,0,0,40.11,190l22.28,2.48,1.11,1.11L66,215.9A12,12,0,0,0,71.89,225a111.67,111.67,0,0,0,27.23,11.27A12,12,0,0,0,109.7,234l17.51-14h1.58l17.51,14a12,12,0,0,0,10.59,2.23A111.75,111.75,0,0,0,184.11,225a12,12,0,0,0,5.91-9.06l2.48-22.28,1.11-1.11L215.9,190a12,12,0,0,0,9.06-5.91,111.67,111.67,0,0,0,11.27-27.23A12,12,0,0,0,234,146.3Zm-24.12-4.89a70.1,70.1,0,0,1,0,8.2,12,12,0,0,0,2.61,8.22l12.84,16.05A86.47,86.47,0,0,1,207,166.86l-20.43,2.27a12,12,0,0,0-7.65,4,69,69,0,0,1-5.8,5.8,12,12,0,0,0-4,7.65L166.86,207a86.47,86.47,0,0,1-10.49,4.35l-16.05-12.85a12,12,0,0,0-7.5-2.62c-.24,0-.48,0-.72,0a70.1,70.1,0,0,1-8.2,0,12.06,12.06,0,0,0-8.22,2.6L99.63,211.33A86.47,86.47,0,0,1,89.14,207l-2.27-20.43a12,12,0,0,0-4-7.65,69,69,0,0,1-5.8-5.8,12,12,0,0,0-7.65-4L49,166.86a86.47,86.47,0,0,1-4.35-10.49l12.84-16.05a12,12,0,0,0,2.61-8.22,70.1,70.1,0,0,1,0-8.2,12,12,0,0,0-2.61-8.22L44.67,99.63A86.47,86.47,0,0,1,49,89.14l20.43-2.27a12,12,0,0,0,7.65-4,69,69,0,0,1,5.8-5.8,12,12,0,0,0,4-7.65L89.14,49a86.47,86.47,0,0,1,10.49-4.35l16.05,12.85a12.06,12.06,0,0,0,8.22,2.6,70.1,70.1,0,0,1,8.2,0,12,12,0,0,0,8.22-2.6l16.05-12.85A86.47,86.47,0,0,1,166.86,49l2.27,20.43a12,12,0,0,0,4,7.65,69,69,0,0,1,5.8,5.8,12,12,0,0,0,7.65,4L207,89.14a86.47,86.47,0,0,1,4.35,10.49l-12.84,16.05A12,12,0,0,0,195.88,123.9Z"/></svg>
       </button>
       <div id="sb-workspaces" class="sb-workspaces">
         <!-- "+N": how many spaces did not fit. Opens the same list the space
@@ -216,6 +216,7 @@
        instead of being covered. Never more than one at a time, and every one of
        them is dismissible — a notice you cannot get rid of is a nag. -->
   <div id="notice-bar" class="notice-bar hidden" role="status">
+      <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true" id="notice-icon"><path d="M128,20A108,108,0,1,0,236,128,108.12,108.12,0,0,0,128,20Zm0,192a84,84,0,1,1,84-84A84.09,84.09,0,0,1,128,212Zm40.49-84.49a12,12,0,0,1,0,17l-32,32a12,12,0,0,1-17,0l-32-32a12,12,0,1,1,17-17L116,139V88a12,12,0,0,1,24,0v51l11.51-11.52A12,12,0,0,1,168.49,127.51Z"/></svg>
     <span class="notice-text" id="notice-text"></span>
     <div class="notice-actions">
       <button class="btn btn-sm btn-primary" id="notice-primary" type="button"></button>
@@ -256,7 +257,7 @@
   <div id="text-prompt" class="cm-overlay hidden">
     <div class="ri-card" role="dialog" aria-labelledby="tp-title">
       <div class="ri-title" id="tp-title">Edit</div>
-      <input id="tp-input" class="ri-input" spellcheck="false">
+      <input id="tp-input" class="ri-input" spellcheck="false" aria-label="Value">
       <div class="ri-actions">
         <button id="tp-cancel" class="btn btn-ghost ri-btn" data-i18n="chrome.cancel">Cancel</button>
         <button id="tp-save" class="btn btn-primary ri-btn" data-i18n="chrome.save">Save</button>
@@ -268,7 +269,7 @@
       <div class="ri-title">Edit profile</div>
       <div class="prf-row">
         <button type="button" id="prf-emoji" class="prf-emoji" aria-label="Choose emoji" title="Choose emoji" data-i18n-label="chrome.chooseEmoji" data-i18n-title="chrome.chooseEmoji">🙂</button>
-        <input id="prf-input" class="ri-input" maxlength="24" placeholder="e.g. Work">
+        <input id="prf-input" class="ri-input" maxlength="24" aria-label="Space name" placeholder="e.g. Work…">
       </div>
       <div id="prf-emoji-picker" class="emoji-picker hidden" role="listbox" aria-label="Emoji"></div>
       <div class="prf-hint">Choose the dot to keep the avatar minimal.</div>

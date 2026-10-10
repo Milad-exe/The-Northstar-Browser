@@ -327,6 +327,10 @@ class Northstar {
             try { log.info('main', require('./features/build-info').label()); }
             catch (e) { log.debug('main', 'build-info', e); }
             this.windowManager.createWindow(800, 600, { profile: startProfile });
+            // The session kept for an update relaunch has been restored; back to
+            // the user's own startup setting from here on.
+            try { if (this.windowManager.persistence.get('restoreAfterUpdate')) this.windowManager.persistence.set('restoreAfterUpdate', false); }
+            catch (e) { log.warn('main', 'could not clear the update-restore flag', e); }
             // First launch: open Settings > Import & export once in a tab, the way
             // other browsers offer import — only if there is another browser.
             setTimeout(() => {

@@ -168,10 +168,10 @@ html[data-private-tab="true"] {
   --dur-1: 110ms;        /* hover / colour washes */
   --dur-2: 190ms;        /* toggles, small moves */
   --dur-3: 250ms;        /* favicon handoff, chip collapse, panel in */
-  --dur-4: 350ms;        /* chip expand, larger layout shifts */
+  --dur-4: 280ms;        /* chip expand, larger layout shifts (UI stays under 300ms) */
   --ease: cubic-bezier(0.2, 0, 0, 1);              /* M3 standard */
   --ease-decel: cubic-bezier(0.05, 0.7, 0.1, 1);   /* emphasized-decelerate: entering */
-  --ease-accel: cubic-bezier(0.3, 0, 0.8, 0.15);   /* emphasized-accelerate: leaving */
+  --ease-accel: cubic-bezier(0.3, 0, 1, 1);         /* standard-accelerate: leaving (exits only, never on-screen movement) */
   --ease-spin:  cubic-bezier(0.4, 0, 0.2, 1);      /* throbber arc (FAST_OUT_SLOW_IN) */
 
   /* Loading throbber (Chrome's constants) */

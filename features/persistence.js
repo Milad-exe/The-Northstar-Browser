@@ -80,6 +80,9 @@ const DEFAULTS = {
     newTabPage: { shortcuts: true, recent: true, tiles: [], hidden: [] },
     // Check for, download and install updates in the background (features/updates.js).
     autoUpdate: true,
+    // One-shot: the relaunch into an update keeps every tab (set by
+    // features/updates.js install(), cleared after the next launch restores).
+    restoreAfterUpdate: false,
 };
 class Persistence {
     dir; // ~/<userData>/northstar
@@ -198,7 +201,7 @@ class Persistence {
         this.save();
     }
     // Legacy API
-    getPersistMode() { this._reloadIfFailed(); return !!this.settings.persistAllTabs; }
+    getPersistMode() { this._reloadIfFailed(); return !!this.settings.persistAllTabs || !!this.settings.restoreAfterUpdate; }
     setPersistMode(enabled) { this._reloadIfFailed(); this.settings.persistAllTabs = !!enabled; this.save(); }
     // ── Tab State ─────────────────────────────────────────────────────────────
     hasState() {

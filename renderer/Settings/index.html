@@ -82,15 +82,15 @@
               <div class="row-label" data-i18n="settings.defaultEngine">Default search engine</div>
               <div class="row-desc" data-i18n="settings.defaultEngineDesc">Used in the address bar for search queries</div>
             </div>
-            <select id="search-engine"></select>
+            <select id="search-engine" aria-label="Default search engine"></select>
           </div>
           <!-- Any engine can carry a keyword: type it, a space, then the query
                ("w electron") to search that engine just for this once. -->
           <div class="engine-list" id="engine-list"></div>
           <div class="engine-add">
-            <input id="engine-name" class="text-input" placeholder="Name" maxlength="40">
-            <input id="engine-keyword" class="text-input kw" placeholder="Keyword" maxlength="12">
-            <input id="engine-url" class="text-input url" placeholder="https://example.com/?q=%s">
+            <input id="engine-name" class="text-input" placeholder="Name" aria-label="Engine name" maxlength="40" autocomplete="off">
+            <input id="engine-keyword" class="text-input kw" placeholder="Keyword" aria-label="Keyword" maxlength="12" autocomplete="off" spellcheck="false">
+            <input id="engine-url" type="url" inputmode="url" class="text-input url" placeholder="https://example.com/?q=%s" aria-label="Search URL, with %s for the query" autocomplete="off" spellcheck="false">
             <button class="btn" id="engine-save">Add engine</button>
           </div>
           <div class="card-desc engine-hint">Use <code>%s</code> where the query goes. A keyword lets you search this engine from the address bar without switching default.</div>
@@ -119,7 +119,7 @@
           <div class="cbd-range-row" style="margin-top:14px">
             <span class="row-label">Sleep tabs after</span>
             <div class="num-input-wrap">
-              <input type="number" id="tabsleep-mins" min="5" max="480" step="5">
+              <input type="number" id="tabsleep-mins" min="5" max="480" step="5" aria-label="Sleep tabs after, in minutes">
               <span class="unit">min</span>
             </div>
           </div>
@@ -151,7 +151,7 @@
               <div class="row-label" data-i18n="settings.interfaceLanguage">Interface language</div>
               <div class="row-desc" data-i18n="settings.interfaceLanguageDesc">The browser's own menus and pages. Web pages are unaffected.</div>
             </div>
-            <select id="language-select"></select>
+            <select id="language-select" aria-label="Interface language"></select>
           </div>
           <div class="card-desc" id="language-note"></div>
         </div>
@@ -179,7 +179,7 @@
               <div class="row-desc" data-i18n="spell.dictionaryDesc">Words you added are never marked as misspelled.</div>
             </div>
             <form class="spell-add-word" id="spell-add-word">
-              <input type="text" class="text-input" id="spell-word" placeholder="Add a word" data-i18n-placeholder="spell.addWordPlaceholder" spellcheck="false" autocomplete="off">
+              <input type="text" class="text-input" id="spell-word" aria-label="Word to add to the dictionary" placeholder="Add a word" data-i18n-placeholder="spell.addWordPlaceholder" spellcheck="false" autocomplete="off">
               <button class="btn" type="submit" data-i18n="spell.add">Add</button>
             </form>
           </div>
@@ -188,7 +188,7 @@
 
         <div class="card">
           <div class="card-title" data-i18n="settings.theme">Theme</div>
-          <div class="card-desc" data-i18n="settings.themeDesc">Choose a color palette for the browser</div>
+          <div class="card-desc" data-i18n="settings.themeDesc">The colors of this window's space. Each space can have its own; edit another space's from its menu in the sidebar.</div>
 
           <!-- Theme editor.
 
@@ -480,7 +480,7 @@
 
           <div class="cbd-range-row">
             <span class="row-label">Time range</span>
-            <select id="cbd-range" class="cbd-range">
+            <select id="cbd-range" class="cbd-range" aria-label="Time range">
               <option value="hour">Last hour</option>
               <option value="day">Last 24 hours</option>
               <option value="week">Last 7 days</option>
@@ -526,7 +526,7 @@
             <button class="btn" id="btn-ext-store">Open store</button>
           </div>
           <div class="ext-id-row">
-            <input type="text" id="ext-id-input" class="ext-id-input" placeholder="Store link or 32-character extension ID">
+            <input type="text" id="ext-id-input" class="ext-id-input" aria-label="Extension store link or ID" spellcheck="false" autocomplete="off" placeholder="Store link or 32-character extension ID">
             <button class="btn" id="btn-ext-install-id">Install</button>
           </div>
         </div>
@@ -566,7 +566,7 @@
               <div class="row-label" data-i18n="settings.keepHistory">Keep history for</div>
               <div class="row-desc" data-i18n="settings.keepHistoryDesc">Older visits are discarded.</div>
             </div>
-            <select id="history-days">
+            <select id="history-days" aria-label="Keep history for">
               <option value="7">7 days</option>
               <option value="30">30 days</option>
               <option value="90">90 days</option>
@@ -735,7 +735,7 @@
     </main>
   </div>
 
-  <div class="toast" id="toast"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <!-- The theme instrument is shared with the sidebar's popup; it registers
        Northstar.themeEditor and must load BEFORE the page script that mounts it. -->
   <script src="../lib/theme-editor.js"></script>

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none';" />
-  <title>New Tab</title>
+  <title>New tab</title>
   <link rel="stylesheet" href="../styles/ui.css">
   <link rel="stylesheet" href="../styles/page.css">
   <link rel="stylesheet" href="styles.css">
@@ -45,8 +45,8 @@
     <form id="tile-form" method="dialog" autocomplete="off">
       <h2 id="tile-title" class="ntp-dialog-title">Add shortcut</h2>
       <label class="ntp-field"><span data-i18n="ntp.name">Name</span><input id="tile-name" type="text" spellcheck="false" /></label>
-      <label class="ntp-field"><span data-i18n="ntp.url">URL</span><input id="tile-url" type="text" spellcheck="false" placeholder="example.com" /></label>
-      <p id="tile-err" class="ntp-err" data-i18n="ntp.badUrl" hidden>Enter a web address, like example.com</p>
+      <label class="ntp-field"><span data-i18n="ntp.url">URL</span><input id="tile-url" type="url" inputmode="url" spellcheck="false" placeholder="example.com" /></label>
+      <p id="tile-err" class="ntp-err" data-i18n="ntp.badUrl" role="alert" hidden>Enter a web address, like example.com</p>
       <div class="ntp-dialog-actions">
         <button id="tile-cancel" type="button" class="ntp-btn" data-i18n="ntp.cancel">Cancel</button>
         <button type="submit" class="ntp-btn is-primary" data-i18n="ntp.save">Save</button>

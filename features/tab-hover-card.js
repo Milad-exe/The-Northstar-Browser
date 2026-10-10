@@ -217,6 +217,8 @@ async function show(wd, data) {
             return;
         view.setBounds(place(wd, data.rect, size, !!data.side));
         const wasOpen = wd.hoverCardOpen;
+        // Back within the fade-out: cancel the pending hide.
+        if (wd.hoverCardCancelHide) { wd.hoverCardCancelHide(); wd.hoverCardCancelHide = null; }
         if (!wasOpen) {
             // Raise above the page views (they are re-added on tab switches).
             try {
@@ -239,7 +241,7 @@ function hide(wd) {
     if (!wd.hoverCard || !wd.hoverCardOpen)
         return;
     wd.hoverCardOpen = false;
-    playOutThenHide(wd.hoverCard);
+    wd.hoverCardCancelHide = playOutThenHide(wd.hoverCard, () => { wd.hoverCardCancelHide = null; });
 }
 
 module.exports = { show, hide, place, captureOnBackground, saveThumbs };

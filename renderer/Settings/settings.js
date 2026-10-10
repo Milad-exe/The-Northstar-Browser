@@ -116,6 +116,7 @@
                 del.className = 'del';
                 del.innerHTML = '<svg width="12" height="12" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208.49,191.51a12,12,0,0,1-17,17L128,145,64.49,208.49a12,12,0,0,1-17-17L111,128,47.51,64.49a12,12,0,0,1,17-17L128,111l63.51-63.52a12,12,0,0,1,17,17L145,128Z"/></svg>';
                 del.title = e.builtIn ? 'Built-in engines cannot be removed' : `Remove ${e.name}`;
+                del.setAttribute('aria-label', del.title);
                 del.disabled = !!e.builtIn;
                 del.addEventListener('click', async () => {
                     await window.northstarEngines.remove(e.id);
@@ -597,6 +598,7 @@
                 icon.className = 'ext-icon';
                 if (ext.icon) {
                     const img = document.createElement('img');
+                    img.alt = '';
                     img.src = ext.icon;
                     img.onerror = () => { icon.textContent = (ext.name || '?').charAt(0).toUpperCase(); };
                     icon.appendChild(img);
@@ -1000,7 +1002,7 @@
             show(checkBtn, s.status !== 'ready');
             checkBtn.disabled = s.status === 'checking' || s.status === 'downloading';
             show(progress, s.status === 'downloading');
-            if (progressBar) progressBar.style.width = (s.percent || 0) + '%';
+            if (progressBar) progressBar.style.transform = `scaleX(${(s.percent || 0) / 100})`;
             updateDetail.textContent = DEFAULT_DETAIL;
             switch (s.status) {
                 case 'checking': updateState.textContent = 'Checking for updates…'; break;

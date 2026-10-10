@@ -50,6 +50,8 @@
             items.forEach((item, idx) => {
                 const el = document.createElement('div');
                 el.className = 'item' + (idx === activeIndex ? ' active' : '');
+                el.setAttribute('role', 'option');
+                el.setAttribute('aria-selected', String(idx === activeIndex));
                 const search = isSearchType(item.type);
                 // ── Icon ──────────────────────────────────────────────────────────────
                 const icon = document.createElement('img');

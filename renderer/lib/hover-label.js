@@ -141,6 +141,8 @@
         // or one hid moments ago: follow at once. Otherwise wait the delay.
         const showing = label && !label.hidden;
         const wait = (showing || Date.now() - lastHidden < GRACE_MS) ? 0 : delayMs();
+        // Following along the toolbar: no delay AND no fade-in.
+        if (label) label.classList.toggle('instant', wait === 0);
         timer = setTimeout(() => { if (current === el && el.isConnected) render(el); }, wait);
     }
 

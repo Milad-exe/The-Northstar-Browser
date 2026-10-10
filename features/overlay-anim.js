@@ -17,8 +17,11 @@ function signalEnter(view) {
     catch (e) { log.debug('overlay-anim', 'signalEnter', e); }
 }
 
+/* Returns cancel(): a panel re-shown while its fade-out is still running must
+   stop the pending hide, or the late setVisible(false) hides the new one. */
 function playOutThenHide(view, onHidden) {
     let done = false;
+    let fallback = null;
     const hide = () => {
         if (done) return;
         done = true;
@@ -37,7 +40,13 @@ function playOutThenHide(view, onHidden) {
         hide();
         return;
     }
-    setTimeout(hide, HIDE_FALLBACK_MS);
+    fallback = setTimeout(hide, HIDE_FALLBACK_MS);
+    return () => {
+        done = true;
+        clearTimeout(fallback);
+        try { view.webContents.ipc.removeAllListeners('overlay:leave-done'); }
+        catch (e) { log.debug('overlay-anim', 'cancel', e); }
+    };
 }
 
 module.exports = { signalEnter, playOutThenHide };

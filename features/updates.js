@@ -216,6 +216,10 @@ function install() {
     if (state.status !== 'ready' || !updater)
         return false;
     log.info('updates', `relaunching to install ${state.latest}`);
+    // Every tab comes back after the relaunch, whatever the startup setting —
+    // an update should not cost you your session. Cleared once restored (main.js).
+    try { wm?.persistence?.set('restoreAfterUpdate', true); }
+    catch (e) { log.warn('updates', 'could not keep the session for the relaunch', e); }
     // Let the session be saved by the normal quit path first.
     setImmediate(() => {
         try { updater.quitAndInstall(true, true); }

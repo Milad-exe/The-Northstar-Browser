@@ -56,7 +56,7 @@ body {
 .fill {
   position: absolute; inset: 0 auto 0 0; width: 0%;
   background: color-mix(in srgb, var(--text) 12%, transparent);
-  transition: width 0.4s linear;
+  transition: width var(--dur-3) linear;
 }
 .t-el, .t-rem {
   position: absolute; top: 50%; transform: translateY(-50%);

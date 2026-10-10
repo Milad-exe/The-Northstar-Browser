@@ -769,12 +769,12 @@
             if (canvas && !canvas.parentNode.querySelector('.te-caption')) {
                 const cap = document.createElement('p');
                 cap.className = 'te-caption';
-                cap.textContent = 'Drag to pick the ground colour';
+                cap.textContent = 'Drag to pick the background color';
                 canvas.insertAdjacentElement('afterend', cap);
                 const hint = document.createElement('div');
                 hint.className = 'te-hint';
                 hint.setAttribute('aria-hidden', 'true');
-                hint.textContent = 'Drag a dot to move its colour';
+                hint.textContent = 'Drag a dot to move its color';
                 canvas.appendChild(hint);
                 const done = () => { hint.classList.add('gone'); canvas.removeEventListener('pointerdown', done); };
                 canvas.addEventListener('pointerdown', done);

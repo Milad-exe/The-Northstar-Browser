@@ -274,6 +274,7 @@
                 return;
             noticeCurrent = n;
             noticeText.textContent = n.text;
+            noticeBar.classList.toggle('has-icon', !!n.icon);
             const hasAction = !!(n.action && typeof n.onAction === 'function');
             noticePrimary.textContent = n.action || '';
             noticePrimary.hidden = !hasAction;
@@ -333,7 +334,8 @@
             if (ready && updateNoticeShown !== s.latest) {
                 updateNoticeShown = s.latest;
                 showNotice({
-                    text: T_NOTICE('notice.updateReady', 'Northstar {v} is ready to install.').replace('{v}', s.latest || ''),
+                    icon: true,
+                    text: T_NOTICE('notice.updateReady', 'Northstar {v} is ready to install. Your tabs reopen after the relaunch.').replace('{v}', s.latest || ''),
                     action: T_NOTICE('notice.relaunch', 'Relaunch'),
                     onAction: () => window.electronAPI.installUpdate?.(),
                 });
@@ -1898,10 +1900,25 @@
             });
             // A new-tab page has no favicon of its own; the row shows the app's
             // mark instead of an empty icon column (as a native browser does).
+            const INTERNAL_ICONS = { settings: "<svg viewBox=\"0 0 256 256\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M128,76a52,52,0,1,0,52,52A52.06,52.06,0,0,0,128,76Zm0,80a28,28,0,1,1,28-28A28,28,0,0,1,128,156Zm92-27.21v-1.58l14-17.51a12,12,0,0,0,2.23-10.59A111.75,111.75,0,0,0,225,71.89,12,12,0,0,0,215.89,66L193.61,63.5l-1.11-1.11L190,40.1A12,12,0,0,0,184.11,31a111.67,111.67,0,0,0-27.23-11.27A12,12,0,0,0,146.3,22L128.79,36h-1.58L109.7,22a12,12,0,0,0-10.59-2.23A111.75,111.75,0,0,0,71.89,31.05,12,12,0,0,0,66,40.11L63.5,62.39,62.39,63.5,40.1,66A12,12,0,0,0,31,71.89,111.67,111.67,0,0,0,19.77,99.12,12,12,0,0,0,22,109.7l14,17.51v1.58L22,146.3a12,12,0,0,0-2.23,10.59,111.75,111.75,0,0,0,11.29,27.22A12,12,0,0,0,40.11,190l22.28,2.48,1.11,1.11L66,215.9A12,12,0,0,0,71.89,225a111.67,111.67,0,0,0,27.23,11.27A12,12,0,0,0,109.7,234l17.51-14h1.58l17.51,14a12,12,0,0,0,10.59,2.23A111.75,111.75,0,0,0,184.11,225a12,12,0,0,0,5.91-9.06l2.48-22.28,1.11-1.11L215.9,190a12,12,0,0,0,9.06-5.91,111.67,111.67,0,0,0,11.27-27.23A12,12,0,0,0,234,146.3Zm-24.12-4.89a70.1,70.1,0,0,1,0,8.2,12,12,0,0,0,2.61,8.22l12.84,16.05A86.47,86.47,0,0,1,207,166.86l-20.43,2.27a12,12,0,0,0-7.65,4,69,69,0,0,1-5.8,5.8,12,12,0,0,0-4,7.65L166.86,207a86.47,86.47,0,0,1-10.49,4.35l-16.05-12.85a12,12,0,0,0-7.5-2.62c-.24,0-.48,0-.72,0a70.1,70.1,0,0,1-8.2,0,12.06,12.06,0,0,0-8.22,2.6L99.63,211.33A86.47,86.47,0,0,1,89.14,207l-2.27-20.43a12,12,0,0,0-4-7.65,69,69,0,0,1-5.8-5.8,12,12,0,0,0-7.65-4L49,166.86a86.47,86.47,0,0,1-4.35-10.49l12.84-16.05a12,12,0,0,0,2.61-8.22,70.1,70.1,0,0,1,0-8.2,12,12,0,0,0-2.61-8.22L44.67,99.63A86.47,86.47,0,0,1,49,89.14l20.43-2.27a12,12,0,0,0,7.65-4,69,69,0,0,1,5.8-5.8,12,12,0,0,0,4-7.65L89.14,49a86.47,86.47,0,0,1,10.49-4.35l16.05,12.85a12.06,12.06,0,0,0,8.22,2.6,70.1,70.1,0,0,1,8.2,0,12,12,0,0,0,8.22-2.6l16.05-12.85A86.47,86.47,0,0,1,166.86,49l2.27,20.43a12,12,0,0,0,4,7.65,69,69,0,0,1,5.8,5.8,12,12,0,0,0,7.65,4L207,89.14a86.47,86.47,0,0,1,4.35,10.49l-12.84,16.05A12,12,0,0,0,195.88,123.9Z\"/></svg>", history: "<svg viewBox=\"0 0 256 256\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M140,80v41.21l34.17,20.5a12,12,0,1,1-12.34,20.58l-40-24A12,12,0,0,1,116,128V80a12,12,0,0,1,24,0ZM128,28A99.38,99.38,0,0,0,57.24,57.34c-4.69,4.74-9,9.37-13.24,14V64a12,12,0,0,0-24,0v40a12,12,0,0,0,12,12H72a12,12,0,0,0,0-24H57.77C63,86,68.37,80.22,74.26,74.26a76,76,0,1,1,1.58,109,12,12,0,0,0-16.48,17.46A100,100,0,1,0,128,28Z\"/></svg>", bookmarks: "<svg viewBox=\"0 0 256 256\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M184,28H72A20,20,0,0,0,52,48V224a12,12,0,0,0,18.36,10.18l57.63-36,57.65,36A12,12,0,0,0,204,224V48A20,20,0,0,0,184,28Zm-4,174.35-45.65-28.53a12,12,0,0,0-12.72,0L76,202.35V52H180Z\"/></svg>" };
             const markHomeTab = (index, url) => {
                 const btn = tabs.get(index);
-                if (btn)
-                    btn.dataset.home = (url === 'home' || url === 'newtab') ? '1' : '';
+                if (!btn)
+                    return;
+                btn.dataset.home = (url === 'home' || url === 'newtab') ? '1' : '';
+                /* Settings, History and Bookmarks are pages with no favicon of
+                   their own; their tab showed an empty icon column. Give each
+                   its glyph (a page's own favicon arriving later replaces it). */
+                const page = String(url || '').split('/')[0];
+                if (INTERNAL_ICONS[page]) {
+                    const el = document.createElement('div');
+                    el.className = 'tab-favicon internal';
+                    el.innerHTML = INTERNAL_ICONS[page];
+                    const cur = btn.querySelector('.tab-favicon');
+                    if (cur) cur.replaceWith(el);
+                    else btn.insertBefore(el, btn.firstChild);
+                    btn.classList.add('has-favicon');
+                }
             };
             window.tab.onTabSwitched((_e, data) => {
                 activeTabIndex = data.index;
@@ -1914,7 +1931,7 @@
                 updateSearchBarUrl(data.url || '');
                 currentTabUrl = data.url || '';
                 updateBookmarkBtn(currentTabUrl);
-                tabs.get(data.index)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+                tabs.get(data.index)?.scrollIntoView({ behavior: SMOOTH(), block: 'nearest', inline: 'nearest' });
                 updateScrollShadows();
                 // Show per-tab private indicator on address bar (only in non-private windows)
                 if (!isPrivateWindow) {
@@ -2102,7 +2119,7 @@
             const tabScrollLeft = document.getElementById('tab-scroll-left');
             const tabScrollRight = document.getElementById('tab-scroll-right');
             let scrollInterval = null;
-            const scrollBy = (amt) => tabsContainer.scrollBy({ left: amt, behavior: 'smooth' });
+            const scrollBy = (amt) => tabsContainer.scrollBy({ left: amt, behavior: SMOOTH() });
             const startScroll = (amt) => { scrollBy(amt); scrollInterval = setInterval(() => scrollBy(amt), 200); };
             const stopScroll = () => { clearInterval(scrollInterval); scrollInterval = null; };
             tabScrollLeft.addEventListener('mousedown', () => startScroll(-160));
@@ -2112,7 +2129,7 @@
             document.addEventListener('mouseup', stopScroll);
             tabsContainer.addEventListener('wheel', (e) => {
                 e.preventDefault();
-                tabsContainer.scrollBy({ left: e.deltaY !== 0 ? e.deltaY : e.deltaX, behavior: 'smooth' });
+                tabsContainer.scrollBy({ left: e.deltaY !== 0 ? e.deltaY : e.deltaX, behavior: SMOOTH() });
             }, { passive: false });
             tabsContainer.addEventListener('scroll', updateScrollShadows);
             // Right-click the empty part of the tab list → a custom menu.
@@ -2745,8 +2762,11 @@
                         badge.textContent = cur.emoji || (cur.name || 'P').charAt(0);
                         badge.style.setProperty('--pf-color', cur.color || '');
                     }
-                    if (btn)
-                        btn.title = `Workspace: ${cur.name}`;
+                    if (btn) {
+                        btn.title = `Space: ${cur.name}`;
+                        const nm = document.getElementById('profile-name');
+                        if (nm) nm.textContent = cur.name || '';
+                    }
                     const sh = document.getElementById('space-header');
                     if (sh) {
                         const nameEl = document.getElementById('space-name');
@@ -2790,6 +2810,12 @@
                         if (p.emoji)
                             av.textContent = p.emoji;
                         b.appendChild(av);
+                        const nm = document.createElement('span');
+                        nm.className = 'sb-ws-name';
+                        nm.textContent = p.name || '';
+                        b.appendChild(nm);
+                        b.setAttribute('aria-label', p.name || 'Space');
+                        if (p.id === activeWorkspace) b.setAttribute('aria-current', 'true');
                         b.addEventListener('click', () => { if (p.id !== activeWorkspace) window.profiles.switch(p.id); });
                         b.addEventListener('dblclick', (e) => { e.preventDefault(); openProfileModal(p.id); });
                         b.addEventListener('contextmenu', (e) => {
@@ -3174,14 +3200,14 @@
                     ? ['Remove from Essentials', async () => {
                         const url = await tabUrl();
                         if (/^https?:/i.test(url || '')) window.essentials.remove(url, null);
-                    }, '', { glyph: 'star' }]
+                    }, '', { glyph: 'essential' }]
                     : [isPinned ? 'Move to Essentials' : 'Add to Essentials', async () => {
                         const url = await tabUrl();
                         const title = btn.querySelector('.tab-title')?.textContent || '';
                         if (!/^https?:/i.test(url || '')) return;
                         const ok = await window.essentials.add(url, title, null);
                         if (ok && isPinned) window.tab.pin(idx);
-                    }, '', { glyph: 'star' }];
+                    }, '', { glyph: 'essential' }];
                 const rows = [
                     [T('chrome.newTab', 'New tab'), () => window.tab.newPage(), '', { accelerator: 'CmdOrCtrl+T', glyph: 'plus' }],
                     ['sep'],
@@ -3528,8 +3554,7 @@
             const size = side ? btn.offsetHeight : btn.offsetWidth;
             btn.style[prop] = size + 'px';
             btn.style.transition =
-                `${prop} var(--dur-2) var(--ease-accel), opacity var(--dur-2) var(--ease-accel), ` +
-                `margin var(--dur-2) var(--ease-accel), padding var(--dur-2) var(--ease-accel)`;
+                `${prop} var(--dur-2) var(--ease), opacity var(--dur-2) var(--ease)`;
             void btn.offsetWidth; // flush the start size before animating to 0
             requestAnimationFrame(() => {
                 btn.style[prop] = '0px';
@@ -3667,7 +3692,7 @@
                     startFolderRename(h, f.id);
                 }
             });
-            h.innerHTML = '<span class="folder-icon">📁</span><span class="folder-name"></span><span class="folder-count" aria-hidden="true"></span><button class="folder-del" title="Delete folder" aria-label="Delete folder"><svg width="12" height="12" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208.49,191.51a12,12,0,0,1-17,17L128,145,64.49,208.49a12,12,0,0,1-17-17L111,128,47.51,64.49a12,12,0,0,1,17-17L128,111l63.51-63.52a12,12,0,0,1,17,17L145,128Z"/></svg></button>';
+            h.innerHTML = '<span class="folder-icon">📁</span><span class="folder-name"></span><span class="folder-count" aria-hidden="true"></span><button class="folder-del" title="Ungroup (keeps the tabs)" aria-label="Ungroup folder, keeping its tabs"><svg width="12" height="12" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208.49,191.51a12,12,0,0,1-17,17L128,145,64.49,208.49a12,12,0,0,1-17-17L111,128,47.51,64.49a12,12,0,0,1,17-17L128,111l63.51-63.52a12,12,0,0,1,17,17L145,128Z"/></svg></button>';
             h.addEventListener('click', (e) => {
                 if (h.classList.contains('renaming') || e.target.closest('.folder-del')) return;
                 if (h.dataset.suppressClick) return; // a drag just ended here
@@ -3926,12 +3951,15 @@
                 }],
                 ['sep'],
                 ...(spaceRows.length ? [['Change space', spaceRows], ['sep']] : []),
-                ['Unpack folder', () => window.folders.remove(id)],
-                ['Delete folder', () => {
-                    const members = [...folderState.assign.entries()].filter(([, fid]) => fid === id).map(([i]) => i);
-                    for (const i of members) { try { window.tab.remove(i); } catch (e) { window.northstarLog?.debug('renderer', 'spaceRows: ' + e); } }
-                    window.folders.remove(id);
-                }, 'danger'],
+                ['Ungroup (keep tabs)', () => window.folders.remove(id)],
+                ['Delete folder', [
+                    // Closes every tab in it, so it asks, one level in.
+                    [`Close ${[...folderState.assign.values()].filter(fid => fid === id).length} tabs and delete`, () => {
+                        const members = [...folderState.assign.entries()].filter(([, fid]) => fid === id).map(([i]) => i);
+                        for (const i of members) { try { window.tab.remove(i); } catch (e) { window.northstarLog?.debug('renderer', 'delete folder: ' + e); } }
+                        window.folders.remove(id);
+                    }, 'danger'],
+                ]],
             ]);
         }
         // Shared by the tab-list menu and the foot "+" — a function declaration so
@@ -4185,6 +4213,11 @@
         /* ✕, middle-click and Delete mean one thing on every kind of tab: close
            the page. A pinned tab keeps its pin (its row goes back to its home
            and unloads); an Essential keeps its tile; anything else closes. */
+        // Smooth scrolling only when motion is welcome (JS 'smooth' ignores the
+        // reduced-motion CSS override).
+        function SMOOTH() {
+            return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+        }
         function closeTabPage(btn, index) {
             if (btn?.classList.contains('pinned')) window.tab.closePinnedPage(index);
             else window.tab.remove(index);

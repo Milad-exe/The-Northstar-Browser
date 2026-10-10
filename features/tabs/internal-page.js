@@ -21,7 +21,7 @@ const INTERNAL_PAGES = {
     // The new-tab page (P2 pivot: replaces the Palette). Token is `home`, NOT
     // `newtab` — that string is the long-standing blank-tab sentinel and giving
     // it a page here would change blank-tab behaviour everywhere at once.
-    home: { file: 'renderer/NewTab/index.html', title: 'New Tab' },
+    home: { file: 'renderer/NewTab/index.html', title: 'New tab' },
 };
 const SETTINGS_SECTIONS = ['general', 'appearance', 'focus', 'privacy', 'passwords', 'extensions', 'data', 'import', 'about'];
 
