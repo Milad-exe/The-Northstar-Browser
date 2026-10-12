@@ -19,8 +19,8 @@
    rows were rendering in the UA's Arial while the field used the UI face. */
 .ntp button, .ntp input { font-family: inherit; }
 /* The app's mark above the field, as a browser's home page carries its own:
-   the Aurora globe, in its own colours (renderer/assets/logo.svg). The SVG
-   includes its glow, so the box is a little larger than the globe itself. */
+   the globe sticker, in its own ink and paper (renderer/assets/logo.svg). The
+   SVG includes its shadow, so the box is a little larger than the globe. */
 .ntp-wrap::before {
   content: ''; align-self: center; width: 80px; height: 80px;
   margin-bottom: calc(var(--sp-7, 48px) * -0.5);

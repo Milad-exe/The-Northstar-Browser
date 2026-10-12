@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="logo.png" width="104" alt="Northstar logo: a globe with an aurora over its pole">
+<img src="logo.png" width="104" alt="Northstar logo: a globe sticker with the north star on its rim">
 
 # Northstar
 

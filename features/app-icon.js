@@ -4,21 +4,22 @@
  * ONE mark, ONE palette, everywhere. An app icon is how the app is recognised
  * in a dock, a switcher and a search result, so it never follows the theme.
  *
- * The mark is "Aurora": the Earth tipped toward its north pole, northern lights
- * circling the pole, a white polar cap. Its source is renderer/assets/logo.svg;
- * the binaries (logo.png, logo-win.png, icons/icon.{png,ico,icns},
- * renderer/assets/icon.png) are rendered from that design, the small .ico
- * sizes from a simplified globe without continents. This module only hands
- * the right file to the right platform API.
+ * The mark is "the tilted globe": a paper globe sticker drawn in heavy ink,
+ * tipped 23.5 degrees like the Earth so its north pole points at the north
+ * star on its rim (the Earth's axis points at Polaris). No tile. Its source is
+ * renderer/assets/logo.svg; the binaries (logo.png, logo-win.png,
+ * icons/icon.{png,ico,icns}, renderer/assets/icon.png) are rendered from that
+ * design, the 16-32 px .ico sizes with thicker ink and a bigger star. This
+ * module only hands the right file to the right platform API.
  */
 const { app, nativeImage } = require('electron');
 const { resolveAppFile } = require('../app-paths');
 const log = require('./log');
 
-/* The mark's two anchor colours (ocean, polar cap), kept for anything that
-   wants to match the icon. Nothing reads them to draw the icon itself. */
-const FIELD = '#162c76';
-const MARK = '#f4fbff';
+/* The mark's two colours (ink, paper), kept for anything that wants to match
+   the icon. Nothing reads them to draw the icon itself. */
+const FIELD = '#0e0e10';
+const MARK = '#f4f3ef';
 
 let cached = null;
 
