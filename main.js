@@ -110,7 +110,10 @@ if (process.platform === 'darwin')
 // Google" silently does nothing. Turning FedCM off makes GSI fall back to the
 // popup OAuth flow, which we DO support (window.open popups open a real window
 // with window.opener intact — see tabs.js setWindowOpenHandler).
-app.commandLine.appendSwitch('disable-features', 'FedCm');
+// Media Router is Chromium's Cast/DIAL discovery: it probes the LAN over
+// mDNS/SSDP at startup, which on macOS 15+ raises the "find devices on local
+// networks" prompt for a feature we do not have.
+app.commandLine.appendSwitch('disable-features', 'FedCm,MediaRouter,DialMediaRouteProvider,CastMediaRouteProvider,GlobalMediaControlsCastStartStop');
 app.userAgentFallback = UserAgent.generate();
 // ── Imports ──────────────────────────────────────────────────────────────────
 const WindowManager = require('./features/window-manager');
