@@ -108,6 +108,45 @@ module.exports = {
             this.sendNavigationUpdate(index);
         }
     },
+    /**
+     * Middle-click (or Ctrl+click) on Back/Forward: open that entry in a new
+     * background tab right after this one, the way other browsers do — with a
+     * COPY of this tab's history, standing on that entry, so the new tab's own
+     * Back and Forward lead where this one's would. `which` is 'back',
+     * 'forward' or a history index. This tab does not move.
+     */
+    openHistoryInNewTab(index, which) {
+        if (!this.tabMap.has(index))
+            return null;
+        const h = this.navigationHistory.getHistory(index);
+        if (!h || !Array.isArray(h.entries) || !h.entries.length)
+            return null;
+        const pos = h.entries.findIndex(e => e.index === h.currentIndex);
+        const at = which === 'back' ? pos - 1
+            : which === 'forward' ? pos + 1
+                : h.entries.findIndex(e => e.index === Number(which));
+        const target = h.entries[at];
+        // The blank-tab root is not a place (canGoBack refuses it too).
+        if (pos < 0 || !target || !target.data || target.data === 'newtab')
+            return null;
+        const container = this.tabContainers.get(index) || null;
+        const idx = this.createTab(index, false, this.privateTabs.has(index), container);
+        this.navigationHistory.restoreTab(idx, h.entries.map(e => ({ url: e.data, title: e.title })), at);
+        const tab = this.tabMap.get(idx);
+        // A web page loads the ordinary way (its own navigation events record
+        // the address; the tree already stands on it, so nothing is added). An
+        // internal entry needs the history loader.
+        if (/^(https?|file):/i.test(target.data))
+            this.loadUrl(idx, target.data);
+        else
+            loadHistoryEntry(this, idx, tab, target.data);
+        if (target.title) {
+            tab.lazyTitle = target.title;
+            this.sendTabUpdate(idx, tab, target.data, target.title);
+        }
+        this.sendNavigationUpdate(idx);
+        return idx;
+    },
     // Jump straight to a history entry (back/forward long-press dropdown)
     goToHistoryIndex(index, historyIndex) {
         if (!this.tabMap.has(index))

@@ -627,8 +627,8 @@
         // Navigation buttons (back / forward / reload)
         // ─────────────────────────────────────────────────────────────────────────
         function initNavButtons() {
-            setupNavButton(backBtn, () => window.tab.goBack(activeTabIndex));
-            setupNavButton(forwardBtn, () => window.tab.goForward(activeTabIndex));
+            setupNavButton(backBtn, () => window.tab.goBack(activeTabIndex), 'back');
+            setupNavButton(forwardBtn, () => window.tab.goForward(activeTabIndex), 'forward');
             reloadBtn.addEventListener('click', () => {
                 if (tabLoading.has(activeTabIndex))
                     window.tab.stop(activeTabIndex);
@@ -678,9 +678,19 @@
             try { btn?.blur(); }
             catch (e) { window.northstarLog?.debug('renderer', 'releaseFocusToPage: ' + e); }
         }
-        function setupNavButton(btn, action) {
+        function setupNavButton(btn, action, which) {
             let pressTimer = null;
             let menuShown = false;
+            /* Middle-click — or Ctrl/Cmd+click — opens that page in a new tab
+               behind this one, carrying this tab's history, as in other
+               browsers. Stops the middle button's autoscroll from arming. */
+            const openInNewTab = () => { if (!btn.disabled) window.tab.openHistoryInNewTab(activeTabIndex, which); };
+            btn.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); });
+            btn.addEventListener('auxclick', (e) => {
+                if (e.button !== 1) return;
+                e.preventDefault();
+                openInNewTab();
+            });
             const showHistoryMenu = () => {
                 const r = btn.getBoundingClientRect();
                 window.tab.showNavHistoryMenu(activeTabIndex, Math.round(r.left), Math.round(r.bottom + 2));
@@ -694,11 +704,15 @@
             });
             btn.addEventListener('mouseup', () => clearTimeout(pressTimer));
             btn.addEventListener('mouseleave', () => clearTimeout(pressTimer));
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', (e) => {
                 if (menuShown) {
                     menuShown = false;
                     return;
                 } // long-press already handled
+                if (e.ctrlKey || e.metaKey) {
+                    openInNewTab();
+                    return;
+                }
                 action();
                 // Clicking a toolbar button focuses it. Every browser hands the
                 // keyboard back to the page afterwards; without this, the next

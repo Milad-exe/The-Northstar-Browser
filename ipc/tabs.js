@@ -911,6 +911,12 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
     });
     // Long-press / right-click on back-forward buttons: show the tab's full
     // navigation stack (newest first, current entry checked) as a native menu.
+    // Middle-click / Ctrl+click on Back or Forward: that page, in a new tab.
+    ipcMain.handle('tab:openHistoryInNewTab', (_e, index, which) => {
+        const wd = wm.getWindowByWebContents(_e.sender);
+        if (!wd?.tabs) return null;
+        return wd.tabs.openHistoryInNewTab(Number(index), which === 'back' || which === 'forward' ? which : Number(which));
+    });
     ipcMain.handle('show-nav-history-menu', (_e, index, x, y) => {
         const wd = wm.getWindowByWebContents(_e.sender);
         if (!wd?.tabs)

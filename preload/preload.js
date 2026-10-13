@@ -228,6 +228,8 @@ exposeInternal("tab", {
     goBack: (index) => ipcRenderer.invoke("goBack", index),
     goForward: (index) => ipcRenderer.invoke("goForward", index),
     showNavHistoryMenu: (index, x, y) => ipcRenderer.invoke("show-nav-history-menu", index, x, y),
+    // which: 'back' | 'forward' | a history index → that entry in a new tab.
+    openHistoryInNewTab: (index, which) => ipcRenderer.invoke('tab:openHistoryInNewTab', index, which),
     reload: (index) => ipcRenderer.invoke("reload", index),
     stop: (index) => ipcRenderer.invoke("stopTab", index),
     getTabUrl: (index) => ipcRenderer.invoke("getTabUrl", index),
