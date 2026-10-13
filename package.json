@@ -54,6 +54,7 @@
       "build-stamp.json",
       "logo.png",
       "logo-win.png",
+      "logo-mac.png",
       "node_modules/**/*",
       "!node_modules/playwright/**",
       "!node_modules/playwright-core/**",
@@ -85,6 +86,9 @@
         "zip"
       ],
       "category": "public.app-category.utilities",
+      "extendInfo": {
+        "NSLocalNetworkUsageDescription": "Websites you open can ask to reach devices on your network, such as your router's settings page."
+      },
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
