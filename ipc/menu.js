@@ -56,6 +56,11 @@ function register(ipcMain, { wm }) {
         wd.menu.setBackgroundColor('#00000000');
         try { wd.menu.setBorderRadius(PANEL_RADIUS); } catch (e) { log.debug('menu', 'open', e); }
         wd.window.contentView.addChildView(wd.menu);
+        // While it is open, the strip's drag regions stand down (as for the
+        // right-click menus, ctxmenu.js): a click there is then a click the
+        // chrome sees, and "click outside" closes the menu.
+        try { wd.window.webContents.send('menu-capture', true); }
+        catch (e) { log.debug('menu', 'menu-capture on', e); }
         wd.menu.webContents.loadFile(resolveAppFile('renderer/Menu/index.html'));
         wd.menu.setBounds(alignCard(panelBounds(wd.window, { anchor: wd.menuAnchor, width: MENU_WIDTH, height: MENU_HEIGHT })));
         const cleanups = [];

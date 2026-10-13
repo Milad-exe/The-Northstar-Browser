@@ -501,6 +501,9 @@ exposeInternal('suggestions', {
 });
 exposeInternal("electronAPI", {
     windowClick: (pos) => ipcRenderer.send("window-click", pos),
+    // A right-click the OS took (a window-drag region): where, so the chrome
+    // can show its own menu there.
+    onChromeContextMenu: (cb) => ipcRenderer.on('chrome-context-menu', (_e, p) => cb(p)),
     onShowFindInPage: (callback) => ipcRenderer.on('show-find-in-page', callback),
     onFocusAddressBar: (callback) => ipcRenderer.on('focus-address-bar', () => callback()),
     openHistoryTab: () => ipcRenderer.invoke('open-history-tab'),

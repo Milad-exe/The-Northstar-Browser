@@ -338,9 +338,34 @@ class WindowManager {
         // right-click and pops the native window system menu (Restore/Move/Size/
         // Close). We provide our own context menus, so suppress the OS one — this
         // event is Windows-only and never fires elsewhere.
-        window.on('system-context-menu', (event) => {
+        // …and offer ours instead: the same menu the tab bar's background gives,
+        // at the point you clicked (the renderer picks it; it never sees the
+        // click itself, the OS takes it).
+        window.on('system-context-menu', (event, point) => {
             event.preventDefault();
+            try {
+                const cb = window.getContentBounds();
+                window.webContents.send('chrome-context-menu', { x: point.x - cb.x, y: point.y - cb.y });
+            }
+            catch (e) { log.debug('window-manager', 'system-context-menu', e); }
         });
+        // A left click on a drag region (the tab strip beside the tabs, the
+        // toolbar's empty space) is the OS's too — the page never gets it, so
+        // "click outside to close" did nothing there and the app menu stayed
+        // open. WM_NCLBUTTONDOWN reaches us before any drag: close the popups.
+        if (process.platform === 'win32') {
+            try {
+                window.hookWindowMessage(0x00A1 /* WM_NCLBUTTONDOWN */, () => {
+                    const wd = this.getWindowByWebContents(window.webContents);
+                    if (!wd) return;
+                    try { require('../ipc/utils').closeWindowMenu(wd); }
+                    catch (e) { log.debug('window-manager', 'caption click: menu', e); }
+                    try { require('./overlay-menu').hide(wd); }
+                    catch (e) { log.debug('window-manager', 'caption click: overlay menu', e); }
+                });
+            }
+            catch (e) { log.warn('window-manager', 'could not watch caption clicks', e); }
+        }
         window.on('maximize', () => {
             try {
                 window.webContents.send('window-maximize-changed', true);

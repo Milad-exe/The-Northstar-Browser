@@ -18,6 +18,7 @@ function closeWindowMenu(windowData) {
     windowData._menuClosedAt = Date.now();
     try {
         windowData.window.webContents.send('menu-closed');
+        windowData.window.webContents.send('menu-capture', false);
     }
     catch (e) { log.debug('utils', 'closeWindowMenu', e); }
     if (windowData.menuCleanups) {

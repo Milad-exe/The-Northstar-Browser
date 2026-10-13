@@ -2264,6 +2264,14 @@
             // dead — and "New folder" lives in this menu, so it read as if the
             // browser had no way to make one.
             tabBar?.addEventListener('contextmenu', emptyAreaMenu);
+            // The drag regions (the strip beside the tabs, the toolbar's empty
+            // space) never see a right-click: Windows takes it as a click on the
+            // window frame. Main hands us the point; the same menu opens there.
+            window.electronAPI.onChromeContextMenu?.((p) => {
+                const x = Math.round(p?.x || 0), y = Math.round(p?.y || 0);
+                const target = document.elementFromPoint(x, y) || document.body;
+                emptyAreaMenu({ clientX: x, clientY: y, target, preventDefault() { }, stopPropagation() { } });
+            });
             window.addEventListener('resize', () => setTimeout(() => { updateTabWidths(tabs.size); updateScrollShadows(); }, 100));
             setTimeout(() => { if (tabs.size > 0) {
                 updateTabWidths(tabs.size);
@@ -2853,6 +2861,7 @@
                     }
                     if (btn) {
                         btn.title = `Space: ${cur.name}`;
+                        btn.style.setProperty('--pf-color', cur.color || ''); // the chip's tint
                         const nm = document.getElementById('profile-name');
                         if (nm) nm.textContent = cur.name || '';
                     }
