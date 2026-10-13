@@ -2066,62 +2066,133 @@
                     return -1;
                 return parseInt(after.dataset.index);
             };
-            // ── Drop links / images / files / text onto the tab bar → new tab(s) ──
-            // : a dropped URL or image opens in a new tab, OS files
-            // open as file://, and anything else (selected text/phrases) runs as a
-            // search in a new tab.
-            async function openDrop(dt) {
-                // 1) OS files (Explorer / Finder) → open each as a file:// URL.
-                const files = dt.files;
-                if (files && files.length) {
-                    let opened = 0;
-                    for (const f of files) {
-                        const p = window.urlUtils?.getPathForFile?.(f) || '';
-                        if (!p)
-                            continue;
-                        const norm = p.replace(/\\/g, '/').replace(/^\/+/, '');
-                        await window.tab.addLazy('file:///' + encodeURI(norm));
-                        opened++;
-                    }
-                    if (opened)
-                        return;
+            // ── Drop links / images / files / text onto the tab bar ──────────────
+            // What a drop carries, as addresses: OS files as file://, a dragged
+            // URL (link, image, address-bar text), or plain text — a URL opens,
+            // any other text searches.
+            function dropUrls(dt) {
+                const out = [];
+                for (const f of (dt.files || [])) {
+                    const p = window.urlUtils?.getPathForFile?.(f) || '';
+                    if (p) out.push('file:///' + encodeURI(p.replace(/\\/g, '/').replace(/^\/+/, '')));
                 }
-                // 2) A dragged URL — link, image, address-bar text, or file:// URI.
+                if (out.length) return out;
                 const uriList = dt.getData('text/uri-list');
-                if (uriList) {
-                    const first = uriList.split(/\r?\n/).map(s => s.trim()).find(s => s && !s.startsWith('#'));
-                    if (first) {
-                        await window.tab.addLazy(formatToUrl(first));
-                        return;
-                    }
-                }
-                // 3) Plain text — a URL opens, any other text searches.
+                const first = uriList && uriList.split(/\r?\n/).map(s => s.trim()).find(s => s && !s.startsWith('#'));
+                if (first) return [formatToUrl(first)];
                 const text = (dt.getData('text/plain') || '').trim();
-                if (text && isNaN(text))
-                    await window.tab.addLazy(formatToUrl(text));
+                if (text && isNaN(text)) return [formatToUrl(text)];
+                return [];
             }
-            tabBar.addEventListener('dragover', (e) => {
-                // Accept external content drops. (Tab reordering is pointer-tracked,
-                // not HTML5 drag-and-drop, so it never reaches here.)
-                const types = e.dataTransfer.types;
-                if (types.includes('Files') || types.includes('text/uri-list') ||
-                    types.includes('text/plain') || types.includes('text/html')) {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'copy';
+            /* Where a drag over the strip would land, as other browsers show it:
+               over the middle of a tab → that tab (the drop loads into it);
+               anywhere else → the gap between two rows, drawn as a line that
+               follows the pointer. A gap inside an open folder joins it; one
+               inside the pinned block is pushed past it. Rows are read off the
+               DOM as drawn, so folders and the pinned block need no special
+               ordering here. */
+            const dropLine = document.createElement('div');
+            dropLine.className = 'tab-drop-line';
+            dropLine.setAttribute('aria-hidden', 'true');
+            tabBar.appendChild(dropLine);
+            let dropTargetBtn = null;
+            const isShown = (el) => el.offsetParent !== null && !el.classList.contains('dragging');
+            function dropSpot(e) {
+                const side = sideTabs();
+                const p = side ? e.clientY : e.clientX;
+                const rows = [...tabsContainer.querySelectorAll('.tab-button, .folder-header')].filter(isShown);
+                if (!rows.length) return { gap: true, after: null, folder: null, line: null };
+                const lo = (r) => side ? r.top : r.left, hi = (r) => side ? r.bottom : r.right;
+                for (const el of rows) {
+                    if (!el.classList.contains('tab-button')) continue;
+                    const r = el.getBoundingClientRect(), len = hi(r) - lo(r);
+                    // The middle half of a full tab, the middle third of a tile.
+                    const edge = len * (len < 48 ? 0.33 : 0.25);
+                    if (p > lo(r) + edge && p < hi(r) - edge)
+                        return { gap: false, tab: el };
                 }
+                let k = rows.findIndex(el => { const r = el.getBoundingClientRect(); return p < (lo(r) + hi(r)) / 2; });
+                if (k === -1) k = rows.length;
+                // Never inside the pinned block: a dropped tab is not pinned.
+                while (k < rows.length && rows[k].classList.contains('pinned')) k++;
+                const prevEl = rows[k - 1] || null, nextEl = rows[k] || null;
+                // The tab before the gap in DOM order — hidden members of a
+                // collapsed folder included, so a drop after a closed folder lands
+                // after its tabs, not inside it.
+                let after = null;
+                for (const b of tabsContainer.querySelectorAll('.tab-button')) {
+                    if (nextEl && (b === nextEl || (b.compareDocumentPosition(nextEl) & Node.DOCUMENT_POSITION_PRECEDING))) break;
+                    after = b;
+                }
+                const folderOf = (el) => el?.dataset.folder || (el && folderState.assign.get(+el.dataset.index)) || null;
+                let folder = null;
+                if (prevEl?.classList.contains('folder-header') && !prevEl.classList.contains('collapsed')) folder = prevEl.dataset.folder;
+                else if (nextEl?.classList.contains('in-folder') && prevEl?.classList.contains('in-folder') && folderOf(nextEl) === folderOf(prevEl)) folder = folderOf(nextEl);
+                // The line sits in the middle of the gap, across the row.
+                const bar = tabBar.getBoundingClientRect();
+                const pr = prevEl?.getBoundingClientRect(), nr = nextEl?.getBoundingClientRect();
+                const at = pr && nr ? (hi(pr) + lo(nr)) / 2 : pr ? hi(pr) + 2 : lo(nr) - 2;
+                // Sized off a full-width row (a folder tile or header may be inset).
+                const ref = [nextEl, prevEl].find(el => el && el.classList.contains('tab-button') && !el.classList.contains('in-folder'))?.getBoundingClientRect() || nr || pr;
+                const line = side
+                    ? { x: ref.left - bar.left + 6, y: at - bar.top - 1, w: ref.width - 12, h: 2 }
+                    : { x: at - bar.left - 1, y: ref.top - bar.top + 6, w: 2, h: ref.height - 12 };
+                return { gap: true, after: after ? +after.dataset.index : -1, folder, line };
+            }
+            function paintDrop(spot) {
+                if (dropTargetBtn && (spot?.gap !== false || spot.tab !== dropTargetBtn)) {
+                    dropTargetBtn.classList.remove('drop-target'); dropTargetBtn = null;
+                }
+                if (spot && spot.gap === false) {
+                    dropTargetBtn = spot.tab; dropTargetBtn.classList.add('drop-target');
+                }
+                const l = spot?.gap ? spot.line : null;
+                dropLine.classList.toggle('on', !!l);
+                if (l) {
+                    dropLine.style.width = l.w + 'px'; dropLine.style.height = l.h + 'px';
+                    dropLine.style.transform = `translate(${Math.round(l.x)}px, ${Math.round(l.y)}px)`;
+                }
+            }
+            const clearDrop = () => paintDrop(null);
+            const isExternal = (dt) => {
+                const t = dt.types;
+                return t.includes('Files') || t.includes('text/uri-list') || t.includes('text/plain') || t.includes('text/html');
+            };
+            tabBar.addEventListener('dragover', (e) => {
+                // External content only. (Tab reordering is pointer-tracked, not
+                // HTML5 drag-and-drop, so it never reaches here.)
+                if (!isExternal(e.dataTransfer)) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'copy';
+                paintDrop(dropSpot(e));
             });
+            tabBar.addEventListener('dragleave', (e) => {
+                if (!e.relatedTarget || !tabBar.contains(e.relatedTarget)) clearDrop();
+            });
+            document.addEventListener('dragend', clearDrop);
             tabBar.addEventListener('drop', async (e) => {
                 const dt = e.dataTransfer;
-                const plain = (dt.getData('text/plain') || '').trim();
-                // Only handle genuine external content; a numeric-only payload is a
-                // stray id (e.g. a bookmark drag) — let it fall through untouched.
-                const hasContent = (dt.files && dt.files.length) ||
-                    dt.types.includes('text/uri-list') || (plain && isNaN(plain));
-                if (!hasContent)
-                    return;
+                const spot = dropSpot(e);
+                clearDrop();
+                // Only genuine external content; a numeric-only payload is a stray
+                // id (e.g. a bookmark drag) — let it fall through untouched.
+                const urls = dropUrls(dt);
+                if (!urls.length) return;
                 e.preventDefault();
                 e.stopPropagation();
-                await openDrop(dt);
+                if (spot.gap === false) {
+                    // Onto a tab: it goes there, and you go to it.
+                    const idx = +spot.tab.dataset.index;
+                    window.tab.loadUrl(idx, urls[0]);
+                    window.tab.switch(idx);
+                    return;
+                }
+                // Into a gap: new tabs exactly there, in order, the first one shown.
+                let after = spot.after;
+                for (let n = 0; n < urls.length; n++) {
+                    const idx = await window.tab.openAt(urls[n], after, spot.folder, n === 0);
+                    if (Number.isInteger(idx)) after = idx;
+                }
             });
             // ── Scroll controls ───────────────────────────────────────────────────
             const tabScrollLeft = document.getElementById('tab-scroll-left');

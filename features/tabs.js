@@ -427,6 +427,17 @@ class Tabs {
         log.info('tabs', `space ${space}: ${n} tab(s) moved to its new profile`);
         return n;
     }
+    /* A drop on the strip: a new tab at an exact place (after `afterIndex`,
+       -1 first, null last) in `folder` or none — not "opened from" anything,
+       so no opener run and no folder borrowed from the neighbour. */
+    openUrlAt(url, afterIndex, folder, activate = true) {
+        this._openerChain = null;
+        const idx = this.createTab(afterIndex, activate, false);
+        this._openerChain = null;
+        this.setTabFolder(idx, folder);
+        this.loadUrl(idx, url);
+        return idx;
+    }
     /* Where a tab opened FROM `opener` goes: right after it, or — while you
        stay on the opener — after the last tab already opened from it, so five
        links opened in a row read in the order you opened them (Chrome's

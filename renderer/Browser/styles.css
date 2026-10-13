@@ -2190,3 +2190,21 @@ html[data-tabbar="side"] .tab-button.multi-selected { box-shadow: inset 0 0 0 1.
 .folder-sound svg { width: 14px; height: 14px; }
 .folder-sound.rec { color: var(--danger); }
 .folder-header:not(.collapsed) .folder-sound { display: none; }
+
+/* Dragging a link, text or file in from outside (renderer.js dropSpot): a line
+   in the gap where the new tab will go, following the pointer — upright in the
+   top strip, across the row in the sidebar — or, over the middle of a tab, that
+   tab marked as the one the drop will load into. The line glides between gaps;
+   under reduced motion the duration tokens are 0 and it jumps. */
+.tab-drop-line {
+  position: absolute; left: 0; top: 0; z-index: 30;
+  border-radius: var(--r-pill); background: var(--accent);
+  pointer-events: none; opacity: 0;
+  transition: transform var(--dur-1) var(--ease-decel), opacity var(--dur-1) var(--ease);
+}
+.tab-drop-line.on { opacity: 1; }
+.tab-button.drop-target {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  color: var(--text);
+}

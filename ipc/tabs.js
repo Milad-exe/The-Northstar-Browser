@@ -159,6 +159,13 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
         if (wd)
             wd.tabs.openNewTabPage(true); // on the private new-tab page, like Ctrl+T
     });
+    // A drop on the tab strip: a new tab exactly where the drop line was.
+    ipcMain.handle('tab:openAt', (_e, url, afterIndex, folder, activate) => {
+        const wd = wm.getWindowByWebContents(_e.sender);
+        if (!wd?.tabs || typeof url !== 'string') return null;
+        const after = Number.isInteger(afterIndex) ? afterIndex : null;
+        return wd.tabs.openUrlAt(sanitizeUrl(url), after, folder ? String(folder) : null, activate !== false);
+    });
     // Open a URL in a new background tab without loading it until the user switches to it
     ipcMain.handle('addTabLazy', (_e, url) => {
         const wd = wm.getWindowByWebContents(_e.sender);

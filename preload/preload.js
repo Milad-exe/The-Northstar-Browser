@@ -218,6 +218,9 @@ exposeInternal("tab", {
     searchDone: (index) => ipcRenderer.invoke('tabs:search-done', index),
     addPrivate: () => ipcRenderer.invoke("addPrivateTab"),
     addLazy: (url) => ipcRenderer.invoke("addTabLazy", url),
+    // A drop on the strip: a new tab right after `afterIndex` (-1 = first,
+    // null = last), in `folder` or none.
+    openAt: (url, afterIndex, folder, activate) => ipcRenderer.invoke('tab:openAt', url, afterIndex, folder, activate),
     remove: (index) => ipcRenderer.invoke("removeTab", index),
     switch: (index) => ipcRenderer.invoke("switchTab", index),
     loadUrl: (index, url) => ipcRenderer.invoke("loadUrl", index, url),
