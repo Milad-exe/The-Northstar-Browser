@@ -185,6 +185,21 @@ function createNamed(name) {
 function listNamed() {
     return load().list.filter(c => c.named).map(c => ({ ...c }));
 }
+/**
+ * Adopt an existing cookie jar as a named Profile: a space that kept its own
+ * logins before Profiles existed becomes a Profile of the same name over the
+ * SAME partition, so nobody is signed out by the change (profiles.js load()).
+ */
+function adoptNamed(name, partition) {
+    const c = _create(_uniqueName((name || 'Profile').trim().slice(0, 32), '1'), null, '1');
+    const rec = load().list.find(x => x.id === c.id);
+    if (rec) { rec.named = true; rec.partition = String(partition); save(); }
+    return { ...rec };
+}
+/** The partition a container's jar lives on (an adopted one keeps its own). */
+function partitionOf(id) {
+    return load().list.find(x => x.id === String(id))?.partition || `persist:container-${id}`;
+}
 /** Rename / recolor an instance. Returns updated meta or null. */
 function update(id, patch = {}) {
     const reg = load();
@@ -207,10 +222,11 @@ function remove(id) {
     const i = reg.list.findIndex(x => x.id === key);
     if (i === -1)
         return false;
+    const partition = partitionOf(key);
     reg.list.splice(i, 1);
     save();
     try {
-        const sess = sessions.get(key) || require('electron').session.fromPartition(`persist:container-${key}`);
+        const sess = sessions.get(key) || require('electron').session.fromPartition(partition);
         sess.clearStorageData();
         sess.clearCache();
     }
@@ -226,7 +242,7 @@ function get(id) {
     if (sessions.has(key))
         return sessions.get(key);
     const { session } = require('electron');
-    const sess = session.fromPartition(`persist:container-${key}`);
+    const sess = session.fromPartition(partitionOf(key));
     setup(sess, { persist: true });
     try { adBlocker.enableBlockingInSession(sess); }
     catch (e) { log.debug('containers', 'get', e); }
@@ -278,4 +294,4 @@ function colorFor(id) {
     return COLORS[n % COLORS.length];
 }
 
-module.exports = { get, colorFor, list, meta, createForUrl, createNamed, listNamed, instanceForHost, labelForUrl, update, remove, gc, COLORS };
+module.exports = { get, colorFor, list, meta, createForUrl, createNamed, adoptNamed, partitionOf, listNamed, instanceForHost, labelForUrl, update, remove, gc, COLORS };

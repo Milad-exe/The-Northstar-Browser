@@ -46,13 +46,39 @@ function load() {
                 for (const e of _reg.essentials)
                     if (e && e.container !== undefined && e.profile === undefined) { e.profile = e.container; delete e.container; }
             }
+            // After the essentials are back on _reg — this may save.
+            _adoptOwnJars(_reg.list);
             return _reg;
         }
     }
     catch (e) { log.debug('profiles', 'load', e); }
-    _reg = { nextId: 2, list: [{ id: '1', name: 'Personal', color: COLORS[0], emoji: EMOJIS[0], essentials: [] }] };
+    _reg = { nextId: 2, list: [{ id: '1', name: 'Personal', color: COLORS[0], emoji: EMOJIS[0], essentials: [], container: 'default' }] };
     save();
     return _reg;
+}
+
+/* Every space has a Profile (the cookie jar its tabs sign in with); a new one
+   starts on the shared Default. Spaces from before Profiles existed may have
+   no binding and their own jar: the first space's own jar IS Default, and any
+   other space's jar that holds data becomes a Profile named after the space,
+   over the same partition — nobody is signed out. An unused jar is dropped
+   in favour of Default. Runs once: afterwards every space is bound. */
+function _adoptOwnJars(list) {
+    let changed = false;
+    for (const p of list) {
+        if (p.container)
+            continue;
+        changed = true;
+        if (p.id === '1') { p.container = 'default'; continue; }
+        const partition = `persist:profile-${p.id}`;
+        let used = false;
+        try { used = fs.existsSync(path.join(app.getPath('userData'), 'Partitions', `profile-${p.id}`)); }
+        catch (e) { log.debug('profiles', 'adopt: check jar', e); }
+        if (!used) { p.container = 'default'; continue; }
+        try { p.container = require('./containers').adoptNamed(p.name, partition).id; }
+        catch (e) { log.warn('profiles', 'could not keep a space’s own logins as a profile', e); }
+    }
+    if (changed) save();
 }
 
 function save() {
@@ -81,6 +107,8 @@ function create(name) {
         color: COLORS[reg.list.length % COLORS.length],
         emoji: EMOJIS[reg.list.length % EMOJIS.length],
         essentials: [],
+        // Signs in with the shared Default profile until told otherwise.
+        container: 'default',
     };
     reg.list.push(p);
     save();
@@ -151,6 +179,9 @@ function sessionFor(id) {
         if (bound === 'default')
             return session.defaultSession;
         const containers = require('./containers');
+        // A profile deleted from under a space: Default, never a fresh empty jar.
+        if (!containers.meta(bound))
+            return session.defaultSession;
         return containers.get(bound);
     }
     if (key === '1')

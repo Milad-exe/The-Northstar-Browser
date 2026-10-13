@@ -2513,13 +2513,34 @@
         }
         let _spacesCache = [];
         let _containersCache = []; // named containers, for the Set Profile menus
+        // Profiles (Default first) with the spaces on each, for the pickers.
+        let _loginProfiles = [{ id: 'default', name: 'Default', builtin: true, spaces: [] }];
+        const pullContainers = () => {
+            window.containers?.listNamed().then((c) => { _containersCache = c || []; }).catch(() => { });
+            window.containers?.profiles?.().then((p) => { if (Array.isArray(p) && p.length) _loginProfiles = p; }).catch(() => { });
+        };
         try {
-            const pullContainers = () => window.containers?.listNamed()
-                .then((c) => { _containersCache = c || []; }).catch(() => { });
             pullContainers();
             setTimeout(pullContainers, 800);
+            window.containers?.onChanged?.(pullContainers);
         }
         catch (e) { window.northstarLog?.debug('renderer', 'pullContainers: ' + e); }
+        /* The one Profile picker (space menu, create-space form): every profile
+           with a check on the current one, then make one or manage them. */
+        function profilePickerRows(currentId, onPick) {
+            return [
+                ..._loginProfiles.map(p => [p.name, () => onPick(p.id, p.name), '', { checked: String(p.id) === String(currentId || 'default') }]),
+                ['sep'],
+                ['New profile…', () => promptForText('Name the new profile', '', async (name) => {
+                    const nm = (name || '').trim();
+                    if (!nm) return;
+                    const c = await window.containers.createNamed(nm);
+                    pullContainers();
+                    if (c?.id) onPick(c.id, c.name);
+                }), '', { glyph: 'plus' }],
+                ['Manage profiles…', () => window.electronAPI.openSettingsTab('profiles'), '', { glyph: 'settings' }],
+            ];
+        }
         /* The foot's space row shows AS MANY AS FIT, then how many it could
            not. It used to be a horizontal scroller with its scrollbar hidden,
            which meant that with nine spaces you saw four and reached the rest
@@ -2705,30 +2726,19 @@
                     lastCtxPoint = { x: r.right, y: r.top };
                     openThemePanel(activeWorkspace);
                 });
-                // null = this space keeps its own jar; 'default' = shared session;
-                // otherwise a named container id shared with other spaces.
-                let container = null;
+                // The new space's profile: the shared Default unless you pick one.
+                let container = 'default';
                 const valEl = document.getElementById('sc-profile-val');
                 const setContainer = (id, label) => { container = id; valEl.textContent = label; };
+                setContainer('default', 'Default');
                 document.getElementById('sc-profile')?.addEventListener('click', async (e) => {
                     e.stopPropagation();
                     // currentTarget is cleared once dispatch ends — read the rect
                     // before the first await or it is null by the time we need it.
                     const r = e.currentTarget.getBoundingClientRect();
-                    let named = [];
-                    try { named = (await window.containers.listNamed()) || []; } catch (e) { window.northstarLog?.debug('renderer', 'setContainer: ' + e); }
-                    const rows = [
-                        ['Separate for this space', () => setContainer(null, 'Separate')],
-                        ['Shared with other spaces', () => setContainer('default', 'Shared')],
-                    ];
-                    if (named.length) rows.push(['sep']);
-                    for (const c of named) rows.push([c.name, () => setContainer(c.id, c.name)]);
-                    rows.push(['sep'], ['New container…', async () => {
-                        const nm = (nameEl.value.trim() || 'Container');
-                        const c = await window.containers.createNamed(nm);
-                        if (c?.id) setContainer(c.id, c.name);
-                    }]);
-                    openCtxMenu(r.right - 8, r.bottom + 4, rows);
+                    try { const p = await window.containers.profiles(); if (Array.isArray(p) && p.length) _loginProfiles = p; }
+                    catch (err) { window.northstarLog?.debug('renderer', 'space profile picker: ' + err); }
+                    openCtxMenu(r.right - 8, r.bottom + 4, profilePickerRows(container, setContainer));
                 });
                 const create = async () => {
                     const name = nameEl.value.trim();
@@ -3170,8 +3180,8 @@
                 const openSub = (_containersCache || []).map(c => [c.name, () => openInC(c.id)]);
                 /* Always offer to make one — an empty flyout looked broken.
                    Creating a container here opens the tab in it straight away. */
-                openSub.push(['New container…', () => {
-                    promptForText('Name the container', '', async (name) => {
+                openSub.push(['New profile…', () => {
+                    promptForText('Name the new profile', '', async (name) => {
                         const nm = (name || '').trim();
                         if (!nm) return;
                         const c = await window.containers.createNamed(nm);
@@ -3912,20 +3922,11 @@
                 ['Change icon…', () => openProfileModal(p.id), '', { glyph: 'icon' }],
                 ['Edit theme…', () => openThemePanel(p.id), '', { glyph: 'palette' }],
                 ['Unload space', () => window.tab.unloadWorkspace(p.id), '', { glyph: 'unload' }],
-                ['Logins', [
-                    ['Separate for this space', () => window.profiles.update(p.id, { container: null })],
-                    ['Shared with other spaces', () => window.profiles.update(p.id, { container: 'default' })],
-                    ['sep'],
-                    ...(_containersCache || []).map(c => [c.name, () => window.profiles.update(p.id, { container: c.id })]),
-                    ...(_containersCache.length ? [['sep'], ['Manage containers',
-                        _containersCache.map(c => [c.name, [
-                            [`Delete “${c.name}”`, async () => {
-                                await window.containers.remove(c.id);
-                                _containersCache = (await window.containers.listNamed()) || [];
-                            }, 'danger'],
-                        ]]),
-                    ]] : []),
-                ], '', { glyph: 'profile' }],
+                // Who this space is signed in as. Switching moves its open tabs.
+                ['Profile', profilePickerRows(p.container, async (id) => {
+                    await window.profiles.update(p.id, { container: id });
+                    pullContainers();
+                }), '', { glyph: 'profile' }],
                 ['sep'],
                 ['New folder', () => newFolderInline(), '', { glyph: 'folderPlus' }],
                 ['New space…', () => openCreateSpace(), '', { glyph: 'spaces' }],

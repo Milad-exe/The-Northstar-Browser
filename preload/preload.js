@@ -333,8 +333,11 @@ exposeInternal('themePanel', {
 });
 exposeInternal('containers', {
     listNamed: () => ipcRenderer.invoke('containers:listNamed'),
+    // Profiles (Default first) with the spaces that use each.
+    profiles: () => ipcRenderer.invoke('containers:profiles'),
     createNamed: (name) => ipcRenderer.invoke('containers:createNamed', name),
     remove: (id) => ipcRenderer.invoke('containers:remove', id),
+    onChanged: (cb) => ipcRenderer.on('login-profiles:changed', () => cb()),
 });
 exposeInternal('northstarPrivate', {
     newPrivateWindow: () => ipcRenderer.invoke('newPrivateWindow'),

@@ -58,6 +58,17 @@ contextBridge.exposeInMainWorld('northstarSpellcheck', {
 contextBridge.exposeInMainWorld('northstarProfiles', {
     current: () => ipcRenderer.invoke('profiles:current'),
     update: (id, patch) => ipcRenderer.invoke('profiles:update', id, patch),
+    onSpacesChanged: (cb) => ipcRenderer.on('profiles:changed', () => cb()),
+});
+// Profiles — the sign-in a space uses (Settings › Profiles). Internally named
+// containers; "Default" is the shared one every new space starts on.
+contextBridge.exposeInMainWorld('northstarLogins', {
+    list: () => ipcRenderer.invoke('containers:profiles'),
+    create: (name) => ipcRenderer.invoke('containers:createNamed', name),
+    update: (id, patch) => ipcRenderer.invoke('containers:update', id, patch),
+    remove: (id) => ipcRenderer.invoke('containers:remove', id),
+    assign: (spaceId, id) => ipcRenderer.invoke('profiles:update', spaceId, { container: id }),
+    onChanged: (cb) => ipcRenderer.on('login-profiles:changed', () => cb()),
 });
 contextBridge.exposeInMainWorld('northstarThemes', {
     list: () => ipcRenderer.invoke('themes-list'),

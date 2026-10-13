@@ -297,16 +297,10 @@ class Tabs {
         // The session is wiped in destroyTab() the moment the tab closes.
         return privateSessions.createTabSession();
     }
-    createLazyTab(url, title, isPinned, isPrivate = false, insertAfterActive = false, eager = false, containerId = null, workspaceId = null) {
-        const tabIndex = this.nextTabIndex;
-        this.nextTabIndex++;
-        const makePrivate = isPrivate || this.isPrivateWindow;
-        // Restore may rebuild tabs of a non-active workspace — honour the saved
-        // workspace tag; live-created lazy tabs use the current one.
-        const workspace = workspaceId ? String(workspaceId) : this.profileId;
-        // Container binding is fixed here (chosen at creation, like private) and
-        // only applies to non-private tabs.
-        const container = (!makePrivate && containerId != null && String(containerId) !== '') ? String(containerId) : null;
+    /** A page view for a tab: its session (private, a container, or its
+     *  space's profile), preload, UA, background, extensions and page menu.
+     *  Shared by createLazyTab and rebindWorkspaceSession. */
+    _buildPageView(url, { makePrivate = false, container = null, workspace = this.profileId } = {}) {
         const webPrefs = {
             autoplayPolicy: 'user-gesture-required',
             preload: preloadForPage(url),
@@ -324,8 +318,10 @@ class Tabs {
         else if (container) {
             webPrefs.session = containers.get(container);
         }
-        else if (this.profileId !== '1') {
-            webPrefs.session = profiles.sessionFor(this.profileId);
+        else {
+            // The tab's OWN space's profile — a restore rebuilds other spaces'
+            // tabs too, and they must not sign in as the space you are in.
+            webPrefs.session = profiles.sessionFor(workspace);
         }
         const tab = new WebContentsView({ webPreferences: webPrefs });
         try { tab.setBorderRadius(Tabs.PAGE_RADIUS); } catch (e) { log.debug('tabs', 'container', e); }
@@ -368,8 +364,80 @@ class Tabs {
                 menu.popup({ window: this.mainWindow });
             }
         });
-        const bounds = this.getTabBounds();
-        tab.setBounds(bounds);
+        tab.setBounds(this.getTabBounds());
+        return tab;
+    }
+    /** Focus mode, the YouTube fix and the row's title once a lazy view loads. */
+    _watchLazyTitle(tabIndex, tab) {
+        tab.webContents.on('did-finish-load', () => {
+            const windowData = this.getWindowData();
+            if (windowData) {
+                focusMode.applyToTab(windowData, tab.webContents, tab.webContents.getURL?.() ?? '');
+            }
+            this.applyYouTubeSpaceFix(tab, tab.webContents.getURL?.() ?? '');
+            const title = tab.webContents.getTitle();
+            if (title) {
+                tab.lazyTitle = title;
+                this.sendTabUpdate(tabIndex, tab, this.tabUrls.get(tabIndex) || '', title);
+            }
+        });
+    }
+    /**
+     * A space switched profile: rebuild its open web tabs on the new profile's
+     * session, in place — same index, so position, folder, pin, label and the
+     * back/forward tree (navigation-history.js, invariant 9) all stay. A view's
+     * session is fixed at creation, so nothing short of a new view moves it.
+     * Private and container tabs keep their own jars; internal pages hold no
+     * logins. The active tab reloads straight away, the rest wait to be shown.
+     */
+    rebindWorkspaceSession(ws) {
+        const space = String(ws || this.profileId);
+        const sess = profiles.sessionFor(space);
+        let n = 0;
+        for (const idx of this.tabsInWorkspace(space)) {
+            const old = this.tabMap.get(idx);
+            const url = this.tabUrls.get(idx) || '';
+            if (!old || old.isPrivate || this.tabContainers.has(idx) || !/^https?:/i.test(url))
+                continue;
+            try { if (old.webContents.session === sess) continue; }
+            catch (e) { log.debug('tabs', 'rebind: session', e); }
+            const title = this.computeDisplayTitleFor(idx) || old.lazyTitle || url;
+            const wasActive = idx === this.activeTabIndex;
+            const tab = this._buildPageView(url, { workspace: space });
+            tab.isPrivate = false;
+            tab.containerId = null;
+            tab.lazyLoaded = false;
+            tab.lazyTitle = title;
+            this.tabMap.set(idx, tab);
+            this.setupTabListeners(idx, tab);
+            this._watchLazyTitle(idx, tab);
+            try { this.mainWindow.contentView.removeChildView(old); }
+            catch (e) { log.debug('tabs', 'rebind: detach', e); }
+            try { old.webContents.close(); }
+            catch (e) { log.debug('tabs', 'rebind: close', e); }
+            if (wasActive) {
+                tab.lazyLoaded = true;
+                try { tab.webContents.loadURL(url); }
+                catch (e) { log.warn('tabs', 'rebind: reload', e); }
+                tab.setVisible(true);
+            }
+            n++;
+        }
+        if (n) this.raiseFloatingViews();
+        log.info('tabs', `space ${space}: ${n} tab(s) moved to its new profile`);
+        return n;
+    }
+    createLazyTab(url, title, isPinned, isPrivate = false, insertAfterActive = false, eager = false, containerId = null, workspaceId = null) {
+        const tabIndex = this.nextTabIndex;
+        this.nextTabIndex++;
+        const makePrivate = isPrivate || this.isPrivateWindow;
+        // Restore may rebuild tabs of a non-active workspace — honour the saved
+        // workspace tag; live-created lazy tabs use the current one.
+        const workspace = workspaceId ? String(workspaceId) : this.profileId;
+        // Container binding is fixed here (chosen at creation, like private) and
+        // only applies to non-private tabs.
+        const container = (!makePrivate && containerId != null && String(containerId) !== '') ? String(containerId) : null;
+        const tab = this._buildPageView(url, { makePrivate, container, workspace });
         this.tabMap.set(tabIndex, tab);
         this.tabUrls.set(tabIndex, url || 'newtab');
         this.tabLastActive.set(tabIndex, Date.now());
@@ -411,18 +479,7 @@ class Tabs {
             this._scheduleEssentialRebind();
         this.navigationHistory.initializeTab(tabIndex, url || 'newtab');
         this.setupTabListeners(tabIndex, tab);
-        tab.webContents.on('did-finish-load', () => {
-            const windowData = this.getWindowData();
-            if (windowData) {
-                focusMode.applyToTab(windowData, tab.webContents, tab.webContents.getURL?.() ?? '');
-            }
-            this.applyYouTubeSpaceFix(tab, tab.webContents.getURL?.() ?? '');
-            const title = tab.webContents.getTitle();
-            if (title) {
-                tab.lazyTitle = title;
-                this.sendTabUpdate(tabIndex, tab, this.tabUrls.get(tabIndex) || '', title);
-            }
-        });
+        this._watchLazyTitle(tabIndex, tab);
         this.mainWindow.webContents.send('tab-created', {
             index: tabIndex,
             title: tab.lazyTitle,
@@ -549,7 +606,7 @@ class Tabs {
         else if (container) {
             webPrefs.session = containers.get(container);
         }
-        else if (this.profileId !== '1') {
+        else {
             webPrefs.session = profiles.sessionFor(this.profileId);
         }
         const tab = new WebContentsView({ webPreferences: webPrefs });

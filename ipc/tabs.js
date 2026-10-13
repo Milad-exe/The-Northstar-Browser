@@ -230,6 +230,9 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
         }
         const p = profiles.update(id, patch);
         broadcastProfiles();
+        // A new profile for a space: its open tabs move onto it, in every window.
+        if (patch && 'container' in patch) rebindSpace(id);
+        broadcastLogins(); // Settings › Profiles lists which spaces use which
         // A space's theme is worn by every window in that space, so changing it
         // has to re-resolve the surfaces — nothing moved, but what they resolve
         // to did.
@@ -751,29 +754,65 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
     ipcMain.handle('folders:reorder', (_e, ids) => { wm.getWindowByWebContents(_e.sender)?.tabs?.reorderFolders(ids); });
     ipcMain.handle('folders:move', (_e, id, workspace) => { wm.getWindowByWebContents(_e.sender)?.tabs?.moveFolderToWorkspace(id, workspace); });
     ipcMain.handle('folders:reparent', (_e, id, parent) => { wm.getWindowByWebContents(_e.sender)?.tabs?.reparentFolder(id, parent); });
-    // ── Containers as Space Profiles ───────────────────────────────────────────
+    // ── Profiles: which cookie jar ("who you are signed in as") a space uses ──
+    // Internally these are named containers; a space's binding is its
+    // `container` ('default' = the shared Default profile). The spaces
+    // themselves are called "profiles" in features/profiles.js — historical.
+    function rebindSpace(spaceId) {
+        for (const w of wm.windows.values()) {
+            try { w.tabs?.rebindWorkspaceSession?.(String(spaceId)); }
+            catch (e) { log.warn('tabs', 'could not move a space’s tabs to its new profile', e); }
+        }
+    }
+    const broadcastLogins = () => {
+        for (const wc of require('electron').webContents.getAllWebContents()) {
+            try { wc.send('login-profiles:changed'); }
+            catch (e) { log.debug('tabs', 'broadcastLogins', e); }
+        }
+    };
     ipcMain.handle('containers:listNamed', (_e) => {
         const containers = require('../features/containers');
         return containers.listNamed();
     });
-    ipcMain.handle('containers:remove', (_e, id) => {
+    /* Every profile with the spaces that use it, Default first — what the
+       Settings page and the pickers draw. */
+    ipcMain.handle('containers:profiles', () => {
         const containers = require('../features/containers');
-        // Any space bound to this container would be left pointing at a jar that
-        // no longer exists — unbind them back to their own storage first.
-        let unbound = 0;
+        const spaces = profiles.list();
+        const usedBy = (id) => spaces.filter(s => String(s.container || 'default') === String(id))
+            .map(s => ({ id: s.id, name: s.name, emoji: s.emoji, order: spaces.indexOf(s) }));
+        return [
+            { id: 'default', name: 'Default', color: null, builtin: true, spaces: usedBy('default') },
+            ...containers.listNamed().map(c => ({ id: c.id, name: c.name, color: c.color, builtin: false, spaces: usedBy(c.id) })),
+        ];
+    });
+    ipcMain.handle('containers:update', (_e, id, patch) => {
+        if (!isTrustedInternalSender(_e.sender)) return null;
+        const r = require('../features/containers').update(String(id), patch || {});
+        broadcastLogins(); broadcastProfiles();
+        return r;
+    });
+    ipcMain.handle('containers:remove', (_e, id) => {
+        if (!isTrustedInternalSender(_e.sender)) return false;
+        const containers = require('../features/containers');
+        // Spaces on this profile go back to Default (and their tabs with them)
+        // before its jar is wiped.
+        const moved = [];
         for (const p of profiles.list()) {
             if (String(p.container) === String(id)) {
-                profiles.update(p.id, { container: null });
-                unbound++;
+                profiles.update(p.id, { container: 'default' });
+                moved.push(p.id);
             }
         }
+        for (const s of moved) rebindSpace(s);
         const ok = containers.remove(String(id));
-        if (unbound) broadcastProfiles();
+        broadcastProfiles(); broadcastLogins();
         return ok;
     });
     ipcMain.handle('containers:createNamed', (_e, name) => {
-        const containers = require('../features/containers');
-        return containers.createNamed(name);
+        const c = require('../features/containers').createNamed(name);
+        broadcastLogins();
+        return c;
     });
     ipcMain.handle('folders:list', (_e) => {
         const t = wm.getWindowByWebContents(_e.sender)?.tabs;

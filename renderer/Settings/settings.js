@@ -14,7 +14,7 @@
         // northstar://settings/<section> url and typing one lands on that section.
         const navItems = document.querySelectorAll('.nav-item');
         const sections = document.querySelectorAll('.section');
-        const VALID = ['general', 'appearance', 'focus', 'privacy', 'passwords', 'extensions', 'data', 'import', 'about'];
+        const VALID = ['general', 'appearance', 'focus', 'privacy', 'profiles', 'passwords', 'extensions', 'data', 'import', 'about'];
         function activateSection(section) {
             if (!VALID.includes(section))
                 section = 'general';
@@ -981,6 +981,128 @@
             }
             catch (e) { window.northstarLog?.debug('settings', 'renderZoom: ' + e); }
         })();
+        // ── Profiles (who a space is signed in as) ──────────────────────────
+        // One list of profiles (Default first, built in) and one of spaces with
+        // the profile each uses. Rename is inline; delete asks in the row, since
+        // it signs you out of every site in that profile.
+        const profList = document.getElementById('prof-list');
+        const profSpaces = document.getElementById('prof-spaces');
+        const profAdd = document.getElementById('prof-add');
+        const profAddName = document.getElementById('prof-add-name');
+        const profAddBtn = document.getElementById('prof-add-btn');
+        const TRASH = '<svg width="14" height="14" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216,48H180V36A28,28,0,0,0,152,8H104A28,28,0,0,0,76,36V48H40a12,12,0,0,0,0,24h4V208a20,20,0,0,0,20,20H192a20,20,0,0,0,20-20V72h4a12,12,0,0,0,0-24ZM100,36a4,4,0,0,1,4-4h48a4,4,0,0,1,4,4V48H100Zm88,168H68V72H188ZM116,104v64a12,12,0,0,1-24,0V104a12,12,0,0,1,24,0Zm48,0v64a12,12,0,0,1-24,0V104a12,12,0,0,1,24,0Z"/></svg>';
+        const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+        const spaceLabel = (s) => (s.emoji ? s.emoji + ' ' : '') + s.name;
+        function usedByText(p) {
+            if (!p.spaces.length) return 'Not used by any space';
+            const names = p.spaces.map(s => s.name);
+            return 'Used by ' + (names.length <= 3 ? names.join(', ') : `${names.slice(0, 2).join(', ')} and ${names.length - 2} more`);
+        }
+        let profData = [];
+        function profileRow(p) {
+            const row = el('div', 'prof-row'); row.setAttribute('role', 'listitem');
+            const dot = el('span', 'prof-dot' + (p.builtin ? ' builtin' : ''), (p.name || '?').trim().charAt(0).toUpperCase());
+            if (p.color) dot.style.setProperty('--prof-color', p.color);
+            dot.setAttribute('aria-hidden', 'true');
+            const info = el('div', 'prof-info');
+            const name = el('div', 'prof-name', p.name);
+            const desc = el('div', 'prof-desc', p.builtin ? `Built in. New spaces start here. ${usedByText(p)}.` : usedByText(p));
+            info.append(name, desc);
+            const controls = el('div', 'prof-controls');
+            row.append(dot, info, controls);
+            if (p.builtin) return row;
+            const renameBtn = el('button', 'btn btn-sm btn-ghost', 'Rename');
+            const delBtn = el('button', 'btn btn-sm btn-ghost prof-del');
+            delBtn.innerHTML = TRASH;
+            delBtn.setAttribute('aria-label', `Delete ${p.name}`);
+            controls.append(renameBtn, delBtn);
+            renameBtn.addEventListener('click', () => {
+                const input = el('input', 'text-input prof-rename');
+                input.value = p.name; input.maxLength = 32;
+                input.setAttribute('aria-label', `Rename ${p.name}`);
+                name.replaceWith(input); input.focus(); input.select();
+                let done = false;
+                const finish = async (commit) => {
+                    if (done) return; done = true;
+                    const v = input.value.trim();
+                    if (commit && v && v !== p.name) {
+                        await window.northstarLogins.update(p.id, { name: v });
+                        showToast(`Renamed to “${v}”`);
+                    }
+                    renderProfiles(true);
+                };
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+                    if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+                });
+                input.addEventListener('blur', () => finish(true));
+            });
+            delBtn.addEventListener('click', () => {
+                row.classList.add('confirming');
+                desc.textContent = p.spaces.length
+                    ? `This signs you out of every site in it. ${p.spaces.map(s => s.name).join(', ')} will use Default.`
+                    : 'This signs you out of every site in it.';
+                controls.textContent = '';
+                const yes = el('button', 'btn btn-sm btn-danger', 'Delete profile');
+                const no = el('button', 'btn btn-sm btn-ghost', 'Cancel');
+                controls.append(no, yes);
+                no.addEventListener('click', () => renderProfiles(true));
+                yes.addEventListener('click', async () => {
+                    yes.disabled = true;
+                    await window.northstarLogins.remove(p.id);
+                    showToast(p.spaces.length ? `Deleted “${p.name}”. Its spaces now use Default.` : `Deleted “${p.name}”`);
+                    renderProfiles(true);
+                });
+                no.focus();
+            });
+            return row;
+        }
+        function spaceRow(s, current) {
+            const row = el('div', 'prof-space-row'); row.setAttribute('role', 'listitem');
+            const label = el('div', 'prof-space-name', spaceLabel(s));
+            const sel = el('select');
+            sel.setAttribute('aria-label', `Profile for ${s.name}`);
+            for (const p of profData) {
+                const o = el('option', null, p.name); o.value = p.id;
+                sel.appendChild(o);
+            }
+            sel.value = current;
+            sel.addEventListener('change', async () => {
+                const to = profData.find(p => p.id === sel.value);
+                await window.northstarLogins.assign(s.id, sel.value);
+                showToast(`${s.name} now signs in with ${to ? to.name : 'that profile'}`);
+                renderProfiles(true);
+            });
+            row.append(label, sel);
+            return row;
+        }
+        async function renderProfiles(force) {
+            if (!profList || !window.northstarLogins) return;
+            // A broadcast mid-rename or mid-confirm would pull the row out from
+            // under you; only your own actions (force) redraw then.
+            if (!force && profList.querySelector('.prof-rename, .prof-row.confirming')) return;
+            try { profData = (await window.northstarLogins.list()) || []; }
+            catch (e) { window.northstarLog?.warn('settings', 'profiles: ' + e); return; }
+            profList.replaceChildren(...profData.map(profileRow));
+            // In the order the spaces sit in the sidebar, not grouped by profile.
+            const spaces = profData.flatMap(p => p.spaces.map(s => ({ s, current: p.id })))
+                .sort((a, b) => (a.s.order ?? 0) - (b.s.order ?? 0));
+            profSpaces.replaceChildren(...spaces.map(({ s, current }) => spaceRow(s, current)));
+        }
+        profAddName?.addEventListener('input', () => { profAddBtn.disabled = !profAddName.value.trim(); });
+        profAdd?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const nm = profAddName.value.trim();
+            if (!nm) return;
+            profAddBtn.disabled = true;
+            const c = await window.northstarLogins.create(nm);
+            profAddName.value = '';
+            showToast(`Added “${c?.name || nm}”. Choose it for a space below.`);
+            renderProfiles(true);
+        });
+        window.northstarLogins?.onChanged(() => renderProfiles());
+        renderProfiles();
+
         // ── About: updates (features/updates.js) ───────────────────────────
         // One renderer for every state, fed live by 'update-state'.
         const updateState = document.getElementById('update-state');

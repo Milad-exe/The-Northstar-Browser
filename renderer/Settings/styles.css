@@ -510,3 +510,34 @@ input, textarea, select { user-select: text; -webkit-user-select: text; }
 .imp-type .imp-meta { margin-left: var(--sp-1); }
 .imp-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-5); margin-top: var(--sp-5); }
 .imp-status { font-size: var(--fs-small); color: var(--text-2); margin-right: auto; }
+
+/* ── Profiles: who a space is signed in as ── */
+.prof-list, .prof-spaces { display: flex; flex-direction: column; margin-top: var(--sp-4); }
+.prof-row, .prof-space-row {
+  display: flex; align-items: center; gap: var(--sp-5);
+  min-height: var(--row-h); padding: var(--sp-4) 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+}
+.prof-row:first-child, .prof-space-row:first-child { border-top: none; }
+.prof-dot {
+  width: 32px; height: 32px; flex-shrink: 0; border-radius: var(--r-pill);
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--prof-color, var(--text-2)) 22%, transparent);
+  color: var(--prof-color, var(--text-2));
+  font-size: var(--fs-body); font-weight: 600;
+}
+.prof-info { flex: 1; min-width: 0; }
+.prof-name { font-size: var(--fs-body); font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prof-desc { font-size: var(--fs-small); color: var(--text-2); margin-top: 2px; }
+.prof-row.confirming .prof-desc { color: var(--text); }
+.prof-rename { max-width: 260px; }
+.prof-controls { display: flex; align-items: center; gap: var(--sp-3); flex-shrink: 0; }
+/* Quiet at rest: a row's actions show on hover or keyboard focus. */
+.prof-row:not(.confirming) .prof-controls { opacity: 0; transition: opacity var(--dur-1) var(--ease); }
+.prof-row:hover .prof-controls, .prof-row:focus-within .prof-controls { opacity: 1; }
+.prof-del { width: 26px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+.prof-del:hover { color: var(--danger); }
+.prof-add { display: flex; gap: var(--sp-4); margin-top: var(--sp-5); }
+.prof-add .text-input { max-width: 320px; }
+.prof-space-name { flex: 1; min-width: 0; font-size: var(--fs-body); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prof-space-row select { flex: 0 0 auto; min-width: 160px; }
