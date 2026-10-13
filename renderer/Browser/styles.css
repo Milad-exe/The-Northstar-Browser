@@ -1124,7 +1124,9 @@ html[data-tabbar="top"] #profile-btn {
 }
 html[data-tabbar="top"] #profile-btn .profile-badge {
   width: 22px; height: 22px;
-  background: color-mix(in srgb, var(--pf-color, var(--accent)) 30%, transparent);
+  /* The theme's own quiet fill, not the space colour: it sits among the
+     toolbar's buttons and wears what they wear. */
+  background: color-mix(in srgb, var(--text) 9%, transparent);
   color: var(--text); font-family: var(--font); font-size: var(--fs-micro); font-weight: 600;
 }
 html[data-tabbar="top"] #profile-btn .profile-badge.has-emoji { font-size: calc(var(--icon) - 4px); }
