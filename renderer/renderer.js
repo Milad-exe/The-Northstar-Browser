@@ -3517,19 +3517,12 @@
             else if (afterBtn) {
                 tabsContainer.insertBefore(btn, afterBtn.nextSibling);
             }
-            else if (document.documentElement.dataset.tabbar === 'top') {
-                // Top strip (Chrome-like): a new tab appends at the END of the row.
-                tabsContainer.appendChild(btn);
-            }
             else {
-                // Sidebar: new tabs land at the TOP of the loose-tab section — after
-                // the pinned block and any folders, before the existing tabs.
-                const firstLoose = [...tabsContainer.querySelectorAll('.tab-button')]
-                    .find(b => b !== btn && !b.classList.contains('pinned') && !b.classList.contains('in-folder'));
-                if (firstLoose)
-                    tabsContainer.insertBefore(btn, firstLoose);
-                else
-                    tabsContainer.appendChild(btn);
+                // Not opened from another tab (Ctrl+T, "+", a link from another
+                // app): the END of the list in both layouts — the right end of the
+                // strip, the bottom of the sidebar, beside "+ New tab". A tab opened
+                // FROM one arrives with afterIndex and sits right after it.
+                tabsContainer.appendChild(btn);
             }
             tabs.set(index, btn);
             layoutFolders(); // keep the new tab in the composed order
@@ -4157,8 +4150,8 @@
             setTimeout(updateScrollShadows, 20);
         }
         // Tell main the order the tabs are DRAWN in, top to bottom — Ctrl+1–9
-        // and Ctrl+Tab follow it (a new sidebar tab lands at the top of the loose
-        // tabs, which main's own tabOrder doesn't know).
+        // and Ctrl+Tab follow it (folders and the pinned block regroup rows,
+        // which main's own tabOrder doesn't know).
         function reportTabOrder() {
             try {
                 const order = [...tabsContainer.querySelectorAll('.tab-button')].map(el => parseInt(el.dataset.index, 10));

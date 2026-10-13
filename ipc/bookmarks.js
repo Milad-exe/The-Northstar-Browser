@@ -26,7 +26,10 @@ function register(ipcMain, { wm, webContents }) {
             if (tab?.webContents === senderWebContents)
                 return index;
         }
-        return null;
+        // From the window's own chrome (the bookmarks bar, the address bar):
+        // the tab you're on is the one it relates to, so it opens next to it.
+        const active = wd.tabs.activeTabIndex;
+        return wd.tabs.tabMap.has(active) ? active : null;
     };
     // ── Read ─────────────────────────────────────────────────────────────────
     ipcMain.handle('bookmarks-get', async (_e) => {
@@ -192,7 +195,7 @@ function register(ipcMain, { wm, webContents }) {
             return;
         const sourceTabIndex = getSenderTabIndex(wd, _e.sender);
         Menu.buildFromTemplate([
-            { label: 'Open in New Tab', click: () => { const i = wd.tabs.createTab(sourceTabIndex, false); wd.tabs.loadUrl(i, url); } },
+            { label: 'Open in New Tab', click: () => { const i = wd.tabs.createTab(sourceTabIndex, true); wd.tabs.loadUrl(i, url); } },
             { label: 'Open in Background Tab', click: () => { const i = wd.tabs.createTab(sourceTabIndex, false); wd.tabs.loadUrl(i, url); } },
             { type: 'separator' },
             { label: 'Copy URL', click: () => { require('electron').clipboard.writeText(url); } },
@@ -215,8 +218,8 @@ function showBookmarkBarContextMenu(wd, item, wm, webContents) {
     if (type === 'bookmark') {
         template = [
             { label: 'Open', click: () => wd.tabs.loadUrl(wd.tabs.activeTabIndex, url) },
-            { label: 'Open in New Tab', click: () => { const i = wd.tabs.createTab(null, false); wd.tabs.loadUrl(i, url); } },
-            { label: 'Open in Background', click: () => { const i = wd.tabs.createTab(null, false); wd.tabs.loadUrl(i, url); } },
+            { label: 'Open in New Tab', click: () => { const i = wd.tabs.createTab(wd.tabs.activeTabIndex, true); wd.tabs.loadUrl(i, url); } },
+            { label: 'Open in Background', click: () => { const i = wd.tabs.createTab(wd.tabs.activeTabIndex, false); wd.tabs.loadUrl(i, url); } },
             { type: 'separator' },
             { label: 'Edit', click: () => wd.window.webContents.send('bookmark-edit-prompt', { id, url, title }) },
             { label: 'Delete', click: async () => { await wm.bookmarksFor(wd.profileId || "1").removeById(id); broadcast(); } },
@@ -230,7 +233,7 @@ function showBookmarkBarContextMenu(wd, item, wm, webContents) {
                     const folder = all.find(b => b.id === id);
                     if (folder?.children) {
                         folder.children.filter(c => c.type === 'bookmark').forEach(c => {
-                            const i = wd.tabs.createTab(null, false);
+                            const i = wd.tabs.createTab(wd.tabs.activeTabIndex, false);
                             wd.tabs.loadUrl(i, c.url);
                         });
                     }

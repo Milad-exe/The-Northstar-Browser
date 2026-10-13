@@ -427,6 +427,28 @@ class Tabs {
         log.info('tabs', `space ${space}: ${n} tab(s) moved to its new profile`);
         return n;
     }
+    /* Where a tab opened FROM `opener` goes: right after it, or — while you
+       stay on the opener — after the last tab already opened from it, so five
+       links opened in a row read in the order you opened them (Chrome's
+       opener rule), not newest-first. */
+    _relatedAnchor(opener) {
+        const c = this._openerChain;
+        if (c && c.opener === opener && c.last !== opener && this.tabOrder.includes(c.last)
+            && this.tabOrder.indexOf(c.last) > this.tabOrder.indexOf(opener))
+            return c.last;
+        return opener;
+    }
+    /* Record a tab opened from `opener`: it extends the run, and it joins the
+       opener's folder — a link from a tab in "Research" belongs in Research. */
+    _noteChild(opener, child) {
+        this._openerChain = { opener, last: child };
+        const folder = this.tabFolders.get(opener);
+        if (folder && !this.pinnedTabs.has(child)) {
+            this.tabFolders.set(child, folder);
+            // After tab-created has drawn its row, so the row has a folder to join.
+            setImmediate(() => this.broadcastFolders());
+        }
+    }
     createLazyTab(url, title, isPinned, isPrivate = false, insertAfterActive = false, eager = false, containerId = null, workspaceId = null) {
         const tabIndex = this.nextTabIndex;
         this.nextTabIndex++;
@@ -442,10 +464,12 @@ class Tabs {
         this.tabUrls.set(tabIndex, url || 'newtab');
         this.tabLastActive.set(tabIndex, Date.now());
         // Placement: user "open in new tab" actions drop the tab right after the
-        // current one (Chrome/the standard style); everything else (session restore,
-        // etc.) appends to the end so restored order is preserved.
-        const afterIdx = (insertAfterActive && this.tabOrder.includes(this.activeTabIndex))
+        // current one — after any earlier tabs opened from it, in order — the way
+        // other browsers do; everything else (session restore, etc.) appends to
+        // the end so restored order is preserved.
+        const opener = (insertAfterActive && this.tabOrder.includes(this.activeTabIndex))
             ? this.activeTabIndex : null;
+        const afterIdx = opener !== null ? this._relatedAnchor(opener) : null;
         const afterPos = afterIdx !== null ? this.tabOrder.indexOf(afterIdx) : -1;
         if (afterPos !== -1)
             this.tabOrder.splice(afterPos + 1, 0, tabIndex);
@@ -462,6 +486,8 @@ class Tabs {
         if (container)
             this.tabContainers.set(tabIndex, container);
         this.tabProfiles.set(tabIndex, workspace);
+        if (opener !== null)
+            this._noteChild(opener, tabIndex);
         tab.lazyLoaded = false;
         let tempTitle = title || url || i18n.t('tab.untitled');
         if ((!title || title === i18n.t('tab.untitled') || title === 'New Tab' || title === '') && url && url.startsWith('http')) {
@@ -660,8 +686,13 @@ class Tabs {
         if (container)
             this.tabContainers.set(tabIndex, container);
         this.tabProfiles.set(tabIndex, this.profileId);
-        // insertAfterIndex: existing tab index to insert after, -1 for the
-        // front of the order (cross-window drop before the first tab), else end.
+        // insertAfterIndex: the tab this one is opened FROM (it lands after it,
+        // after earlier tabs opened from it), -1 for the front of the order
+        // (cross-window drop before the first tab), else the end.
+        const related = (insertAfterIndex !== null && insertAfterIndex !== undefined && insertAfterIndex !== -1
+            && this.tabOrder.includes(insertAfterIndex)) ? insertAfterIndex : null;
+        if (related !== null)
+            insertAfterIndex = this._relatedAnchor(related);
         const afterPos = (insertAfterIndex !== null && insertAfterIndex !== undefined && insertAfterIndex !== -1)
             ? this.tabOrder.indexOf(insertAfterIndex)
             : -1;
@@ -684,6 +715,8 @@ class Tabs {
         }
         this.navigationHistory.initializeTab(tabIndex, 'newtab');
         this.setupTabListeners(tabIndex, tab);
+        if (related !== null)
+            this._noteChild(related, tabIndex);
         this.mainWindow.webContents.send('tab-created', {
             index: tabIndex,
             title: i18n.t('tab.untitled'),
@@ -1359,6 +1392,9 @@ class Tabs {
         });
     }
     showTab(index) {
+        // Going to another tab ends a run of tabs opened from the last one.
+        if (this._openerChain && index !== this._openerChain.opener)
+            this._openerChain = null;
         // A glance is transient — dismiss it on any tab switch.
         this.closeGlance();
         // The Essentials grid highlights whichever tile owns the tab you are on.

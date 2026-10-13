@@ -116,7 +116,7 @@ function register(ipcMain, { wm, screen, webContents }) {
         closeFolderDropdown(wd);
         wd.window.webContents.focus();
         if (wd.tabs) {
-            const idx = wd.tabs.createTab(null, false);
+            const idx = wd.tabs.createTab(wd.tabs.activeTabIndex, false);
             wd.tabs.loadUrl(idx, sanitizeUrl(url));
         }
     });
@@ -221,8 +221,8 @@ function showFolderDropdownContextMenu(wd, item, wm, webContents) {
     if (type === 'bookmark') {
         template = [
             { label: 'Open', click: () => { closeAndFocus(); wd.tabs.loadUrl(wd.tabs.activeTabIndex, url); } },
-            { label: 'Open in New Tab', click: () => { closeAndFocus(); const i = wd.tabs.createTab(null, false); wd.tabs.loadUrl(i, url); } },
-            { label: 'Open in Background', click: () => { const i = wd.tabs.createTab(null, false); wd.tabs.loadUrl(i, url); } },
+            { label: 'Open in New Tab', click: () => { closeAndFocus(); const i = wd.tabs.createTab(wd.tabs.activeTabIndex, true); wd.tabs.loadUrl(i, url); } },
+            { label: 'Open in Background', click: () => { const i = wd.tabs.createTab(wd.tabs.activeTabIndex, false); wd.tabs.loadUrl(i, url); } },
             { type: 'separator' },
             { label: 'Edit', click: () => { closeAndFocus(); wd.window.webContents.send('bookmark-edit-prompt', { id, url, title }); } },
             { label: 'Delete', click: async () => {
@@ -242,7 +242,7 @@ function showFolderDropdownContextMenu(wd, item, wm, webContents) {
                     const folder = findFolderDeep(all, id);
                     if (folder?.children) {
                         folder.children.filter(c => c.type === 'bookmark').forEach(c => {
-                            const i = wd.tabs.createTab(null, false);
+                            const i = wd.tabs.createTab(wd.tabs.activeTabIndex, false);
                             wd.tabs.loadUrl(i, c.url);
                         });
                     }
