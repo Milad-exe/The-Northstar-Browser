@@ -194,14 +194,18 @@ function register(ipcMain, { wm, webContents }) {
         if (!wd)
             return;
         const sourceTabIndex = getSenderTabIndex(wd, _e.sender);
-        Menu.buildFromTemplate([
+        const template = [
             { label: 'Open in New Tab', click: () => { const i = wd.tabs.createTab(sourceTabIndex, true); wd.tabs.loadUrl(i, url); } },
             { label: 'Open in Background Tab', click: () => { const i = wd.tabs.createTab(sourceTabIndex, false); wd.tabs.loadUrl(i, url); } },
             { type: 'separator' },
             { label: 'Copy URL', click: () => { require('electron').clipboard.writeText(url); } },
             { type: 'separator' },
             { label: 'Remove Bookmark', click: async () => { await bmFor(_e).remove(url); broadcast(); } },
-        ]).popup({ window: wd.window });
+        ];
+        // The app's own menu, like every other right-click; native only if it
+        // cannot be shown.
+        if (!overlayMenu.popup(wd, template, 0, 0))
+            Menu.buildFromTemplate(template).popup({ window: wd.window });
     });
 }
 // ── showBookmarkBarContextMenu ────────────────────────────────────────────────

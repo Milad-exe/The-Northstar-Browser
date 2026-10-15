@@ -924,10 +924,20 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
         const h = wd.tabs.navigationHistory.getHistory(index);
         if (!h || !Array.isArray(h.entries) || h.entries.length < 2)
             return false;
-        const template = [...h.entries].reverse().map(entry => ({
+        // The blank-tab root is not a place you can go back to (canGoBack
+        // refuses it), so it is not offered here either.
+        const template = [...h.entries].filter(entry => entry.data !== 'newtab').reverse().map(entry => ({
             // Prefer the page title (some browsers show titles in this list); fall
             // back to a compact host/path label when the title isn't known yet.
             label: entry.title || navEntryLabel(entry.data),
+            // The site's own icon when we have it, else a globe — never a guess
+            // from the page title.
+            ...(() => {
+                let host = '';
+                try { host = new URL(entry.data).hostname; } catch { /* internal token */ }
+                const fav = host ? faviconStore.getForHost(host) : '';
+                return fav ? { iconUrl: fav } : { glyph: 'globe' };
+            })(),
             type: 'checkbox',
             checked: entry.index === h.currentIndex,
             enabled: entry.index !== h.currentIndex,
@@ -936,6 +946,10 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
             }
             catch (e) { log.debug('tabs', 'show-nav-history-menu', e); } },
         }));
+        // The app's menu (icons, theme, the same rows as everywhere else);
+        // native only if the overlay cannot be shown.
+        if (overlayMenu.popup(wd, template, x, y))
+            return true;
         Menu.buildFromTemplate(template).popup({
             window: wd.window,
             x: Math.round(x),

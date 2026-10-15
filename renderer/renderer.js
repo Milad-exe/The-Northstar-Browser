@@ -2622,7 +2622,7 @@
            with a check on the current one, then make one or manage them. */
         function profilePickerRows(currentId, onPick) {
             return [
-                ..._loginProfiles.map(p => [p.name, () => onPick(p.id, p.name), '', { checked: String(p.id) === String(currentId || 'default') }]),
+                ..._loginProfiles.map(p => [p.name, () => onPick(p.id, p.name), '', { glyph: 'profile', checked: String(p.id) === String(currentId || 'default') }]),
                 ['sep'],
                 ['New profile…', () => promptForText('Name the new profile', '', async (name) => {
                     const nm = (name || '').trim();
@@ -3244,7 +3244,7 @@
                 const moveSub = [];
                 if (!isPinned) {
                     for (const f of folderState.folders.filter(f => f.id !== curFolder))
-                        moveSub.push([f.name || 'Folder', () => window.folders.assign(idx, f.id)]);
+                        moveSub.push([f.name || 'Folder', () => window.folders.assign(idx, f.id), '', { glyph: 'folder' }]);
                     if (curFolder) moveSub.push(['Remove from folder', () => window.folders.assign(idx, null)]);
                     if (moveSub.length) moveSub.push(['sep']);
                     moveSub.push(
@@ -3271,7 +3271,7 @@
                     const url = await tabUrl();
                     if (/^https?:/i.test(url || '')) window.tab.openInContainer(containerId, url);
                 };
-                const openSub = (_containersCache || []).map(c => [c.name, () => openInC(c.id)]);
+                const openSub = (_containersCache || []).map(c => [c.name, () => openInC(c.id), '', { glyph: 'profile' }]);
                 /* Always offer to make one — an empty flyout looked broken.
                    Creating a container here opens the tab in it straight away. */
                 openSub.push(['New profile…', () => {
@@ -4029,7 +4029,7 @@
             // Spaces other than the current one; the folder and its tabs move together.
             const spaceRows = (_spacesCache || [])
                 .filter(p => String(p.id) !== String(activeWorkspace))
-                .map(p => [`${p.emoji ? p.emoji + '  ' : ''}${p.name}`, () => window.folders.move(id, p.id)]);
+                .map(p => [p.name, () => window.folders.move(id, p.id), '', p.emoji ? { icon: p.emoji } : { glyph: 'spaces' }]);
             openCtxMenu(x, y, [
                 ['Rename folder…', () => { const h = tabsContainer.querySelector(`.folder-header[data-folder="${CSS.escape(id)}"]`); if (h) startFolderRename(h, id); }],
                 ['Change icon…', () => { const h = tabsContainer.querySelector(`.folder-header[data-folder="${CSS.escape(id)}"]`); const r = h ? h.getBoundingClientRect() : { right: x, top: y }; openEmojiPicker(r.right + 4, r.top, (e) => window.folders.icon(id, e)); }],

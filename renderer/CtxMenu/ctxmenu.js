@@ -99,6 +99,11 @@
             const ic = document.createElement('span');
             ic.className = 'ctx-icon';
             ic.setAttribute('aria-hidden', 'true');
+            // No icon named: the label picks one (menu-glyphs forLabel), so every
+            // right-click menu carries icons — template menus included. The
+            // menu bar's File/Edit/… dropdowns stay text, as menu bars are.
+            const glyph = r.glyph || (!r.icon && !useMnemonics
+                ? window.Northstar?.menuGlyphs?.forLabel?.(r.label) : null);
             if (r.iconUrl && /^data:image\//.test(r.iconUrl)) {
                 // A site's favicon (recently closed): data: images only.
                 const img = document.createElement('img');
@@ -107,7 +112,7 @@
                 img.src = r.iconUrl;
                 ic.appendChild(img);
             }
-            else if (r.glyph && window.Northstar?.menuGlyphs?.[r.glyph]) {
+            else if (glyph && window.Northstar?.menuGlyphs?.[glyph]) {
                 // A named Phosphor icon (renderer/lib/menu-glyphs.js), drawn
                 // from the map so the row's data never becomes markup.
                 const NS = 'http://www.w3.org/2000/svg';
@@ -115,7 +120,7 @@
                 svg.setAttribute('viewBox', '0 0 256 256');
                 svg.setAttribute('fill', 'currentColor');
                 const p = document.createElementNS(NS, 'path');
-                p.setAttribute('d', window.Northstar.menuGlyphs[r.glyph]);
+                p.setAttribute('d', window.Northstar.menuGlyphs[glyph]);
                 svg.appendChild(p);
                 ic.appendChild(svg);
             }

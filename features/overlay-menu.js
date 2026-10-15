@@ -59,6 +59,10 @@ function toRows(template) {
         // can never be made to fetch something.
         if (typeof item.iconUrl === 'string' && /^data:image\//.test(item.iconUrl))
             row.iconUrl = item.iconUrl;
+        // A named Phosphor icon (renderer/lib/menu-glyphs.js), for a row whose
+        // label is data (a page title) and must not pick one by its wording.
+        if (typeof item.glyph === 'string' && /^[a-zA-Z]+$/.test(item.glyph))
+            row.glyph = item.glyph;
         const sub = item.submenu && (Array.isArray(item.submenu) ? item.submenu : item.submenu.items);
         if (sub && sub.length)
             row.sub = toRows(sub);

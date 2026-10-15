@@ -32,17 +32,25 @@ class WindowContextMenu {
         if (params.isEditable)
             return;
         const windowData = this.getWindowData();
+        // The engine the address bar uses (as the page menu does) — this said
+        // Google and went to Google whatever the default was.
+        const engines = require('./search-engines');
+        let engine = null;
+        try { engine = engines.byId(windowData?.tabs?.persistence?.get('searchEngine') || 'google'); }
+        catch (e) { log.debug('window-context-menu', 'engine', e); }
+        engine = engine || engines.byId('google');
+        const text = params.selectionText;
         this.contextTemplate.push({
             label: 'Copy',
             role: 'copy',
             enabled: params.editFlags.canCopy,
         }, {
-            label: `Search Google for "${params.selectionText.slice(0, 40)}${params.selectionText.length > 40 ? '…' : ''}"`,
+            label: `Search ${engine.name} for “${text.slice(0, 40)}${text.length > 40 ? '…' : ''}”`,
             click: () => {
                 if (!windowData)
                     return;
-                const newIndex = windowData.tabs.createTab();
-                windowData.tabs.loadUrl(newIndex, `https://www.google.com/search?q=${encodeURIComponent(params.selectionText)}`);
+                const newIndex = windowData.tabs.createTab(windowData.tabs.activeTabIndex, true);
+                windowData.tabs.loadUrl(newIndex, engines.buildUrl(engine, text));
             },
         });
     }
