@@ -536,7 +536,9 @@ class WindowManager {
             }
             const template = contextMenuInstance.getTemplate();
             // The app's own menu; native only if the overlay cannot be shown.
-            if (overlayMenu.popup(this.getWindowByWebContents(window.webContents), template, 0, 0))
+            // At the click: params are in the chrome's coordinates, which are
+            // the window's (the chrome fills it).
+            if (overlayMenu.popup(this.getWindowByWebContents(window.webContents), template, params.x || 0, params.y || 0))
                 return;
             const menu = Menu.buildFromTemplate(template);
             menu.popup({ window });

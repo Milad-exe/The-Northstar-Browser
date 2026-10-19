@@ -2014,7 +2014,7 @@
                 // knows the full panel order (pinned, folders, New Tab, tabs).
                 // Hand-placing here is what let pinned tabs land in the wrong spot.
                 layoutFolders();
-                const ordered = [...tabsContainer.querySelectorAll('.tab-button')].map(el => parseInt(el.dataset.index));
+                const ordered = stripOrder();
                 if (ordered.length)
                     window.tab.reorder(ordered);
                 updateTabWidths(tabs.size);
@@ -2151,6 +2151,14 @@
                 const line = side
                     ? { x: ref.left - bar.left + 6, y: at - bar.top - 1, w: ref.width - 12, h: 2 }
                     : { x: at - bar.left - 1, y: ref.top - bar.top + 6, w: 2, h: ref.height - 12 };
+                // The sidebar runs bottom → top (the strip on its side): the tab
+                // BELOW the gap is the one the new tab follows; no tab below means
+                // the front of the strip, or — above the "+ New tab" row and the
+                // folders — the end of it, the top of the loose tabs.
+                if (side) {
+                    const below = nextEl?.classList.contains('tab-button') && !nextEl.classList.contains('pinned') ? nextEl : null;
+                    return { gap: true, after: below ? +below.dataset.index : (nextEl ? null : -1), folder, line };
+                }
                 return { gap: true, after: after ? +after.dataset.index : -1, folder, line };
             }
             function paintDrop(spot) {
@@ -2339,7 +2347,12 @@
             catch (e) { window.northstarLog?.debug('renderer', 'initTabBarSide: ' + e); }
             try {
                 window.tabsUI.onTabBarSide((v) => {
+                    const was = document.documentElement.dataset.tabbar;
                     document.documentElement.dataset.tabbar = v === 'top' ? 'top' : 'side';
+                    if (was && was !== document.documentElement.dataset.tabbar) {
+                        sidebarRunsFlip();
+                        layoutFolders();
+                    }
                     placeWindowControls();
                     updateTabWidths(tabs.size);
                     updateScrollShadows();
@@ -3251,12 +3264,12 @@
                         ['Move to top', () => {
                             const first = [...tabsContainer.querySelectorAll('.tab-button:not(.pinned):not(.in-folder)')][0];
                             if (first && first !== btn) tabsContainer.insertBefore(btn, first);
-                            window.tab.reorder([...tabsContainer.querySelectorAll('.tab-button')].map(el => +el.dataset.index));
+                            window.tab.reorder(stripOrder());
                             reportTabOrder();
                         }],
                         ['Move to bottom', () => {
                             tabsContainer.appendChild(btn);
-                            window.tab.reorder([...tabsContainer.querySelectorAll('.tab-button')].map(el => +el.dataset.index));
+                            window.tab.reorder(stripOrder());
                             reportTabOrder();
                         }],
                         ['sep'],
@@ -3578,7 +3591,7 @@
                             else folderState.assign.delete(idxN);
                         }
                         layoutFolders();
-                        const ordered = [...tabsContainer.querySelectorAll('.tab-button')].map(el => parseInt(el.dataset.index));
+                        const ordered = stripOrder();
                         if (ordered.length)
                             window.tab.reorder(ordered);
                         if (cur !== next) { try { window.folders.assign(idxN, next); } catch (e) { window.northstarLog?.debug('renderer', 'finish: ' + e); } }
@@ -3605,7 +3618,22 @@
             });
             // afterIndex: tab index to insert after, -1 for the front, null → end
             const afterBtn = (afterIndex !== null && afterIndex !== -1) ? tabs.get(afterIndex) : null;
-            if (afterIndex === -1) {
+            if (sideTabs()) {
+                // The sidebar holds each run reversed (see sidebarRunsFlip): the
+                // strip's "after X" is ABOVE X, its end is the top of the tab
+                // list, its front the bottom.
+                if (afterBtn && !afterBtn.classList.contains('pinned'))
+                    tabsContainer.insertBefore(btn, afterBtn);
+                else if (afterIndex === -1 || afterBtn)
+                    tabsContainer.appendChild(btn);
+                else {
+                    const firstLoose = [...tabsContainer.querySelectorAll('.tab-button')]
+                        .find(b => b !== btn && !b.classList.contains('pinned') && !b.classList.contains('in-folder'));
+                    if (firstLoose) tabsContainer.insertBefore(btn, firstLoose);
+                    else tabsContainer.appendChild(btn);
+                }
+            }
+            else if (afterIndex === -1) {
                 tabsContainer.insertBefore(btn, tabsContainer.firstChild);
             }
             else if (afterBtn) {
@@ -3613,9 +3641,8 @@
             }
             else {
                 // Not opened from another tab (Ctrl+T, "+", a link from another
-                // app): the END of the list in both layouts — the right end of the
-                // strip, the bottom of the sidebar, beside "+ New tab". A tab opened
-                // FROM one arrives with afterIndex and sits right after it.
+                // app): the END of the strip — its right end, and in the sidebar
+                // (the strip on its side, bottom → top) the TOP of the tab list.
                 tabsContainer.appendChild(btn);
             }
             tabs.set(index, btn);
@@ -4242,6 +4269,37 @@
             // the overflow indicators once that has applied.
             updateTabWidths(tabs.size);
             setTimeout(updateScrollShadows, 20);
+        }
+        /* The sidebar is the strip turned on its side — left → right there is
+           bottom → top here — so it holds each run of tabs (the loose tabs, each
+           folder's tabs) in REVERSE; the pinned block keeps its order. Main's
+           tabOrder is always strip order: stripOrder() converts what the
+           sidebar holds back to it, and sidebarRunsFlip() turns the runs over
+           when the layout changes. Rows are only ever placed relative to what
+           is drawn, so dragging, the drop line and folders need nothing else. */
+        function tabRuns() {
+            const runs = [];
+            for (const b of tabsContainer.querySelectorAll('.tab-button')) {
+                const key = b.classList.contains('pinned') ? 'pinned'
+                    : (folderState.assign.get(+b.dataset.index) || 'loose');
+                const last = runs[runs.length - 1];
+                if (last && last.key === key) last.btns.push(b);
+                else runs.push({ key, btns: [b] });
+            }
+            return runs;
+        }
+        function stripOrder() {
+            const runs = tabRuns();
+            if (sideTabs())
+                for (const r of runs) if (r.key !== 'pinned') r.btns.reverse();
+            return runs.flatMap(r => r.btns).map(b => +b.dataset.index);
+        }
+        function sidebarRunsFlip() {
+            for (const r of tabRuns()) {
+                if (r.key === 'pinned' || r.btns.length < 2) continue;
+                const anchor = r.btns[r.btns.length - 1].nextSibling;
+                for (const b of r.btns.slice().reverse()) tabsContainer.insertBefore(b, anchor);
+            }
         }
         // Tell main the order the tabs are DRAWN in, top to bottom — Ctrl+1–9
         // and Ctrl+Tab follow it (folders and the pinned block regroup rows,

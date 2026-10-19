@@ -105,6 +105,17 @@ function popup(wd, template, x, y, onClose, opts) {
     const rows = toRows(template);
     if (!rows.length)
         return false;
+    // (0, 0) means "where the pointer is" — callers that only know a click
+    // happened (a bookmark, a folder dropdown row) passed it, and the menu
+    // opened in the window's top-left corner.
+    if (!x && !y) {
+        try {
+            const { screen } = require('electron');
+            const p = screen.getCursorScreenPoint(), cb = wd.window.getContentBounds();
+            x = p.x - cb.x; y = p.y - cb.y;
+        }
+        catch (e) { log.debug('overlay-menu', 'cursor point', e); }
+    }
     try {
         showFn(wd, { rows, x: Math.round(x || 0), y: Math.round(y || 0), mnemonics: !!(opts && opts.mnemonics) }, (path) => {
             const picked = Array.isArray(path);
