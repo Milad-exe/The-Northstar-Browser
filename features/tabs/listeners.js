@@ -25,6 +25,7 @@ const log = require('../log');
 const miniPlayer = require('../mini-player');
 const zoom = require('../zoom');
 const { internalTokenFor } = require('./internal-page');
+const NO_PAGE_DRAG = '*, *::before, *::after { -webkit-app-region: no-drag !important; app-region: no-drag !important; }';
 
 module.exports = {
     setupTabListeners(tabIndex, tab) {
@@ -462,6 +463,14 @@ module.exports = {
         // indicator a short grace after dom-ready (unless did-stop-loading beat
         // us to it). Matches when the page actually feels loaded.
         tab.webContents.on('dom-ready', () => {
+            /* A web page must never be able to move the window. Electron honours
+               a page's own -webkit-app-region: drag (sites set it for their
+               installed-app title bar — YouTube's top bar does, signed in), and
+               on Windows that turns the page's header into the window's caption:
+               its logo and menu stopped taking clicks. A user-origin !important
+               rule outranks anything the page says. Re-applied per document. */
+            try { tab.webContents.insertCSS(NO_PAGE_DRAG, { cssOrigin: 'user' }); }
+            catch (e) { log.debug('listeners', 'no-drag css', e); }
             clearTimeout(tab._loadingCapTimer);
             tab._loadingCapTimer = setTimeout(() => {
                 try {
