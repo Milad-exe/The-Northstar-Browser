@@ -644,9 +644,14 @@ class Dnr {
         // the documented upsert idiom, not a conflict. Skipping those adds
         // silently dropped every rule an extension tried to update in place.
         const next = raw.filter(r => !drop.has(Number(r.id)));
+        // A Set, not next.some() per rule: a blocker adding its 30,000 dynamic
+        // rules in one call made that ~900 million comparisons on the main
+        // process — a multi-second freeze.
+        const ids = new Set(next.map(e => Number(e.id)));
         for (const r of addRules || []) {
-            if (next.some(e => Number(e.id) === Number(r.id)))
+            if (ids.has(Number(r.id)))
                 throw new Error(`Rule with id ${r.id} already exists`);
+            ids.add(Number(r.id));
             // Reject at update time the way Chrome does, rather than storing a
             // rule that would be silently dropped at compile time.
             const rf = r?.condition?.regexFilter;
@@ -692,6 +697,12 @@ class Dnr {
             }
         }
         this._invalidate();
+        // Which lists a blocker runs is the first thing to know when browsing
+        // gets slow or the browser falls over — say it in the log.
+        if ((enableRulesetIds || []).length || (disableRulesetIds || []).length) {
+            const on = [...rec.staticSets.values()].filter(x => x.enabled);
+            log.info('dnr', `${extensionId}: +${(enableRulesetIds || []).length} -${(disableRulesetIds || []).length} rulesets; ${on.length} on, ${on.reduce((n, x) => n + (x.rules ? x.rules.length : 0), 0)} static rules`);
+        }
         return true;
     }
 
@@ -700,14 +711,26 @@ class Dnr {
         return [...rec.staticSets.entries()].filter(([, s]) => s.enabled).map(([id]) => id);
     }
 
+    /* Counted against EVERY declared ruleset, enabled or not — not just the
+       enabled ones, as Chrome does. Blockers size what they switch on by this
+       number: reporting Chrome's large free budget made AdBlock enable list
+       after list until the main process (this engine is JavaScript, Chrome's
+       is not) froze and was killed. With every list counted it keeps the
+       handful it starts with, as it always did here. The disabled lists are
+       counted from their files' text — not parsed, not compiled — once. */
     getAvailableStaticRuleCount(extensionId) {
         const rec = this._rec(extensionId);
         let used = 0;
-        // Chrome counts the ENABLED rulesets against the limit.
-        for (const s of rec.staticSets.values())
-            if (s.enabled)
-                used += this._loadSet(s).length;
+        for (const set of rec.staticSets.values())
+            used += set.rules ? set.rules.length : this._countSet(set);
         return Math.max(0, MAX_STATIC_RULES - used);
+    }
+    _countSet(set) {
+        if (set.count == null) {
+            try { set.count = (fs.readFileSync(set.file, 'utf-8').match(/"id"s*:/g) || []).length; }
+            catch (e) { log.debug('dnr', 'count ruleset', e); set.count = 0; }
+        }
+        return set.count;
     }
 
     // ── Matching ─────────────────────────────────────────────────────────────
