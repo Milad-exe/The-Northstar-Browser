@@ -57,6 +57,46 @@ const ACTION_RANK = {
 
 function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
+/* Keyword index (the trick every real blocker uses). A urlFilter can only
+   match a URL that contains each of its BOUNDED literal words as a whole
+   word — bounded meaning the characters either side in the filter are
+   separators, ^ or an anchor, never * or the open start/end of the filter.
+   So "/adserver/" only needs testing against URLs with the word "adserver".
+   Words are runs of [a-z0-9%], as in ABP and uBlock. */
+const WORD = /[a-z0-9%]/;
+// Words so common they would put a rule in a huge bucket; skipped as keys.
+const COMMON = new Set(['http', 'https', 'www', 'com', 'net', 'org', 'js', 'css', 'html', 'php', 'png', 'jpg', 'gif', 'static', 'cdn', 'api', 'assets', 'img', 'images']);
+function filterKeyword(filter) {
+    if (typeof filter !== 'string' || !filter)
+        return null;
+    let f = filter.toLowerCase();
+    let i = 0, end = f.length;
+    let startAnchored = false, endAnchored = false;
+    if (f.startsWith('||')) { i = 2; startAnchored = true; }
+    else if (f.startsWith('|')) { i = 1; startAnchored = true; }
+    if (end > i && f.endsWith('|')) { end -= 1; endAnchored = true; }
+    let best = null, bestLen = 0;
+    let j = i;
+    while (j < end) {
+        if (!WORD.test(f[j])) { j++; continue; }
+        let k = j;
+        while (k < end && WORD.test(f[k])) k++;
+        const before = j === i ? (startAnchored ? '|' : null) : f[j - 1];
+        const after = k === end ? (endAnchored ? '|' : null) : f[k];
+        const bounded = before !== null && before !== '*' && after !== null && after !== '*';
+        const word = f.slice(j, k);
+        if (bounded && word.length >= 3 && !COMMON.has(word) && word.length > bestLen) {
+            best = word; bestLen = word.length;
+        }
+        j = k;
+    }
+    return best;
+}
+/** The whole words of a URL, for the keyword index. */
+function urlWords(url) {
+    return new Set(url.toLowerCase().split(/[^a-z0-9%]+/).filter(w => w.length >= 3));
+}
+
 /**
  * Compile an ABP-style urlFilter into a RegExp.
  *   ||host   anchor to the start of a domain (subdomains included)
@@ -269,6 +309,9 @@ class CompiledRule {
             if (m && !m[1].includes('*'))
                 this.hostKey = m[1].toLowerCase();
         }
+        // A rule that can't be bucketed by host can often be by a word.
+        this.keyword = (!this.hostKey && !this.isRegex && typeof c.urlFilter === 'string')
+            ? filterKeyword(c.urlFilter) : null;
         // Normalise the two generations of domain conditions into one shape.
         this.initiatorDomains = c.initiatorDomains || c.domains || null;
         this.excludedInitiatorDomains = c.excludedInitiatorDomains || c.excludedDomains || null;
@@ -406,7 +449,7 @@ class Dnr {
         for (const rec of this.exts.values()) {
             for (const set of rec.staticSets.values())
                 if (set.enabled)
-                    out.push(...set.rules);
+                    out.push(...this._loadSet(set));
             out.push(...rec.dynamic, ...rec.session);
         }
         // Sort once here so matching never has to.
@@ -418,20 +461,25 @@ class Dnr {
         // which is exactly the sort of thing that makes a browser feel sluggish.
         // Requests that match nothing (the common case) paid the full scan.
         const byHost = new Map();
+        const byWord = new Map();
         const generic = [];
+        const push = (map, key, rule) => {
+            let bucket = map.get(key);
+            if (!bucket)
+                map.set(key, bucket = []);
+            bucket.push(rule);
+        };
         out.forEach((rule, i) => {
-            rule.seq = i; // global priority order, so candidates can be re-merged
-            if (rule.hostKey) {
-                let bucket = byHost.get(rule.hostKey);
-                if (!bucket)
-                    byHost.set(rule.hostKey, bucket = []);
-                bucket.push(rule);
-            }
-            else {
+            rule.seq = i; // global priority order: the earliest match wins
+            if (rule.hostKey)
+                push(byHost, rule.hostKey, rule);
+            else if (rule.keyword)
+                push(byWord, rule.keyword, rule);
+            else
                 generic.push(rule);
-            }
         });
         this._byHost = byHost;
+        this._byWord = byWord;
         this._generic = generic;
         this._flat = out;
         return out;
@@ -441,29 +489,53 @@ class Dnr {
      * Rules that could possibly match this request, in global priority order.
      * Everything bucketed under an unrelated domain is skipped outright.
      */
-    _candidates(req) {
+    _candidateLists(req) {
         this._rules(); // ensures the index is built
-        const generic = this._generic;
-        const host = req.host;
-        if (!host)
-            return generic;
+        const lists = [this._generic];
+        // Words of the URL: rules keyed on a word it doesn't contain can't match.
+        if (this._byWord.size)
+            for (const w of urlWords(req.url)) {
+                const bucket = this._byWord.get(w);
+                if (bucket)
+                    lists.push(bucket);
+            }
         // Walk the domain and its parents: a rule keyed on example.com must be
         // considered for a.b.example.com.
-        let buckets = null;
-        let from = 0;
-        for (;;) {
-            const bucket = this._byHost.get(host.slice(from));
-            if (bucket)
-                (buckets || (buckets = [])).push(bucket);
-            const dot = host.indexOf('.', from);
-            if (dot === -1)
-                break;
-            from = dot + 1;
+        const host = req.host;
+        if (host) {
+            let from = 0;
+            for (;;) {
+                const bucket = this._byHost.get(host.slice(from));
+                if (bucket)
+                    lists.push(bucket);
+                const dot = host.indexOf('.', from);
+                if (dot === -1)
+                    break;
+                from = dot + 1;
+            }
         }
-        if (!buckets)
-            return generic;
-        const out = generic.concat(...buckets);
-        // Both parts are individually ordered; re-merge into global order.
+        return lists;
+    }
+    /* The highest-priority rule passing `ok` across the candidate lists. Each
+       list is already in priority order, so its first passing rule is its
+       best; the winner is the earliest of those. No list is copied or sorted. */
+    _firstMatch(lists, ok) {
+        let winner = null;
+        for (const list of lists) {
+            for (const rule of list) {
+                if (winner && rule.seq >= winner.seq)
+                    break; // nothing later in this list can beat it
+                if (ok(rule)) {
+                    winner = rule;
+                    break;
+                }
+            }
+        }
+        return winner;
+    }
+    /** Every candidate, in priority order (for the rare callers that need all). */
+    _candidates(req) {
+        const out = [].concat(...this._candidateLists(req));
         out.sort((a, b) => a.seq - b.seq);
         return out;
     }
@@ -503,18 +575,16 @@ class Dnr {
             // The WithHostAccess variant gates EVERY action, not just the two.
             rec.strictHostAccess = perms.includes('declarativeNetRequestWithHostAccess') &&
                 !perms.includes('declarativeNetRequest');
+            /* A ruleset is read and compiled only while it is ENABLED. Blockers
+               ship dozens of regional lists and switch on two or three: AdBlock
+               carries 37 (1.7 million rules) and enables 3 — compiling all of
+               them froze the main process for ~5 s and kept every RegExp alive. */
             for (const res of decl?.rule_resources || []) {
                 const file = path.join(ext.path, String(res.path || '').replace(/^\/+/, ''));
-                let rules = [];
-                try {
-                    const parsed = JSON.parse(fs.readFileSync(file, 'utf-8'));
-                    if (Array.isArray(parsed))
-                        rules = parsed.slice(0, MAX_STATIC_RULES).map(r => new CompiledRule(r, ext.id, 'static'));
-                }
-                catch (e) {
-                    console.error(`[dnr] ${ext.id} ruleset ${res.id}: ${e.message}`);
-                }
-                rec.staticSets.set(String(res.id), { enabled: res.enabled !== false, rules });
+                const set = { enabled: res.enabled !== false, file, rules: null, id: String(res.id), ext: ext.id };
+                rec.staticSets.set(String(res.id), set);
+                if (set.enabled)
+                    this._loadSet(set);
             }
             // Dynamic rules survive restarts; session rules deliberately do not.
             rec.dynamic = this._readDynamic(ext.id).map(r => new CompiledRule(r, ext.id, 'dynamic'));
@@ -527,6 +597,23 @@ class Dnr {
         catch (e) {
             console.error('[dnr] registerExtension:', e.message);
         }
+    }
+
+    /** Read and compile one static ruleset (once, while it is enabled). */
+    _loadSet(set) {
+        if (set.rules)
+            return set.rules;
+        try {
+            const parsed = JSON.parse(fs.readFileSync(set.file, 'utf-8'));
+            set.rules = Array.isArray(parsed)
+                ? parsed.slice(0, MAX_STATIC_RULES).map(r => new CompiledRule(r, set.ext, 'static'))
+                : [];
+        }
+        catch (e) {
+            log.warn('dnr', `${set.ext} ruleset ${set.id} could not be read`, e);
+            set.rules = [];
+        }
+        return set.rules;
     }
 
     unregisterExtension(extensionId) {
@@ -592,13 +679,17 @@ class Dnr {
         const rec = this._rec(extensionId);
         for (const id of disableRulesetIds || []) {
             const set = rec.staticSets.get(String(id));
-            if (set)
+            if (set) {
                 set.enabled = false;
+                set.rules = null; // its compiled rules go with it
+            }
         }
         for (const id of enableRulesetIds || []) {
             const set = rec.staticSets.get(String(id));
-            if (set)
+            if (set) {
                 set.enabled = true;
+                this._loadSet(set);
+            }
         }
         this._invalidate();
         return true;
@@ -612,8 +703,10 @@ class Dnr {
     getAvailableStaticRuleCount(extensionId) {
         const rec = this._rec(extensionId);
         let used = 0;
+        // Chrome counts the ENABLED rulesets against the limit.
         for (const s of rec.staticSets.values())
-            used += s.rules.length;
+            if (s.enabled)
+                used += this._loadSet(s).length;
         return Math.max(0, MAX_STATIC_RULES - used);
     }
 
@@ -659,17 +752,10 @@ class Dnr {
         // Inside a document an allowAllRequests rule matched, nothing is blocked.
         if (req.type !== 'main_frame' && this._frameAllow.has(`${req.tabId}:${req.initiatorHost}`))
             return null;
-        let winner = null;
-        for (const rule of this._candidates(req)) {
-            if (rule.action.type === 'modifyHeaders')
-                continue;
-            if (!rule.matches(req))
-                continue;
-            if (!this._mayApply(rule, req))
-                continue; // no host access — the next matching rule still applies
-            winner = rule; // list is pre-sorted, so the first match wins
-            break;
-        }
+        // The first (highest-priority) rule that matches and may apply; one
+        // without host access is skipped so the next matching rule still can.
+        const winner = this._firstMatch(this._candidateLists(req), (rule) =>
+            rule.action.type !== 'modifyHeaders' && rule.matches(req) && this._mayApply(rule, req));
         if (!winner)
             return null;
         const t = winner.action.type;
@@ -755,17 +841,14 @@ class Dnr {
         if (!this.active || !this._hasHeaderRules)
             return false;
         const req = this._subject(details);
+        const lists = this._candidateLists(req);
         // A matching allow rule outranks header rules of lower priority.
-        const candidates = this._candidates(req);
-        let allowPriority = -Infinity;
-        for (const rule of candidates) {
-            if (rule.action.type !== 'allow' && rule.action.type !== 'allowAllRequests')
-                continue;
-            if (rule.matches(req) && this._mayApply(rule, req)) {
-                allowPriority = rule.priority;
-                break;
-            }
-        }
+        const allow = this._firstMatch(lists, (rule) =>
+            (rule.action.type === 'allow' || rule.action.type === 'allowAllRequests') && rule.matches(req) && this._mayApply(rule, req));
+        const allowPriority = allow ? allow.priority : -Infinity;
+        // Header rules only, in priority order — a handful, not the whole list.
+        const candidates = [].concat(...lists.map(l => l.filter(r => r.action.type === 'modifyHeaders')))
+            .sort((a, b) => a.seq - b.seq);
         const key = which === 'request' ? 'requestHeaders' : 'responseHeaders';
         let changed = false;
         for (const rule of candidates) {
