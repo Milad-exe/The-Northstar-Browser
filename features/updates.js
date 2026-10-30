@@ -92,6 +92,15 @@ function getUpdater() {
     if (updater)
         return updater;
     const { autoUpdater } = require('electron-updater');
+    /* Use the browser's default session for update traffic. electron-updater
+       otherwise makes its own ("electron-updater") on the first check, and with
+       an MV3 content blocker loaded (AdBlock) Chromium's extension request
+       machinery crashed the main process on that fresh session's first request:
+       the installed browser closed ~15 s after every launch, the instant the
+       first background check ran. The default session is what checkFeed()
+       already uses, and nothing it blocks is on github.com. */
+    try { autoUpdater.httpExecutor.cachedSession = require('electron').session.defaultSession; }
+    catch (e) { log.warn('updates', 'could not put update checks on the default session', e); }
     autoUpdater.autoDownload = true;          // fetch in the background, like Chrome
     autoUpdater.autoInstallOnAppQuit = true;  // never pressed Relaunch? next launch is new anyway
     autoUpdater.allowPrerelease = false;
