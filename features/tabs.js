@@ -1408,6 +1408,9 @@ class Tabs {
             this._openerChain = null;
         // A glance is transient — dismiss it on any tab switch.
         this.closeGlance();
+        // So is find in page: it belongs to the tab it was opened on.
+        if (this.findDialog?.view && this.findDialog.activeTab !== this.tabMap.get(index))
+            this.findDialog.close(false);
         // The Essentials grid highlights whichever tile owns the tab you are on.
         setImmediate(() => this.sendEssentialTabs());
         // Switching to a tab outside the split pair dissolves the split.
@@ -1570,6 +1573,8 @@ class Tabs {
         }
     }
     destroyTab(tab) {
+        if (this.findDialog?.activeTab === tab)
+            this.findDialog.close(false);
         try {
             tab.webContents.audioMuted = true;
         }
@@ -1805,6 +1810,7 @@ class Tabs {
             catch (e) { log.debug('tabs', 'resizeAllTabs', e); }
         if (this.glanceView)
             this._layoutGlance();
+        this.findDialog?.layout();
         // Every bounds change funnels through here — window resize, sidebar
         // drag, side panel, fullscreen exit — so this is the one place that has
         // to schedule the settled catch-up for background tabs.

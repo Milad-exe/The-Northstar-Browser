@@ -420,7 +420,8 @@ module.exports = {
                 captivePortal.check((loginUrl) => this.openCaptivePortalSignIn(loginUrl));
         });
         tab.webContents.on('found-in-page', (event, result) => {
-            if (this.findDialog) {
+            // Only the tab being searched reports into the bar.
+            if (this.findDialog && this.findDialog.activeTab === tab) {
                 this.findDialog.handleFindResult(result);
             }
         });

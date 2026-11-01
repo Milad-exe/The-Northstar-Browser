@@ -29,6 +29,8 @@ function overlayViewsOf(wd) {
         // Tab-owned, transient: split view furniture and the glance preview.
         t.splitDivider, ...(t.splitHandles || []), t.splitDrop,
         t.glanceBackdrop, t.glanceView, t.glanceBar,
+        // Find in page, scoped to the tab it was opened on.
+        t.findDialog?.view,
         // Window-owned panels, created lazily and kept.
         wd.sidePanel, wd.sidePanelHeader, wd.menu, wd.suggestions,
         wd.bookmarkPrompt, wd.folderDropdown, wd.downloadsPanel,
