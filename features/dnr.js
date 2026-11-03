@@ -449,8 +449,11 @@ class Dnr {
         for (const rec of this.exts.values()) {
             for (const set of rec.staticSets.values())
                 if (set.enabled)
-                    out.push(...this._loadSet(set));
-            out.push(...rec.dynamic, ...rec.session);
+                    // A loop, not push(...set): spreading a 100k-rule list overflows
+                    // the argument limit and throws inside onBeforeRequest.
+                    for (const r of this._loadSet(set)) out.push(r);
+            for (const r of rec.dynamic) out.push(r);
+            for (const r of rec.session) out.push(r);
         }
         // Sort once here so matching never has to.
         out.sort((a, b) => (b.priority - a.priority) || (a.rank - b.rank));
@@ -727,7 +730,14 @@ class Dnr {
     }
     _countSet(set) {
         if (set.count == null) {
-            try { set.count = (fs.readFileSync(set.file, 'utf-8').match(/"id"s*:/g) || []).length; }
+            try {
+                // Count without building a match array (a ruleset can hold 100k+ ids).
+                const text = fs.readFileSync(set.file, 'utf-8');
+                const re = /"id"\s*:/g;
+                let n = 0;
+                while (re.exec(text)) n++;
+                set.count = n;
+            }
             catch (e) { log.debug('dnr', 'count ruleset', e); set.count = 0; }
         }
         return set.count;
