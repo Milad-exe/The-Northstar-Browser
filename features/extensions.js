@@ -19,25 +19,60 @@ const crypto = require('crypto');
 const AdmZip = require('adm-zip');
 const { app } = require('electron');
 
-// A .crx file is a ZIP archive with a Chrome signing header prepended. Return
-// the byte offset where the real ZIP payload begins so we can slice the header
-// off before extracting. Handles CRX2 and CRX3; returns 0 for a bare ZIP. Doing
-// this in pure JS (vs. shelling out to `unzip`) keeps .crx install working on
-// Windows, which has no `unzip` binary.
-function crxZipOffset(buf) {
-    if (buf.length >= 16 && buf.toString('latin1', 0, 4) === 'Cr24') {
-        const version = buf.readUInt32LE(4);
-        if (version === 2) {
-            const pubKeyLen = buf.readUInt32LE(8);
-            const sigLen = buf.readUInt32LE(12);
-            return 16 + pubKeyLen + sigLen;
-        }
-        if (version === 3) {
-            const headerLen = buf.readUInt32LE(8);
-            return 12 + headerLen;
-        }
+// A .crx is a ZIP archive behind a signing header. crx-verify checks that
+// signature and says where the ZIP starts; slicing in pure JS (vs. shelling out
+// to `unzip`) keeps .crx install working on Windows, which has no `unzip`.
+const { verifyCrx, reconcileManifestKey } = require('./crx-verify');
+// Extensions never get file:// access. Chrome keeps it off until the user
+// turns it on per extension; here the app's own UI (the chrome, Settings,
+// every internal page) is file://, so an extension with file access could
+// inject script into the browser itself.
+const LOAD_OPTIONS = Object.freeze({ allowFileAccess: false });
+/**
+ * What an install prompt tells the user the extension can do, worst first.
+ * Pure (manifest in, sentences out) so the unit tests can pin it.
+ */
+const PERMISSION_WARNINGS = [
+    ['debugger', 'Read and change everything on every site, including your passwords'],
+    ['proxy', 'Route all of your traffic through a server it chooses'],
+    ['history', 'Read and change your browsing history'],
+    ['tabs', 'Read the address and title of every tab'],
+    ['bookmarks', 'Read and change your bookmarks'],
+    ['tabCapture', 'Capture the contents of a tab you invoke it on'],
+    ['desktopCapture', 'Capture your screen'],
+    ['cookies', 'Read and change cookies for the sites it can access'],
+    ['downloads', 'Manage your downloads'],
+    ['management', 'Manage your other extensions'],
+    ['identity', 'Sign you in to services through a web page'],
+    ['nativeMessaging', 'Talk to programs installed on your computer'],
+    ['clipboardRead', 'Read what you copy'],
+    ['geolocation', 'Know your location'],
+    ['notifications', 'Show notifications'],
+    ['declarativeNetRequest', 'Block or change network requests'],
+    ['declarativeNetRequestWithHostAccess', 'Block or change network requests'],
+];
+function describePermissions(manifest) {
+    const perms = new Set(Array.isArray(manifest?.permissions) ? manifest.permissions : []);
+    const hosts = [...(Array.isArray(manifest?.host_permissions) ? manifest.host_permissions : []),
+        ...[...perms].filter(p => typeof p === 'string' && (p === '<all_urls>' || p.includes('://')))];
+    for (const cs of Array.isArray(manifest?.content_scripts) ? manifest.content_scripts : [])
+        for (const m of Array.isArray(cs?.matches) ? cs.matches : [])
+            hosts.push(m);
+    const out = [];
+    const everywhere = hosts.some(h => h === '<all_urls>' || /^(\*|https?):\/\/\*\//.test(h));
+    if (everywhere)
+        out.push('Read and change your data on every website');
+    else if (hosts.length) {
+        const names = [...new Set(hosts.map(h => String(h).replace(/^[^:]+:\/\//, '').replace(/\/.*$/, '')))];
+        out.push('Read and change your data on ' + (names.length > 3 ? `${names.slice(0, 3).join(', ')} and ${names.length - 3} more sites` : names.join(', ')));
     }
-    return 0;
+    const seen = new Set();
+    for (const [perm, text] of PERMISSION_WARNINGS)
+        if (perms.has(perm) && !seen.has(text)) {
+            seen.add(text);
+            out.push(text);
+        }
+    return out;
 }
 // Loaded lazily in setup(): these two libraries are the heaviest requires in
 // the main process, and setup() only runs AFTER the first window exists — as
@@ -124,13 +159,82 @@ class Extensions {
             try { popup.browserWindow?.once('closed', () => this.popups.delete(popup)); }
             catch (e) { log.debug('extensions', '_makeHost', e); }
         });
+        this._trackActionClicks(host);
         try { handleCrx(session); }
         catch (e) { log.debug('extensions', '_makeHost', e); }
         this._registerPolyfill(session);
         this._wireDnr(session);
+        // An extension that is disabled, removed or reloaded stops steering
+        // this session's traffic; the user's own proxy comes back.
+        extApi(session).on?.('extension-unloaded', (_e, ext) => {
+            if (!ext?.id)
+                return;
+            require('./ext-proxy').clear(ext.id, session)
+                .catch((e) => log.debug('extensions', 'proxy cleanup', e));
+        });
         return host;
     }
+    /**
+     * Ask before a Web Store install, naming what the extension will be able
+     * to do — the library installs on the page's say-so otherwise.
+     */
+    async _confirmInstall({ localizedName, manifest, browserWindow } = {}) {
+        const lines = describePermissions(manifest);
+        const name = localizedName || manifest?.name || 'this extension';
+        try {
+            const { dialog } = require('electron');
+            const opts = {
+                type: 'question',
+                buttons: ['Add extension', 'Cancel'],
+                defaultId: 1,
+                cancelId: 1,
+                noLink: true,
+                message: `Add “${name}”?`,
+                detail: lines.length
+                    ? 'It will be able to:\n' + lines.map(l => '•  ' + l).join('\n')
+                    : 'It asks for no special permissions.',
+            };
+            const { response } = browserWindow && !browserWindow.isDestroyed()
+                ? await dialog.showMessageBox(browserWindow, opts)
+                : await dialog.showMessageBox(opts);
+            return { action: response === 0 ? 'allow' : 'deny' };
+        }
+        catch (e) {
+            log.warn('extensions', 'install prompt failed; not installing', e);
+            return { action: 'deny' };
+        }
+    }
 
+    /**
+     * Record "the user clicked this extension's toolbar button on this tab" —
+     * the grant chrome.tabCapture needs (features/ext-permissions.js).
+     *
+     * The library funnels both a real click and the extension's own
+     * chrome.action.openPopup() through activateClick; only the click comes
+     * from the <browser-action-list> element, which always sends an
+     * `alignment` key. openPopup never does, so it grants nothing.
+     */
+    _trackActionClicks(host) {
+        const ba = host?.api?.browserAction;
+        if (!ba || typeof ba.activateClick !== 'function')
+            return;
+        const original = ba.activateClick;
+        ba.activateClick = (details = {}) => {
+            if (details && 'alignment' in details && details.extensionId) {
+                try {
+                    const { webContents } = require('electron');
+                    let tab = details.tabId >= 0 ? webContents.fromId(Number(details.tabId)) : null;
+                    if (!tab) {
+                        const wd = this._activeWindow();
+                        tab = wd?.tabs?.tabMap?.get(wd.tabs.activeTabIndex)?.webContents || null;
+                    }
+                    require('./ext-permissions').grantActionClick(details.extensionId, tab);
+                }
+                catch (e) { log.debug('extensions', '_trackActionClicks', e); }
+            }
+            return original.call(ba, details);
+        };
+    }
     /**
      * Feed extension rulesets to the declarativeNetRequest engine. Rules are
      * keyed by extension id and shared across sessions, so registering the same
@@ -229,6 +333,7 @@ class Extensions {
                 loadExtensions: true,
                 allowUnpackedExtensions: true,
                 autoUpdate: false, // the default session's host owns updating
+                beforeInstall: (d) => this._confirmInstall(d),
             }).catch((e) => console.error('extensions for session:', e.message));
         }
         catch (e) {
@@ -293,13 +398,14 @@ class Extensions {
             loadExtensions: true,
             allowUnpackedExtensions: true,
             autoUpdate: true,
+            beforeInstall: (d) => this._confirmInstall(d),
         }).catch((e) => console.error('installChromeWebStore:', e.message));
         // Reload any persisted unpacked extensions (the web store loader only
         // manages store-installed ones).
         for (const dir of this._readUnpacked()) {
             if (fs.existsSync(path.join(dir, 'manifest.json'))) {
                 try {
-                    await extApi(session).loadExtension(dir, { allowFileAccess: true });
+                    await extApi(session).loadExtension(dir, LOAD_OPTIONS);
                 }
                 catch (e) { log.debug('extensions', 'setup', e); }
             }
@@ -441,7 +547,7 @@ class Extensions {
             const rec = this.disabled[id];
             if (rec?.path) {
                 try {
-                    await api.loadExtension(rec.path, { allowFileAccess: true });
+                    await api.loadExtension(rec.path, LOAD_OPTIONS);
                 }
                 catch (e) { log.debug('extensions', 'setEnabled', e); }
             }
@@ -492,17 +598,20 @@ class Extensions {
         if (!fs.existsSync(path.join(sourcePath, 'manifest.json'))) {
             throw new Error('Folder has no manifest.json');
         }
-        const ext = await extApi(this.session).loadExtension(sourcePath, { allowFileAccess: true });
+        const ext = await extApi(this.session).loadExtension(sourcePath, LOAD_OPTIONS);
         this._addUnpacked(sourcePath);
         this._emit();
         return { id: ext.id, name: ext.name };
     }
     async installCrx(crxPath) {
         const dest = path.join(app.getPath('userData'), 'extensions-unpacked', crypto.randomUUID());
+        const buf = fs.readFileSync(crxPath);
+        let verdict;
+        try { verdict = verifyCrx(buf); }
+        catch (e) { throw new Error('Refused .crx: ' + (e && e.message ? e.message : e)); }
         fs.mkdirSync(dest, { recursive: true });
         try {
-            const buf = fs.readFileSync(crxPath);
-            new AdmZip(buf.subarray(crxZipOffset(buf))).extractAllTo(dest, true);
+            new AdmZip(buf.subarray(verdict.zipOffset)).extractAllTo(dest, true);
         }
         catch (e) {
             fs.rmSync(dest, { recursive: true, force: true });
@@ -513,11 +622,32 @@ class Extensions {
             fs.rmSync(dest, { recursive: true, force: true });
             throw new Error('No manifest.json in the .crx');
         }
+        // The id must be the one the archive was signed with, not whatever
+        // the manifest claims (crx-verify.js).
+        try {
+            const file = path.join(root, 'manifest.json');
+            const { manifest, changed, warning } = reconcileManifestKey(JSON.parse(fs.readFileSync(file, 'utf-8')), verdict);
+            if (warning)
+                log.warn('extensions', `${path.basename(crxPath)}: ${warning}`);
+            if (changed)
+                fs.writeFileSync(file, JSON.stringify(manifest, null, 2));
+        }
+        catch (e) {
+            fs.rmSync(dest, { recursive: true, force: true });
+            throw new Error('Refused .crx: ' + (e && e.message ? e.message : e));
+        }
         return this.installUnpacked(root);
     }
     async remove(id) {
+        // Note where it lives first: once unloaded, the path is gone with it.
+        const loaded = (extApi(this.session).getAllExtensions?.() || []).find(e => e.id === id);
+        const extPath = loaded?.path || this.disabled[id]?.path || null;
+        try { require('./ext-proxy').clear(id); }
+        catch (e) { log.debug('extensions', 'remove', e); }
+        require('./ext-permissions').revokeAll(id);
         // A disabled extension isn't loaded, so uninstall would no-op — just drop it.
         if (this.disabled[id]) {
+            this._removeUnpackedById(id, extPath);
             delete this.disabled[id];
             this._saveDisabled();
             this._emit();
@@ -532,7 +662,7 @@ class Extensions {
             }
             catch (e) { log.debug('extensions', 'remove', e); }
         }
-        this._removeUnpackedById(id);
+        this._removeUnpackedById(id, extPath);
         this._emit();
         return true;
     }
@@ -554,7 +684,31 @@ class Extensions {
         l.push(dir);
         this._writeUnpacked(l);
     } }
-    _removeUnpackedById(_id) { }
+    /**
+     * Forget an unpacked extension so it does not come back on the next start.
+     * A folder the user picked is left on disk (it is theirs); the copy we
+     * extracted from a .crx into userData is ours, so it goes.
+     */
+    _removeUnpackedById(id, extPath) {
+        if (!extPath)
+            return;
+        const norm = (p) => {
+            const r = path.resolve(String(p));
+            return process.platform === 'win32' ? r.toLowerCase() : r;
+        };
+        const target = norm(extPath);
+        const list = this._readUnpacked();
+        const kept = list.filter(dir => norm(dir) !== target);
+        if (kept.length !== list.length)
+            this._writeUnpacked(kept);
+        const crxRoot = norm(path.join(app.getPath('userData'), 'extensions-unpacked')) + path.sep;
+        if (target.startsWith(crxRoot)) {
+            // Remove the whole extraction folder, not just a nested manifest root.
+            const top = path.join(app.getPath('userData'), 'extensions-unpacked', target.slice(crxRoot.length).split(path.sep)[0]);
+            try { fs.rmSync(top, { recursive: true, force: true }); }
+            catch (e) { log.warn('extensions', `could not delete ${id}'s files`, e); }
+        }
+    }
     _findManifestRoot(dir) {
         if (fs.existsSync(path.join(dir, 'manifest.json')))
             return dir;
@@ -576,3 +730,4 @@ class Extensions {
 }
 
 module.exports = new Extensions();
+module.exports.describePermissions = describePermissions;

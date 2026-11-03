@@ -14,8 +14,30 @@
 'use strict';
 const log = require('./log');
 
-// extension id → { session, config } so clear() can put the session back.
-const applied = new Map();
+// session → [{ extensionId, config }], oldest first. The newest entry is the
+// one in force, like Chrome's "most recently installed extension wins"; when
+// it goes, the next one down takes over, and with none left the session gets
+// back the proxy it had before any extension touched it.
+const stacks = new Map();
+
+/**
+ * The proxy the session runs with when no extension is setting one: whatever
+ * the user launched the browser with (--proxy-server / --proxy-bypass-list),
+ * else the system settings. Electron cannot read a session's current proxy
+ * back, so this is rebuilt from the same inputs the session started from.
+ */
+function baselineConfig() {
+    try {
+        const { app } = require('electron');
+        const server = app.commandLine.hasSwitch('proxy-server') ? app.commandLine.getSwitchValue('proxy-server') : '';
+        if (server) {
+            const bypass = app.commandLine.hasSwitch('proxy-bypass-list') ? app.commandLine.getSwitchValue('proxy-bypass-list') : '';
+            return { proxyRules: server, ...(bypass ? { proxyBypassRules: bypass } : {}) };
+        }
+    }
+    catch (e) { log.debug('ext-proxy', 'baselineConfig', e); }
+    return { mode: 'system' };
+}
 
 /** Build Electron proxyRules from Chrome's fixed_servers shape. */
 function rulesFromFixedServers(rules = {}) {
@@ -76,27 +98,48 @@ async function set(extensionId, session, value = {}) {
     const config = value.value || value.config || value;
     const electronConfig = electronConfigFor(config);
     await session.setProxy(electronConfig);
-    applied.set(extensionId, { session, config });
+    const stack = (stacks.get(session) || []).filter(r => r.extensionId !== extensionId);
+    stack.push({ extensionId, config });
+    stacks.set(session, stack);
     log.debug('ext-proxy', `${extensionId} set mode=${config.mode || 'system'}`);
     return true;
 }
 
-function get(extensionId) {
-    const rec = applied.get(extensionId);
-    return {
-        value: rec?.config || { mode: 'system' },
-        levelOfControl: rec ? 'controlled_by_this_extension' : 'controllable_by_this_extension',
-    };
+function get(extensionId, session) {
+    const stack = (session && stacks.get(session)) || [];
+    const top = stack[stack.length - 1];
+    const mine = stack.find(r => r.extensionId === extensionId);
+    let levelOfControl = 'controllable_by_this_extension';
+    if (top && top.extensionId === extensionId)
+        levelOfControl = 'controlled_by_this_extension';
+    else if (top)
+        levelOfControl = 'controlled_by_other_extensions';
+    return { value: (top || mine)?.config || { mode: 'system' }, levelOfControl };
 }
 
-async function clear(extensionId) {
-    const rec = applied.get(extensionId);
-    if (!rec)
-        return true;
-    applied.delete(extensionId);
-    try { await rec.session.setProxy({ mode: 'system' }); }
-    catch (e) { log.debug('ext-proxy', 'clear', e); }
+/**
+ * Drop an extension's proxy — on chrome.proxy.settings.clear(), and when the
+ * extension is disabled or removed (an uninstalled extension must not keep
+ * routing the user's traffic). Without a session, clears it everywhere.
+ */
+async function clear(extensionId, session) {
+    for (const [sess, stack] of [...stacks]) {
+        if (session && sess !== session)
+            continue;
+        const idx = stack.findIndex(r => r.extensionId === extensionId);
+        if (idx < 0)
+            continue;
+        const wasActive = idx === stack.length - 1;
+        stack.splice(idx, 1);
+        if (!stack.length)
+            stacks.delete(sess);
+        if (!wasActive)
+            continue;
+        const next = stack[stack.length - 1];
+        try { await sess.setProxy(next ? electronConfigFor(next.config) : baselineConfig()); }
+        catch (e) { log.debug('ext-proxy', 'clear', e); }
+    }
     return true;
 }
 
-module.exports = { set, get, clear, electronConfigFor, rulesFromFixedServers };
+module.exports = { set, get, clear, baselineConfig, electronConfigFor, rulesFromFixedServers };

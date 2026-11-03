@@ -33,6 +33,13 @@ function redirectUrlFor(extensionId, suffix = '') {
 function launchWebAuthFlow(extensionId, { url, interactive = true } = {}, parentWindow, session) {
     if (!url)
         return Promise.reject(new Error('url is required'));
+    // Sign-in pages are web pages. A file:, data: or javascript: URL here would
+    // open local files or run script in a window carrying the space's session.
+    let protocol = '';
+    try { protocol = new URL(String(url)).protocol; }
+    catch { return Promise.reject(new Error('url is not a valid URL')); }
+    if (protocol !== 'https:' && protocol !== 'http:')
+        return Promise.reject(new Error('url must be an http(s) URL'));
     // A non-interactive flow is meant to complete silently against existing
     // cookies. We have no way to run it headless without showing the window, so
     // report the same failure Chrome gives when silent auth cannot complete.

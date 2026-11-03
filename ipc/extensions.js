@@ -101,15 +101,15 @@ function logGap({ id, api } = {}) {
     console.warn(`[extensions] ${id} needs ${api}, which this browser does not implement`
         + (hint ? ` — ${hint}` : ''));
 }
-const broadcastToWorkers = (channel, data) => extEvents.broadcast(channel, data);
 
 /**
  * Install the gap handlers onto one transport.
- * ctx = { handle, extIdOf, profileIdOf, wm }
+ * ctx = { handle, extIdOf, profileIdOf, sessionOf, wm }
  */
 function installGapHandlers(ctx) {
-    const { handle, extIdOf, profileIdOf, wm } = ctx;
+    const { handle, extIdOf, profileIdOf, sessionOf, wm } = ctx;
     const { webContents } = require('electron');
+    const extPerms = require('../features/ext-permissions');
     // electron-chrome-extensions uses the webContents id as the chrome tab id.
     const tabWcById = (id) => {
         if (id == null) return null;
@@ -121,6 +121,22 @@ function installGapHandlers(ctx) {
         if (!id)
             throw new Error('cannot identify the calling extension');
         return id;
+    };
+    // The calling extension, after checking its manifest declares `perm`.
+    // Every API this layer adds is gated here — the library enforces
+    // permissions only for the APIs it implements itself.
+    const needPerm = (e, perm) => {
+        const id = needId(e);
+        extPerms.requirePermission(id, perm, sessionOf?.(e));
+        return id;
+    };
+    // The window a call acts on: an extension page's own window when it has
+    // one, else the one the user last focused (a service worker has none).
+    const callerWindow = (e) => {
+        let wd = null;
+        try { wd = e?.sender ? wm.getWindowByWebContents?.(e.sender) : null; }
+        catch (err) { log.debug('extensions', 'callerWindow', err); }
+        return wd || wm.getMostRecentlyFocusedWindow?.() || wm.getPrimaryWindow?.() || null;
     };
 
     // ── chrome.windows, when the browser has no tabs ─────────────────────────
@@ -155,39 +171,77 @@ function installGapHandlers(ctx) {
             sessionId: 'default',
         };
     };
+    // Private windows are not reported: extensions do not run in them (Chrome's
+    // "not allowed in incognito"), so they have no business seeing them.
+    const isPrivateWindow = (wd) => !!(wd?.private || wd?.tabs?.isPrivateWindow);
     const allWindowDetails = () => {
         const out = [];
-        for (const wd of (wm.windows?.values?.() || []))
-            { const d = windowDetails(wd); if (d) out.push(d); }
+        for (const wd of (wm.windows?.values?.() || [])) {
+            if (isPrivateWindow(wd))
+                continue;
+            const d = windowDetails(wd);
+            if (d) out.push(d);
+        }
         return out;
     };
     handle('ext:windows.getAll', () => allWindowDetails());
     handle('ext:windows.getCurrent', () => {
         const wd = wm.getMostRecentlyFocusedWindow?.() || wm.getPrimaryWindow?.();
-        return windowDetails(wd) || allWindowDetails()[0] || null;
+        return (!isPrivateWindow(wd) && windowDetails(wd)) || allWindowDetails()[0] || null;
     });
 
     // ── chrome.tabCapture ────────────────────────────────────────────────────
+    // Capturing a tab hands its pixels and audio to the extension, so Chrome's
+    // rules apply in full: the extension must declare tabCapture, the target
+    // must be a normal (non-private) tab of the caller's window, and the user
+    // must have invoked the extension on that tab by clicking its toolbar
+    // button (features/ext-permissions.js records that grant).
+    const tabIndexOf = (wd, wc) => {
+        for (const [idx, tab] of wd?.tabs?.tabMap || [])
+            if (tab?.webContents === wc)
+                return idx;
+        return null;
+    };
+    const isPrivateTab = (wd, idx) => !!(wd?.tabs?.isPrivateWindow || wd?.private || wd?.tabs?.privateTabs?.has(idx));
     handle('ext:getMediaStreamId', (_e, { targetTabId, consumerTabId } = {}) => {
+        const id = needPerm(_e, 'tabCapture');
         // Chrome hands back an id the CONSUMER can pass to getUserMedia with
         // chromeMediaSource:'tab'. Electron's equivalent is target.getMediaSourceId
         // (requestWebContents), so both ends have to resolve to real contents.
-        const primary = wm.getPrimaryWindow?.();
-        const target = tabWcById(targetTabId)
-            || primary?.tabs?.tabMap?.get(primary?.tabs?.activeTabIndex)?.webContents;
+        const wd = callerWindow(_e);
+        let target = null;
+        if (targetTabId != null) {
+            const wc = tabWcById(targetTabId);
+            if (wc && tabIndexOf(wd, wc) != null)
+                target = wc;
+        }
+        else {
+            target = wd?.tabs?.tabMap?.get(wd?.tabs?.activeTabIndex)?.webContents || null;
+        }
         if (!target)
             throw new Error('tabCapture: no target tab');
+        if (isPrivateTab(wd, tabIndexOf(wd, target)))
+            throw new Error('tabCapture: cannot capture a private tab');
+        if (!extPerms.hasActionGrant(id, target.id))
+            throw new Error('tabCapture: the extension has not been invoked on this tab');
         // A service-worker IPC event has no .sender, so resolve the consumer
         // ourselves: the extension's own page (its offscreen document is what
-        // calls getUserMedia), else the chrome window.
-        const id = extIdOf(_e);
-        const origin = id ? `chrome-extension://${id}` : '';
-        const consumer = tabWcById(consumerTabId)
-            || (origin ? webContents.getAllWebContents().find(w => {
+        // calls getUserMedia), else the chrome window. A consumer tab id is
+        // honoured only for a normal tab of the same window.
+        const origin = `chrome-extension://${id}/`;
+        let consumer = null;
+        if (consumerTabId != null) {
+            const wc = tabWcById(consumerTabId);
+            const idx = wc ? tabIndexOf(wd, wc) : null;
+            if (idx != null && !isPrivateTab(wd, idx))
+                consumer = wc;
+        }
+        consumer = consumer
+            || webContents.getAllWebContents().find(w => {
                 try { return w.getURL().startsWith(origin); }
                 catch { return false; }
-            }) : null)
-            || primary?.window?.webContents;
+            })
+            || wd?.window?.webContents;
         if (!consumer)
             throw new Error('tabCapture: no consumer context');
         try { return target.getMediaSourceId(consumer); }
@@ -199,19 +253,29 @@ function installGapHandlers(ctx) {
     // in preload/ext-polyfill.js), so the polyfill overrides the native surface
     // and every call lands here instead.
     const dnr = require('../features/dnr');
-    handle('ext:dnr.updateRules', (_e, { kind, removeRuleIds, addRules } = {}) => dnr.updateRules(needId(_e), { removeRuleIds, addRules }, kind === 'session' ? 'session' : 'dynamic'));
-    handle('ext:dnr.getRules', (_e, { kind } = {}) => dnr.getRules(needId(_e), kind === 'session' ? 'session' : 'dynamic'));
-    handle('ext:dnr.updateEnabledRulesets', (_e, o = {}) => dnr.updateEnabledRulesets(needId(_e), o));
-    handle('ext:dnr.getEnabledRulesets', (_e) => dnr.getEnabledRulesets(needId(_e)));
-    handle('ext:dnr.getAvailableStaticRuleCount', (_e) => dnr.getAvailableStaticRuleCount(needId(_e)));
-    handle('ext:dnr.getMatchedRules', (_e, { filter } = {}) => dnr.getMatchedRules(needId(_e), filter));
-    handle('ext:dnr.testMatchOutcome', (_e, { request } = {}) => dnr.testMatchOutcome(needId(_e), request || {}));
-    handle('ext:dnr.isRegexSupported', (_e, { regex, isCaseSensitive } = {}) => dnr.isRegexSupported(regex, isCaseSensitive));
+    // getMatchedRules / testMatchOutcome reveal which URLs the user loaded, so
+    // Chrome keeps them behind the separate feedback permission.
+    const DNR = 'declarativeNetRequest';
+    const DNR_FEEDBACK = 'declarativeNetRequestFeedback';
+    handle('ext:dnr.updateRules', (_e, { kind, removeRuleIds, addRules } = {}) => dnr.updateRules(needPerm(_e, DNR), { removeRuleIds, addRules }, kind === 'session' ? 'session' : 'dynamic'));
+    handle('ext:dnr.getRules', (_e, { kind } = {}) => dnr.getRules(needPerm(_e, DNR), kind === 'session' ? 'session' : 'dynamic'));
+    handle('ext:dnr.updateEnabledRulesets', (_e, o = {}) => dnr.updateEnabledRulesets(needPerm(_e, DNR), o));
+    handle('ext:dnr.getEnabledRulesets', (_e) => dnr.getEnabledRulesets(needPerm(_e, DNR)));
+    handle('ext:dnr.getAvailableStaticRuleCount', (_e) => dnr.getAvailableStaticRuleCount(needPerm(_e, DNR)));
+    handle('ext:dnr.getMatchedRules', (_e, { filter } = {}) => dnr.getMatchedRules(needPerm(_e, DNR_FEEDBACK), filter));
+    handle('ext:dnr.testMatchOutcome', (_e, { request } = {}) => dnr.testMatchOutcome(needPerm(_e, DNR_FEEDBACK), request || {}));
+    handle('ext:dnr.isRegexSupported', (_e, { regex, isCaseSensitive } = {}) => {
+        needPerm(_e, DNR);
+        return dnr.isRegexSupported(regex, isCaseSensitive);
+    });
 
     // ── chrome.history ───────────────────────────────────────────────────────
     // Our store keeps one entry per URL (most recent visit), so visitCount and
     // the per-visit list are single-visit approximations rather than fabricated.
-    const historyStore = (e) => wm.historyFor(profileIdOf(e));
+    const historyStore = (e) => {
+        needPerm(e, 'history');
+        return wm.historyFor(profileIdOf(e));
+    };
     const toHistoryItem = (e) => ({
         id: e.url,
         url: e.url,
@@ -260,7 +324,7 @@ function installGapHandlers(ctx) {
         const all = await store.loadHistory();
         for (const row of all.filter(x => x.url === url))
             await store.removeFromHistory(row.url, row.timestamp);
-        broadcastToWorkers('ext:history.visitRemoved', { allHistory: false, urls: [url] });
+        extEvents.broadcast('ext:history.visitRemoved', { allHistory: false, urls: [url] }, profileIdOf(_e), 'history');
         return true;
     });
     handle('ext:history.deleteRange', async (_e, { startTime, endTime } = {}) => {
@@ -272,12 +336,12 @@ function installGapHandlers(ctx) {
         });
         for (const row of doomed)
             await store.removeFromHistory(row.url, row.timestamp);
-        broadcastToWorkers('ext:history.visitRemoved', { allHistory: false, urls: doomed.map(r => r.url) });
+        extEvents.broadcast('ext:history.visitRemoved', { allHistory: false, urls: doomed.map(r => r.url) }, profileIdOf(_e), 'history');
         return true;
     });
     handle('ext:history.deleteAll', async (_e) => {
         await historyStore(_e).clearHistory();
-        broadcastToWorkers('ext:history.visitRemoved', { allHistory: true, urls: [] });
+        extEvents.broadcast('ext:history.visitRemoved', { allHistory: true, urls: [] }, profileIdOf(_e), 'history');
         return true;
     });
 
@@ -287,7 +351,10 @@ function installGapHandlers(ctx) {
     // the well-known ids (most of them do) land somewhere sensible.
     const ROOT_ID = '0';
     const BAR_ID = '1';
-    const bmStore = (e) => wm.bookmarksFor(profileIdOf(e));
+    const bmStore = (e) => {
+        needPerm(e, 'bookmarks');
+        return wm.bookmarksFor(profileIdOf(e));
+    };
     // Keep the bookmark bar / bookmarks page in sync when an extension writes.
     const broadcastBookmarks = () => {
         try { require('./utils').broadcastBookmarksChanged(webContents); }
@@ -364,7 +431,10 @@ function installGapHandlers(ctx) {
     });
     // Establish the diff baseline before mutating, or the first change would
     // only set the snapshot and its own event would be lost.
-    const ensurePrimed = (e) => extEvents.primeBookmarks(profileIdOf(e));
+    const ensurePrimed = async (e) => {
+        needPerm(e, 'bookmarks');
+        return extEvents.primeBookmarks(profileIdOf(e));
+    };
     handle('ext:bookmarks.create', async (_e, { bookmark } = {}) => {
         await ensurePrimed(_e);
         const store = bmStore(_e);
@@ -414,7 +484,7 @@ function installGapHandlers(ctx) {
 
     // ── chrome.identity ──────────────────────────────────────────────────────
     handle('ext:identity.launchWebAuthFlow', (_e, { url, interactive } = {}) => {
-        const id = needId(_e);
+        const id = needPerm(_e, 'identity');
         const wd = wm.getMostRecentlyFocusedWindow?.() || wm.getPrimaryWindow?.();
         let session = null;
         try {
@@ -436,9 +506,9 @@ function installGapHandlers(ctx) {
         catch { return null; }
     };
     const extProxy = require('../features/ext-proxy');
-    handle('ext:proxy.set', (_e, { value } = {}) => extProxy.set(needId(_e), proxySessionFor(_e), { value }));
-    handle('ext:proxy.get', (_e) => extProxy.get(needId(_e)));
-    handle('ext:proxy.clear', (_e) => extProxy.clear(needId(_e)));
+    handle('ext:proxy.set', (_e, { value } = {}) => extProxy.set(needPerm(_e, 'proxy'), proxySessionFor(_e), { value }));
+    handle('ext:proxy.get', (_e) => extProxy.get(needPerm(_e, 'proxy'), proxySessionFor(_e)));
+    handle('ext:proxy.clear', (_e) => extProxy.clear(needPerm(_e, 'proxy'), proxySessionFor(_e)));
 
     // ── chrome.devtools ──────────────────────────────────────────────────────
     // The polyfill only installs the namespace on a devtools_page, but the raw
@@ -469,10 +539,10 @@ function installGapHandlers(ctx) {
 
     // ── chrome.sidePanel ─────────────────────────────────────────────────────
     const sidePanel = require('../features/side-panel');
-    handle('ext:sidePanel.setOptions', (_e, o = {}) => sidePanel.setOptions(needId(_e), o));
-    handle('ext:sidePanel.getOptions', (_e, o = {}) => sidePanel.getOptions(needId(_e), o));
-    handle('ext:sidePanel.setPanelBehavior', (_e, o = {}) => sidePanel.setPanelBehavior(needId(_e), o));
-    handle('ext:sidePanel.open', (_e, o = {}) => sidePanel.open(needId(_e), o, wm));
+    handle('ext:sidePanel.setOptions', (_e, o = {}) => sidePanel.setOptions(needPerm(_e, 'sidePanel'), o));
+    handle('ext:sidePanel.getOptions', (_e, o = {}) => sidePanel.getOptions(needPerm(_e, 'sidePanel'), o));
+    handle('ext:sidePanel.setPanelBehavior', (_e, o = {}) => sidePanel.setPanelBehavior(needPerm(_e, 'sidePanel'), o));
+    handle('ext:sidePanel.open', (_e, o = {}) => sidePanel.open(needPerm(_e, 'sidePanel'), o, wm));
 }
 
 /**
@@ -511,6 +581,7 @@ function attachGapHandlers(sw, wm) {
         handle: (channel, fn) => router.handle(channel, fn),
         extIdOf,
         profileIdOf,
+        sessionOf: () => sw.session,
         wm,
     });
     // One line per missing API, so the next gap is named in the log.
@@ -519,12 +590,14 @@ function attachGapHandlers(sw, wm) {
 
 /**
  * Global wiring for extension PAGES (popup, options, MV2 background). Registered
- * once; the sender's own URL identifies the extension.
+ * once; the sending FRAME's origin identifies the extension. Not the
+ * webContents' URL: that is the top document, so a web page framed inside an
+ * extension page would have spoken with the extension's identity.
  */
 function registerFrameGapHandlers(ipcMain, wm) {
     const extIdOf = (e) => {
         try {
-            const u = new URL(e.sender.getURL());
+            const u = new URL(e.senderFrame?.origin || '');
             return u.protocol === 'chrome-extension:' ? u.hostname : null;
         }
         catch { return null; }
@@ -538,6 +611,7 @@ function registerFrameGapHandlers(ipcMain, wm) {
         }),
         extIdOf,
         profileIdOf: (e) => wm.profileOf(e.sender),
+        sessionOf: (e) => e.sender?.session || null,
         wm,
     });
     ipcMain.on('ext:unsupported', (_e, payload = {}) => logGap(payload));

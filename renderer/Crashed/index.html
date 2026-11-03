@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none';" />
+  <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'self';" />
   <title>This page stopped responding</title>
   <link rel="stylesheet" href="../styles/ui.css">
   <script src="../lib/i18n.js"></script>
@@ -52,24 +52,6 @@
       <button class="btn btn-primary" id="btn-reload" data-i18n="crash.reload">Reload page</button>
     </div>
   </main>
-  <script>
-    // Localise before reading any label back out of the DOM.
-    try { window.Northstar.i18n.init((window.northstarSettings?.getSync() || {}).i18n || {}); window.Northstar.i18n.apply(document); } catch {}
-    const T = (k, v) => { try { return window.Northstar.i18n.t(k, v); } catch { return k; } };
-    const p = new URLSearchParams(location.search);
-    const failedUrl = p.get('url') || '';
-    const reason = p.get('reason') || '';
-    const killed = p.get('killed') === '1';
-    if (failedUrl) document.getElementById('url').textContent = failedUrl;
-    if (reason) document.getElementById('reason').textContent = 'reason: ' + reason;
-    if (killed) {
-      document.getElementById('title').textContent = T('crash.killedTitle');
-      document.getElementById('detail').textContent = T('crash.killedDetail');
-    }
-    document.getElementById('btn-reload').addEventListener('click', () => {
-      if (failedUrl) window.electronAPI.navigateActiveTab(failedUrl);
-    });
-    document.getElementById('btn-back').addEventListener('click', () => window.electronAPI.activeTabGoBack());
-  </script>
+  <script src="page.js"></script>
 </body>
 </html>
