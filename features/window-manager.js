@@ -596,11 +596,29 @@ class WindowManager {
                     }
                     // User-set labels and icons override page metadata, so they
                     // have to come back before the tabs report their own titles.
+                    // createLazyTab already reported each tab's saved title, before
+                    // these maps were filled, so re-send the rows that carry one.
+                    const customised = [];
                     state.tabs.forEach((t, i) => {
                         if (t.label) tabs.tabLabels.set(tabKeys[i], t.label);
                         if (t.icon) tabs.tabIcons.set(tabKeys[i], t.icon);
                         if (t.home) tabs.pinnedHome.set(tabKeys[i], t.home);
+                        if (t.label || t.icon) customised.push(tabKeys[i]);
                     });
+                    const resendCustomised = () => {
+                        for (const k of customised) {
+                            const tab = tabs.tabMap.get(k);
+                            if (tab) tabs.sendTabUpdate(k, tab, tabs.tabUrls.get(k) || '', tab.lazyTitle);
+                        }
+                    };
+                    try {
+                        const wc = windowData.window.webContents;
+                        if (wc.isLoading())
+                            wc.once('did-finish-load', () => { try { resendCustomised(); } catch (e) { log.debug('window-manager', 'resendCustomised', e); } });
+                        else
+                            resendCustomised();
+                    }
+                    catch (e) { log.debug('window-manager', 'resendCustomised', e); }
                     const activeWs = String(state.activeWorkspace || state.profile || '1');
                     if (activeWs !== profileId) {
                         tabs.profileId = activeWs;

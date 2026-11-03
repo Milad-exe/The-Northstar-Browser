@@ -1987,8 +1987,9 @@
                         }
                     }
                 }
-                updateTabTitle(data.index, data.title || data.url, data.favicon);
                 const _b = tabs.get(data.index);
+                if (_b && data.icon !== undefined) _b.dataset.customIcon = data.icon || '';
+                updateTabTitle(data.index, data.title || data.url, data.favicon);
                 if (_b) _b.dataset.customLabel = data.hasCustomLabel ? '1' : '';
             });
             window.tab.onNavigationUpdated((_e, data) => {
@@ -4461,6 +4462,12 @@
                 span.textContent = title || `Tab ${index + 1}`;
                 btn.title = span.textContent;
             }
+            // A user-set icon owns the favicon slot; page favicons never replace it.
+            if (btn.dataset.customIcon) {
+                if (!btn.querySelector('.tab-favicon.custom-icon'))
+                    applyCustomTabIcon(index, btn.dataset.customIcon);
+                return;
+            }
             let faviconEl = btn.querySelector('.tab-favicon');
             if (faviconUrl) {
                 if (!faviconEl || faviconEl.tagName !== 'IMG') {
@@ -4549,6 +4556,7 @@
             div.className = 'tab-favicon default custom-icon';
             div.textContent = icon;
             if (cur) cur.replaceWith(div);
+            else btn.insertBefore(div, btn.querySelector('.tab-title'));
             btn.classList.add('has-favicon');
         }
         function setFaviconFallback(index, el) {

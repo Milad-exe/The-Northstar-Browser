@@ -1267,7 +1267,8 @@ class Tabs {
         const isBlankInternal = url === 'newtab' || (url && url.startsWith('file://') && !isInternalToken);
         if (isBlankInternal) {
             displayUrl = '';
-            if (url && url.includes('/Settings/index.html'))
+            if (custom) { /* a renamed internal tab keeps its name */ }
+            else if (url && url.includes('/Settings/index.html'))
                 displayTitle = 'Settings';
             else if (url && url.includes('/Bookmarks/index.html'))
                 displayTitle = 'Bookmarks';
@@ -1278,7 +1279,8 @@ class Tabs {
         }
         else if (isInternalToken) {
             displayUrl = url; // 'settings' / 'settings/appearance' / 'history' / 'bookmarks'
-            if (base === 'settings')
+            if (custom) { /* a renamed internal tab keeps its name */ }
+            else if (base === 'settings')
                 displayTitle = 'Settings';
             else if (base === 'bookmarks')
                 displayTitle = 'Bookmarks';
@@ -1319,6 +1321,10 @@ class Tabs {
             // So the tab menu can offer "Reset label" only when there is a
             // user label to reset, rather than as an always-present no-op.
             hasCustomLabel: !!this.tabLabels?.get(tabIndex),
+            // The user-set icon rides every update, so a restored tab (whose
+            // tab-icon-changed was never sent) and a page reporting its own
+            // favicon both end with the user's icon showing.
+            icon: this.tabIcons?.get(tabIndex) || null,
         });
         // Keep the window title in sync with the active tab
         if (tabIndex === this.activeTabIndex) {
