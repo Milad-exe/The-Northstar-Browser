@@ -1468,7 +1468,10 @@ html[data-tabbar="top"] .tab-button.pinned .tab-close { top: 1px; right: 1px; wi
 #utility-bar button,
 #utility-bar input,
 #utility-bar .omnibox,
-#utility-bar .pomodoro-pill { -webkit-app-region: no-drag; }
+#utility-bar .pomodoro-pill,
+/* Extension actions are <button>s inside <browser-action-list>'s shadow root,
+   which `#utility-bar button` can't reach — exempt the host instead. */
+#utility-bar browser-action-list { -webkit-app-region: no-drag; }
 #utility-bar .lead-cluster,
 #utility-bar .nav-buttons,
 #utility-bar .trailing-icons,

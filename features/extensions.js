@@ -50,6 +50,33 @@ function loadLibs() {
         webStore = require('electron-chrome-web-store');
     }
 }
+// Serve crx://extension-icon/... (the toolbar <browser-action-list> icons) like
+// the library's handleCRXProtocol, plus one fallback: the library drops an MV3
+// action.setIcon({ imageData }) yet still stores the empty per-tab icon, which
+// then 400s and the button shows a grey letter (AdBlock does this on every
+// tab). A failed per-tab icon falls back to the manifest's default_icon.
+function handleCrx(session) {
+    const { session: electronSession } = require('electron');
+    if (session.protocol.isProtocolHandled('crx'))
+        session.protocol.unhandle('crx');
+    session.protocol.handle('crx', async (request) => {
+        let url;
+        try { url = new URL(request.url); }
+        catch { return new Response('Invalid URL', { status: 404 }); }
+        const partition = url.searchParams.get('partition') || '_self';
+        const target = partition === '_self' ? session : electronSession.fromPartition(partition);
+        const host = ElectronChromeExtensions.fromSession(target);
+        if (!host)
+            return new Response(null, { status: 404 });
+        const action = host.api.browserAction;
+        const res = await action.handleCRXRequest(request);
+        if (res.status === 200 || !url.searchParams.has('tabId'))
+            return res;
+        log.debug('extensions', 'crx: per-tab icon missing, using default', url.pathname);
+        url.searchParams.delete('tabId');
+        return action.handleCRXRequest(new Request(url.href));
+    });
+}
 // Session's extension API surface moved to session.extensions in newer Electron.
 const extApi = (session) => session.extensions || session;
 class Extensions {
@@ -97,7 +124,7 @@ class Extensions {
             try { popup.browserWindow?.once('closed', () => this.popups.delete(popup)); }
             catch (e) { log.debug('extensions', '_makeHost', e); }
         });
-        try { ElectronChromeExtensions.handleCRXProtocol(session); }
+        try { handleCrx(session); }
         catch (e) { log.debug('extensions', '_makeHost', e); }
         this._registerPolyfill(session);
         this._wireDnr(session);
@@ -255,10 +282,10 @@ class Extensions {
         // Serve extension icons (crx://extension-icon/...) so the toolbar
         // <browser-action-list> buttons actually render their icons.
         try {
-            ElectronChromeExtensions.handleCRXProtocol(session);
+            handleCrx(session);
         }
         catch (e) {
-            console.error('handleCRXProtocol:', e.message);
+            log.error('extensions', 'handleCrx', e);
         }
         // Enable Web Store install + load store-installed extensions on startup.
         await webStore.installChromeWebStore({
