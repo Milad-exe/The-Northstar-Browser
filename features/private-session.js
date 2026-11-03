@@ -92,7 +92,7 @@ function createTabSession() {
     const sess = session.fromPartition(`private-tab-${process.pid}-${++seq}`, { cache: false });
     setup(sess);
     try {
-        adBlocker.enableBlockingInSession(sess);
+        adBlocker.enableBlockingInSession(sess, { extensions: false });
     }
     catch (e) { log.debug('private-session', 'createTabSession', e); }
     try {

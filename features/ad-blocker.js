@@ -194,15 +194,20 @@ class AdBlocker {
     /**
      * Register onBeforeRequest handler on the given Electron session.
      * Call once, after init().
+     *
+     * `extensions: false` keeps extension declarativeNetRequest rules out of
+     * this session. Private tabs pass it: extensions do not run there, so their
+     * rules must not act there either — nor log the private URLs they match
+     * for getMatchedRules to hand back.
      */
-    enableBlockingInSession(sess) {
+    enableBlockingInSession(sess, { extensions = true } = {}) {
         // Lazy require to avoid a load-order cycle (site-permissions ⇄ features).
         const sitePermissions = require('./site-permissions');
         const dnr = require('./dnr');
         sess.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, cb) => {
             // Extension content blockers first — this session's only
             // onBeforeRequest slot, so DNR has to be composed in here too.
-            const ruled = dnr.onBeforeRequest(details);
+            const ruled = extensions ? dnr.onBeforeRequest(details) : null;
             if (ruled)
                 return cb(ruled);
             // Per-site protections shield (lock-icon panel). Fast path: skip the

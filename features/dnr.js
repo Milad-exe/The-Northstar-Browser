@@ -20,6 +20,7 @@ const log = require('./log');
 const fs = require('fs');
 const path = require('path');
 const { app } = require('electron');
+const { manifestHasPermission } = require('./ext-permissions');
 
 // Chrome's own ceilings, so an extension that respects the documented limits
 // never trips ours.
@@ -54,6 +55,21 @@ const ACTION_RANK = {
     upgradeScheme: 3,
     redirect: 4,
 };
+
+/**
+ * May a redirect rule send a request to `url`? Only to the web (http/https)
+ * or to the rule's OWN extension. A javascript:, file:, data: or other-
+ * extension target would let a rule run script in, or read local files into,
+ * the page that made the request — Chrome rejects those too.
+ */
+function isSafeRedirect(url, extensionId) {
+    let u;
+    try { u = new URL(String(url)); }
+    catch { return false; }
+    if (u.protocol === 'http:' || u.protocol === 'https:')
+        return true;
+    return u.protocol === 'chrome-extension:' && !!extensionId && u.hostname === String(extensionId);
+}
 
 function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
@@ -552,6 +568,13 @@ class Dnr {
     registerExtension(ext) {
         try {
             const manifest = ext.manifest || {};
+            // No declarativeNetRequest permission, no rules — static or
+            // dynamic. Chrome ignores the rulesets of such an extension.
+            if (!manifestHasPermission(manifest, 'declarativeNetRequest')) {
+                if (this.exts.delete(ext.id))
+                    this._invalidate();
+                return;
+            }
             const decl = manifest.declarative_net_request;
             const rec = this._rec(ext.id);
             rec.manifest = manifest;
@@ -804,6 +827,10 @@ class Dnr {
         }
         if (t === 'redirect') {
             const to = this._redirectUrl(winner, req);
+            if (to && !isSafeRedirect(to, winner.extensionId)) {
+                log.warn('dnr', `${winner.extensionId} rule ${winner.id}: refused redirect to a non-web URL`);
+                return null;
+            }
             return to && to !== req.url ? { redirectURL: to } : null;
         }
         return null;
@@ -955,6 +982,8 @@ class Dnr {
         }
         return { matchedRules: hits };
     }
+
+    isSafeRedirect(url, extensionId) { return isSafeRedirect(url, extensionId); }
 
     /** chrome.declarativeNetRequest.isRegexSupported — same rules the compiler applies. */
     isRegexSupported(regex, caseSensitive) {

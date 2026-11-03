@@ -50,9 +50,15 @@ const i18n = require(path.join(root, 'features/i18n'));
 // ── Tiny harness ─────────────────────────────────────────────────────────────
 let passed = 0;
 const failures = [];
+// An async test settles later; the report waits for every one of them.
+const pending = [];
 function test(name, fn) {
     try {
-        fn();
+        const result = fn();
+        if (result && typeof result.then === 'function') {
+            pending.push(result.then(() => { passed++; }, (err) => { failures.push({ name, err }); }));
+            return;
+        }
         passed++;
     }
     catch (err) {
@@ -1868,12 +1874,184 @@ test('tab shortcuts follow the drawn (visual) order', () => {
     assert.strictEqual(tm.activeTabIndex, 1, 'Ctrl+Tab walks down the drawn list');
 });
 
-// ── Report ───────────────────────────────────────────────────────────────────
-if (failures.length) {
-    console.error(`\n${failures.length} of ${passed + failures.length} unit tests failed:\n`);
-    for (const { name, err } of failures)
-        console.error(`  ✗ ${name}\n    ${err.message.split('\n')[0]}`);
-    console.error('');
-    process.exit(1);
+// ── Extension permissions: the APIs we add are gated on the manifest ─────────
+const extPerms = require(path.join(root, 'features/ext-permissions'));
+
+test('manifestHasPermission reads required permissions only', () => {
+    const m = { permissions: ['history', 'storage'], optional_permissions: ['bookmarks'] };
+    assert.strictEqual(extPerms.manifestHasPermission(m, 'history'), true);
+    assert.strictEqual(extPerms.manifestHasPermission(m, 'bookmarks'), false, 'optional is not granted');
+    assert.strictEqual(extPerms.manifestHasPermission(m, 'proxy'), false);
+    assert.strictEqual(extPerms.manifestHasPermission(null, 'history'), false);
+    assert.strictEqual(extPerms.manifestHasPermission({ permissions: 'history' }, 'history'), false, 'malformed list');
+});
+
+test('declarativeNetRequestWithHostAccess implies plain DNR, not feedback', () => {
+    const m = { permissions: ['declarativeNetRequestWithHostAccess'] };
+    assert.strictEqual(extPerms.manifestHasPermission(m, 'declarativeNetRequest'), true);
+    assert.strictEqual(extPerms.manifestHasPermission(m, 'declarativeNetRequestFeedback'), false);
+});
+
+test('hasPermission / requirePermission check the caller\'s loaded manifest', () => {
+    const theme = 'a'.repeat(32);
+    const reader = 'b'.repeat(32);
+    const exts = {
+        [theme]: { id: theme, manifest: { theme: {} } },
+        [reader]: { id: reader, manifest: { permissions: ['history'] } },
+    };
+    const session = { extensions: { getExtension: (id) => exts[id] || null } };
+    assert.strictEqual(extPerms.hasPermission(reader, 'history', session), true);
+    assert.strictEqual(extPerms.hasPermission(theme, 'history', session), false, 'a theme reads no history');
+    assert.strictEqual(extPerms.hasPermission('c'.repeat(32), 'history', session), false, 'unknown extension');
+    assert.throws(() => extPerms.requirePermission(theme, 'proxy', session), /'proxy' permission is required/);
+    assert.doesNotThrow(() => extPerms.requirePermission(reader, 'history', session));
+});
+
+test('action-click grants are per extension and per tab', () => {
+    const { EventEmitter } = require('events');
+    const tab = Object.assign(new EventEmitter(), { id: 41, isDestroyed: () => false });
+    const ext = 'd'.repeat(32);
+    assert.strictEqual(extPerms.hasActionGrant(ext, 41), false);
+    extPerms.grantActionClick(ext, tab);
+    assert.strictEqual(extPerms.hasActionGrant(ext, 41), true);
+    assert.strictEqual(extPerms.hasActionGrant(ext, 42), false, 'other tab');
+    assert.strictEqual(extPerms.hasActionGrant('e'.repeat(32), 41), false, 'other extension');
+    tab.emit('did-navigate');
+    assert.strictEqual(extPerms.hasActionGrant(ext, 41), false, 'navigating away ends the grant');
+});
+
+// ── declarativeNetRequest: permission + redirect scheme guard ────────────────
+const dnr = require(path.join(root, 'features/dnr'));
+
+test('DNR redirects only to the web or the rule\'s own extension', () => {
+    const id = 'f'.repeat(32);
+    assert.strictEqual(dnr.isSafeRedirect('https://example.com/x', id), true);
+    assert.strictEqual(dnr.isSafeRedirect('http://example.com/', id), true);
+    assert.strictEqual(dnr.isSafeRedirect(`chrome-extension://${id}/blocked.html`, id), true);
+    assert.strictEqual(dnr.isSafeRedirect(`chrome-extension://${'g'.repeat(32)}/x.html`, id), false, 'another extension');
+    assert.strictEqual(dnr.isSafeRedirect('javascript:alert(1)', id), false);
+    assert.strictEqual(dnr.isSafeRedirect('file:///C:/Windows/win.ini', id), false);
+    assert.strictEqual(dnr.isSafeRedirect('data:text/html,<script>1</script>', id), false);
+    assert.strictEqual(dnr.isSafeRedirect('not a url', id), false);
+});
+
+test('a DNR redirect rule to javascript: is refused at request time', () => {
+    const id = 'h'.repeat(32);
+    dnr.registerExtension({ id, name: 'redirector', path: require('os').tmpdir(),
+        manifest: { permissions: ['declarativeNetRequest'], host_permissions: ['<all_urls>'] } });
+    try {
+        dnr.updateRules(id, { addRules: [
+            { id: 1, priority: 1, action: { type: 'redirect', redirect: { url: 'javascript:alert(1)' } },
+                condition: { urlFilter: '||evil-target.test^', resourceTypes: ['main_frame'] } },
+            { id: 2, priority: 1, action: { type: 'redirect', redirect: { url: 'https://safe.test/' } },
+                condition: { urlFilter: '||good-target.test^', resourceTypes: ['main_frame'] } },
+        ] }, 'session');
+        const req = (url) => dnr.onBeforeRequest({ url, resourceType: 'mainFrame', webContentsId: 7, method: 'GET' });
+        assert.strictEqual(req('https://evil-target.test/'), null);
+        assert.deepStrictEqual(req('https://good-target.test/'), { redirectURL: 'https://safe.test/' });
+    }
+    finally {
+        dnr.unregisterExtension(id);
+    }
+});
+
+test('an extension without the DNR permission gets no rules', () => {
+    const id = 'i'.repeat(32);
+    dnr.registerExtension({ id, name: 'theme', path: require('os').tmpdir(), manifest: { theme: {} } });
+    assert.strictEqual(dnr.exts.has(id), false);
+});
+
+// ── .crx signatures decide the extension id ──────────────────────────────────
+const crxVerify = require(path.join(root, 'features/crx-verify'));
+
+function buildCrx3(zip, { keyPair, idKey = keyPair, tamper = false } = {}) {
+    const crypto = require('crypto');
+    const der = keyPair.publicKey.export({ type: 'spki', format: 'der' });
+    const idDer = idKey.publicKey.export({ type: 'spki', format: 'der' });
+    const crxIdBytes = crypto.createHash('sha256').update(idDer).digest().subarray(0, 16);
+    const varint = (n) => { const out = []; while (n > 127) { out.push((n & 127) | 128); n >>>= 7; } out.push(n); return Buffer.from(out); };
+    const field = (num, bytes) => Buffer.concat([varint(num * 8 + 2), varint(bytes.length), bytes]);
+    const signedHeaderData = field(1, crxIdBytes);
+    const len = Buffer.alloc(4); len.writeUInt32LE(signedHeaderData.length);
+    const sig = crypto.sign('sha256', Buffer.concat([Buffer.from('CRX3 SignedData\x00', 'latin1'), len, signedHeaderData, zip]), keyPair.privateKey);
+    const header = Buffer.concat([field(2, Buffer.concat([field(1, der), field(2, sig)])), field(10000, signedHeaderData)]);
+    const pre = Buffer.alloc(12);
+    pre.write('Cr24', 0, 'latin1'); pre.writeUInt32LE(3, 4); pre.writeUInt32LE(header.length, 8);
+    const body = Buffer.from(zip);
+    if (tamper) body[0] ^= 0xff;
+    return Buffer.concat([pre, header, body]);
 }
-console.log(`✓ ${passed} unit tests passed`);
+
+test('a CRX3 verifies and its id is the signing key\'s', () => {
+    const crypto = require('crypto');
+    const kp = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const zip = Buffer.from('PK\x03\x04 pretend zip payload', 'latin1');
+    const v = crxVerify.verifyCrx(buildCrx3(zip, { keyPair: kp }));
+    assert.strictEqual(v.signed, true);
+    assert.strictEqual(v.id, crxVerify.idFromPublicKey(kp.publicKey.export({ type: 'spki', format: 'der' })));
+    assert.match(v.id, /^[a-p]{32}$/);
+    assert.throws(() => crxVerify.verifyCrx(buildCrx3(zip, { keyPair: kp, tamper: true })), /does not match/);
+    const other = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    assert.throws(() => crxVerify.verifyCrx(buildCrx3(zip, { keyPair: kp, idKey: other })), /not signed by the key/);
+    assert.deepStrictEqual(crxVerify.verifyCrx(zip), { signed: false, zipOffset: 0 });
+});
+
+test('manifest.key cannot claim an id the .crx was not signed with', () => {
+    const crypto = require('crypto');
+    const kp = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+    const mine = kp.publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
+    const theirs = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+        .publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
+    const verdict = { signed: true, id: crxVerify.idFromPublicKey(Buffer.from(mine, 'base64')), publicKey: mine };
+    assert.throws(() => crxVerify.reconcileManifestKey({ key: theirs }, verdict), /different extension id/);
+    assert.strictEqual(crxVerify.reconcileManifestKey({ key: mine }, verdict).changed, false);
+    const filled = crxVerify.reconcileManifestKey({ name: 'x' }, verdict);
+    assert.strictEqual(filled.manifest.key, mine, 'a missing key is pinned to the signed one');
+    const unsigned = crxVerify.reconcileManifestKey({ key: theirs }, { signed: false });
+    assert.strictEqual('key' in unsigned.manifest, false, 'an unsigned zip proves no id');
+    assert.ok(unsigned.warning);
+});
+
+// ── chrome.proxy: an extension's proxy goes away with it ─────────────────────
+const extProxy = require(path.join(root, 'features/ext-proxy'));
+
+test('clearing an extension proxy restores the one beneath it, then the baseline', async () => {
+    const calls = [];
+    const session = { setProxy: async (c) => { calls.push(c); } };
+    const a = 'j'.repeat(32);
+    const b = 'k'.repeat(32);
+    await extProxy.set(a, session, { value: { mode: 'direct' } });
+    await extProxy.set(b, session, { value: { mode: 'fixed_servers', rules: { singleProxy: { host: 'p.test', port: 8080 } } } });
+    assert.strictEqual(extProxy.get(a, session).levelOfControl, 'controlled_by_other_extensions');
+    await extProxy.clear(b);
+    assert.deepStrictEqual(calls[calls.length - 1], { proxyRules: 'direct://' }, 'a\'s proxy is back in force');
+    await extProxy.clear(a, session);
+    assert.deepStrictEqual(calls[calls.length - 1], extProxy.baselineConfig(), 'then the user\'s own');
+    const n = calls.length;
+    await extProxy.clear(a, session);
+    assert.strictEqual(calls.length, n, 'clearing twice touches nothing');
+});
+
+// ── Install prompt wording ───────────────────────────────────────────────────
+test('the install prompt names what an extension can reach', () => {
+    const { describePermissions } = require(path.join(root, 'features/extensions'));
+    assert.deepStrictEqual(describePermissions({ theme: {} }), []);
+    const lines = describePermissions({ permissions: ['history', 'proxy', 'storage'], host_permissions: ['<all_urls>'] });
+    assert.strictEqual(lines[0], 'Read and change your data on every website');
+    assert.ok(lines.includes('Read and change your browsing history'));
+    assert.ok(lines.some(l => /traffic/.test(l)));
+    const narrow = describePermissions({ content_scripts: [{ matches: ['https://mail.example.com/*'] }] });
+    assert.deepStrictEqual(narrow, ['Read and change your data on mail.example.com']);
+});
+
+// ── Report ───────────────────────────────────────────────────────────────────
+Promise.all(pending).then(() => {
+    if (failures.length) {
+        console.error(`\n${failures.length} of ${passed + failures.length} unit tests failed:\n`);
+        for (const { name, err } of failures)
+            console.error(`  ✗ ${name}\n    ${err.message.split('\n')[0]}`);
+        console.error('');
+        process.exit(1);
+    }
+    console.log(`✓ ${passed} unit tests passed`);
+});

@@ -16,6 +16,7 @@
  */
 'use strict';
 const log = require('./log');
+const { hasPermission } = require('./ext-permissions');
 
 // sw → profile id. A worker only hears about its own space's data.
 const workers = new Map();
@@ -58,10 +59,20 @@ function activeProfiles() {
  * one space. Pages matter: a popup that registered chrome.bookmarks.onCreated
  * listens on the same channel, and sending only to workers would leave those
  * listeners permanently silent.
+ *
+ * `perm`, when given, limits delivery to extensions whose manifest declares
+ * it: a visited URL or a bookmark is the user's data, and an extension that
+ * never asked for history/bookmarks must not hear about it.
  */
-function broadcast(channel, data, profileId) {
+function broadcast(channel, data, profileId, perm) {
+    const allowed = (extId, session) => !perm || hasPermission(extId, perm, session);
     for (const [sw, pid] of [...workers]) {
         if (profileId != null && pid !== String(profileId))
+            continue;
+        let extId = null;
+        try { extId = new URL(sw.scope).hostname; }
+        catch { continue; }
+        if (!allowed(extId, sw.session))
             continue;
         try { sw.send(channel, data); }
         catch { workers.delete(sw); }
@@ -75,6 +86,8 @@ function broadcast(channel, data, profileId) {
             if (!url.startsWith('chrome-extension://'))
                 continue;
             if (profileId != null && _wm && String(_wm.profileOf(wc)) !== String(profileId))
+                continue;
+            if (perm && !allowed(new URL(url).hostname, wc.session))
                 continue;
             try { wc.send(channel, data); }
             catch (e) { log.debug('ext-events', 'for', e); }
@@ -97,12 +110,12 @@ function toHistoryItem(entry) {
 function historyVisited(url, title, profileId) {
     if (!workers.size || !url)
         return;
-    broadcast('ext:history.visited', toHistoryItem({ url, title, timestamp: new Date().toISOString() }), profileId);
+    broadcast('ext:history.visited', toHistoryItem({ url, title, timestamp: new Date().toISOString() }), profileId, 'history');
 }
 function historyRemoved(info, profileId) {
     if (!workers.size)
         return;
-    broadcast('ext:history.visitRemoved', info, profileId);
+    broadcast('ext:history.visitRemoved', info, profileId, 'history');
 }
 
 // ── chrome.bookmarks ─────────────────────────────────────────────────────────
@@ -180,21 +193,21 @@ async function bookmarksChanged() {
         for (const [id, cur] of next) {
             const old = prev.get(id);
             if (!old) {
-                broadcast('ext:bookmarks.created', { id, node: cur.node }, pid);
+                broadcast('ext:bookmarks.created', { id, node: cur.node }, pid, 'bookmarks');
                 continue;
             }
             if (old.title !== cur.title || old.url !== cur.url)
-                broadcast('ext:bookmarks.changed', { id, info: { title: cur.title, url: cur.url } }, pid);
+                broadcast('ext:bookmarks.changed', { id, info: { title: cur.title, url: cur.url } }, pid, 'bookmarks');
             if (old.parentId !== cur.parentId || old.index !== cur.index) {
                 broadcast('ext:bookmarks.moved', {
                     id,
                     info: { parentId: cur.parentId, index: cur.index, oldParentId: old.parentId, oldIndex: old.index },
-                }, pid);
+                }, pid, 'bookmarks');
             }
         }
         for (const [id, old] of prev) {
             if (!next.has(id))
-                broadcast('ext:bookmarks.removed', { id, info: { parentId: old.parentId, index: old.index, node: old.node } }, pid);
+                broadcast('ext:bookmarks.removed', { id, info: { parentId: old.parentId, index: old.index, node: old.node } }, pid, 'bookmarks');
         }
     }
 }
