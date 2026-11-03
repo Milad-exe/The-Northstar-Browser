@@ -441,11 +441,17 @@ function installGapHandlers(ctx) {
     handle('ext:proxy.clear', (_e) => extProxy.clear(needId(_e)));
 
     // ── chrome.devtools ──────────────────────────────────────────────────────
-    // Only reachable from a page we loaded as a devtools_page (see
-    // features/devtools-ext.js); the polyfill installs the namespace nowhere else.
+    // The polyfill only installs the namespace on a devtools_page, but the raw
+    // bridge reaches every extension page and worker — so the sender itself must
+    // be a devtools_page view we loaded (features/devtools-ext.js).
     const devtoolsExt = require('../features/devtools-ext');
     const activeWindow = () => wm.getMostRecentlyFocusedWindow?.() || wm.getPrimaryWindow?.() || wm.getAllWindows?.()[0] || null;
+    const needDevtoolsPage = (e) => {
+        if (!devtoolsExt.isHostSender(e?.sender))
+            throw new Error('chrome.devtools is only available to a devtools_page');
+    };
     handle('ext:devtools.eval', async (_e, { expression } = {}) => {
+        needDevtoolsPage(_e);
         const wc = devtoolsExt.inspectedTab(activeWindow());
         if (!wc)
             return { value: undefined, error: 'no inspected tab' };
@@ -453,12 +459,13 @@ function installGapHandlers(ctx) {
         catch (err) { return { value: undefined, error: String(err && err.message || err) }; }
     });
     handle('ext:devtools.reload', (_e, { ignoreCache } = {}) => {
+        needDevtoolsPage(_e);
         const wc = devtoolsExt.inspectedTab(activeWindow());
         try { ignoreCache ? wc?.reloadIgnoringCache() : wc?.reload(); }
         catch (e) { log.debug('extensions', 'activeWindow', e); }
         return true;
     });
-    handle('ext:devtools.createPanel', (_e, panel = {}) => devtoolsExt.registerPanel(needId(_e), panel));
+    handle('ext:devtools.createPanel', (_e, panel = {}) => { needDevtoolsPage(_e); return devtoolsExt.registerPanel(needId(_e), panel); });
 
     // ── chrome.sidePanel ─────────────────────────────────────────────────────
     const sidePanel = require('../features/side-panel');

@@ -128,9 +128,28 @@ async function openPanel(wd, panelId, wm) {
     return sidePanel.open(panel.extensionId, {}, wm);
 }
 
-/** The tab a devtools page is inspecting — always the active one. */
+/**
+ * True only for a devtools_page view this module loaded. chrome.devtools.* IPC
+ * must come from one of these: every extension page and worker can reach the
+ * raw bridge, and inspectedWindow.eval runs arbitrary code in a tab.
+ */
+function isHostSender(sender) {
+    if (!sender) return false;
+    for (const rec of hosts.values())
+        if (rec.view?.webContents === sender && !sender.isDestroyed()) return true;
+    return false;
+}
+
+/**
+ * The tab a devtools page is inspecting — always the active one, and only a
+ * web page: never an internal page (Settings, the NTP…), whose preloads carry
+ * privileged bridges such as password reveal.
+ */
 function inspectedTab(wd) {
-    try { return wd?.tabs?.tabMap?.get(wd.tabs.activeTabIndex)?.webContents || null; }
+    try {
+        const wc = wd?.tabs?.tabMap?.get(wd.tabs.activeTabIndex)?.webContents || null;
+        return wc && /^https?:/i.test(wc.getURL()) ? wc : null;
+    }
     catch { return null; }
 }
 
@@ -144,4 +163,4 @@ function teardown(wd) {
     }
 }
 
-module.exports = { discover, listPanels, registerPanel, openPanel, inspectedTab, teardown, candidates };
+module.exports = { discover, listPanels, registerPanel, openPanel, inspectedTab, isHostSender, teardown, candidates };
