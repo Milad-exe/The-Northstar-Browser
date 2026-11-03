@@ -6,14 +6,22 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 // flip settings and drive tabs. Web pages get only the inert page behaviours
 // (link-selection suppression, click forwarding, password autofill) — which
 // also skips ~20 bridge setups and a sync IPC on every page load.
-const INTERNAL = location.protocol === 'file:';
+// "Internal" is a file:// page shipped INSIDE the app, not any file:// page: an
+// HTML file the user opens from disk is file:// too, and must get none of this.
+// Main answers with the same rule its IPC handlers enforce (ipc-guard.js) —
+// tabs are sandboxed, so this preload cannot resolve paths itself. Only
+// file:// pages ask; web pages never pay for the sync call.
+const INTERNAL = location.protocol === 'file:' && (() => {
+    try { return ipcRenderer.sendSync('ipc-guard:is-internal') === true; }
+    catch { return false; }
+})();
 const exposeInternal = (name, api) => { if (INTERNAL)
     contextBridge.exposeInMainWorld(name, api); };
 // Enable the <browser-action-list> element for extension toolbar buttons.
 // This preload is shared by the chrome window and by tabs, so only inject the
 // element into the browser chrome page — not arbitrary web pages.
 try {
-    const isFile = location.protocol === 'file:';
+    const isFile = INTERNAL;
     const isChrome = isFile && /\/Browser\/index\.html$/.test(location.pathname);
     // Chrome + internal pages paint translucently over the window's native
     // material. macOS has vibrancy; Windows 11 (build 22000+) has Mica — both let
