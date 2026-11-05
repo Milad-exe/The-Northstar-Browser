@@ -140,6 +140,17 @@ function saveThumbs(wm) {
     catch (e) { log.warn('tab-hover-card', 'could not save tab previews', e); }
 }
 
+/* The hidden card must still lay out and answer at once while a hover is
+   being prepared, so throttling is lifted only for that span and restored as
+   soon as the card is hidden (or a show is abandoned). */
+function throttle(view, on) {
+    try {
+        if (view && !view.webContents.isDestroyed())
+            view.webContents.setBackgroundThrottling(on);
+    }
+    catch (e) { log.debug('tab-hover-card', 'throttle', e); }
+}
+
 async function ensureView(wd) {
     if (wd.hoverCard) {
         if (wd.hoverCardReady)
@@ -152,8 +163,10 @@ async function ensureView(wd) {
             contextIsolation: true,
             nodeIntegration: false,
             sandbox: true,
-            // Hidden between hovers; it must still lay out and answer at once.
-            backgroundThrottling: false,
+            // Throttled between hovers (see throttle()). backgroundThrottling:
+            // false here would hold for the view's whole life — and one
+            // unthrottled view keeps its WHOLE window's compositor running at
+            // full rate while minimised or behind a fullscreen game.
         },
     });
     view.setBackgroundColor('#00000000');
@@ -194,8 +207,10 @@ async function show(wd, data) {
         return;
     const seq = (wd.hoverCardSeq || 0) + 1;
     wd.hoverCardSeq = seq;
+    let view = null;
     try {
-        const view = await ensureView(wd);
+        view = await ensureView(wd);
+        throttle(view, false);
         if (wd.hoverCardSeq !== seq)
             return; // superseded while the view was loading
         if (!data.active && Number.isInteger(data.index)) {
@@ -232,6 +247,12 @@ async function show(wd, data) {
         }
     }
     catch (e) { log.warn('tab-hover-card', 'show', e); }
+    finally {
+        // Abandoned (superseded, no size, error) while not on screen: throttle
+        // again. A newer show in flight lifts it again for itself.
+        if (view && !wd.hoverCardOpen && wd.hoverCardSeq === seq)
+            throttle(view, true);
+    }
 }
 
 function hide(wd) {
@@ -241,7 +262,12 @@ function hide(wd) {
     if (!wd.hoverCard || !wd.hoverCardOpen)
         return;
     wd.hoverCardOpen = false;
-    wd.hoverCardCancelHide = playOutThenHide(wd.hoverCard, () => { wd.hoverCardCancelHide = null; });
+    const view = wd.hoverCard;
+    wd.hoverCardCancelHide = playOutThenHide(view, () => {
+        wd.hoverCardCancelHide = null;
+        if (!wd.hoverCardOpen)
+            throttle(view, true);
+    });
 }
 
 module.exports = { show, hide, place, captureOnBackground, saveThumbs };

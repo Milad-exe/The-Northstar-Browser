@@ -25,6 +25,13 @@ const DEFAULT_MAX_DAYS = 90;
 let MAX_ENTRIES = DEFAULT_MAX_ENTRIES;
 let MAX_DAYS = DEFAULT_MAX_DAYS;
 const WRITE_DELAY_MS = 500;
+// Each write re-serialises and re-encrypts the whole store, so writes are
+// spaced at least this far apart. A debounce alone never settles for a page
+// whose title ticks (a timer, "(3) Inbox") — it rewrote the file every second.
+const MIN_WRITE_GAP_MS = 5000;
+// A visit learns its title while it is this young; after that a changing title
+// is the page ticking, not the page arriving.
+const TITLE_LEARN_MS = 60000;
 /** Apply the user's retention settings (0 days = keep until the cap). */
 function setRetention({ maxEntries, maxDays } = {}) {
     if (Number.isFinite(maxEntries) && maxEntries > 0)
@@ -94,8 +101,15 @@ class History {
     }
     // ── Write-behind ──────────────────────────────────────────────────────────
     _scheduleWrite() {
-        clearTimeout(this._writeTimer);
-        this._writeTimer = setTimeout(() => { this._flush().catch(() => { }); }, WRITE_DELAY_MS);
+        // One pending write carries every change made before it fires; never
+        // push it back, or a steady trickle of changes postpones it forever.
+        if (!this._writeTimer) {
+            const sinceLast = Date.now() - (this._lastWriteAt || 0);
+            const delay = Math.max(WRITE_DELAY_MS, MIN_WRITE_GAP_MS - sinceLast);
+            this._writeTimer = setTimeout(() => {
+                this._flush().catch(e => log.warn('history', 'history write failed', e));
+            }, delay);
+        }
         if (!this._quitHooked) {
             this._quitHooked = true;
             try {
@@ -109,6 +123,7 @@ class History {
         this._writeTimer = null;
         if (!this.cache)
             return;
+        this._lastWriteAt = Date.now();
         await fs.writeFile(this.file, encrypt(JSON.stringify(this.cache)), 'utf8');
     }
     // Quit path — a pending debounced write must not die with the process.
@@ -224,6 +239,10 @@ class History {
         const history = await this.load();
         const entry = history.find(e => e.url === url && (e.profile || null) === p);
         if (!entry || entry.title === String(title).trim())
+            return false;
+        // Already titled and no longer a fresh visit: the page is re-titling
+        // itself (a countdown, an unread count). Keep the title it arrived with.
+        if (entry.title && Date.now() - Date.parse(entry.timestamp) > TITLE_LEARN_MS)
             return false;
         entry.title = String(title).trim();
         this._scheduleWrite();

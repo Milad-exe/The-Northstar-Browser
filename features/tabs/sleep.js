@@ -93,6 +93,12 @@ class TabSleeper {
                     return;
                 if (wc.isDevToolsOpened())
                     return;
+                // Discarding kills the renderer PROCESS. Chromium can put two
+                // same-site tabs in one process, and crashing it then takes the
+                // other tab (possibly the one in use) down with it. Fails safe:
+                // an unknown pid means "don't discard".
+                if (this._sharesProcess(wc))
+                    return;
                 tab.slept = true;
                 // Tell the chrome so the row shows the slept state (dotted ring,
                 // dimmed favicon). Optional-chained so the stub Tabs in the unit
@@ -103,6 +109,31 @@ class TabSleeper {
             }
             catch (e) { log.debug('tab-sleep', 'scan tab', e); }
         });
+    }
+
+    /** True when another live webContents (any tab, any window, any panel)
+     *  runs in this one's renderer process — or when that can't be told. */
+    _sharesProcess(wc) {
+        if (typeof wc.getOSProcessId !== 'function')
+            return false; // unit-test stub: no processes to share
+        let pid = 0;
+        try { pid = wc.getOSProcessId(); }
+        catch (e) { log.debug('tab-sleep', 'pid', e); }
+        if (!pid)
+            return true;
+        try {
+            const { webContents } = require('electron');
+            return webContents.getAllWebContents().some((other) => {
+                if (other === wc || other.isDestroyed() || other.isCrashed())
+                    return false;
+                try { return other.getOSProcessId() === pid; }
+                catch { return false; }
+            });
+        }
+        catch (e) {
+            log.debug('tab-sleep', 'process check', e);
+            return true;
+        }
     }
 
     /**

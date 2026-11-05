@@ -1701,6 +1701,14 @@ class Tabs {
             this.tabOrder = this.tabOrder.filter(i => i !== index);
             this.tabScroll.delete(index);
             this.tabLastActive.delete(index);
+            // Per-tab customisations and reader state die with the tab (the
+            // reader map can hold a whole article's HTML).
+            this.tabLabels.delete(index);
+            this.tabIcons.delete(index);
+            this.pinnedHome.delete(index);
+            this.readerMode.delete(index);
+            this.readerArticles.delete(index);
+            this.readerOriginal.delete(index);
             try {
                 miniPlayer.onTabClosed(this.getWindowData(), index);
             }
@@ -1751,6 +1759,14 @@ class Tabs {
             this.tabOrder = this.tabOrder.filter(i => i !== index);
             this.tabScroll.delete(index);
             this.tabLastActive.delete(index);
+            // Per-tab customisations and reader state die with the tab (the
+            // reader map can hold a whole article's HTML).
+            this.tabLabels.delete(index);
+            this.tabIcons.delete(index);
+            this.pinnedHome.delete(index);
+            this.readerMode.delete(index);
+            this.readerArticles.delete(index);
+            this.readerOriginal.delete(index);
             try {
                 miniPlayer.onTabClosed(this.getWindowData(), index);
             }

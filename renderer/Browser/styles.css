@@ -1293,22 +1293,22 @@ html[data-tabbar="top"] .tab-button:is(.pinned, .in-folder) .tab-indicator svg {
   width: var(--throbber-size); height: var(--throbber-size); pointer-events: none;
   animation: thr-rot var(--throbber-rotate) linear infinite;
 }
+.tab-throbber svg { display: block; width: 100%; height: 100%; }
 html[data-tabbar="side"] .tab-throbber {
   left: calc(var(--gutter, 12px) + var(--icon, 16px) / 2 - var(--throbber-size) / 2);
 }
 .tab-button.pinned .tab-throbber { left: 50%; margin-left: calc(var(--throbber-size) / -2); }
+/* A fixed 270° arc; only the ring's rotation animates. The arc used to grow and
+   shrink too (animated stroke-dasharray), but stroke properties can't run on
+   the compositor — every frame of every loading tab repainted the chrome on
+   the main thread, and on Windows 11's translucent window that also made the
+   desktop compositor redraw the window. A transform alone stays on the GPU. */
 .tab-throbber circle {
   fill: none; stroke: var(--throbber-load); stroke-width: var(--throbber-stroke);
-  stroke-linecap: round; stroke-dasharray: 1 100; /* r=7 → C≈44 */
-  animation: thr-arc calc(var(--throbber-arc) * 2) var(--ease-spin) infinite;
+  stroke-linecap: round; stroke-dasharray: 33 100; /* r=7 → C≈44; 33/44 ≈ 270° */
 }
 .tab-button.waiting .tab-throbber circle { stroke: var(--throbber-wait); }
 @keyframes thr-rot { to { transform: rotate(360deg); } }
-@keyframes thr-arc {
-  0%   { stroke-dasharray: 1 100;  stroke-dashoffset: 0; }
-  50%  { stroke-dasharray: 33 100; stroke-dashoffset: -5; }  /* 33/44 ≈ 270° */
-  100% { stroke-dasharray: 1 100;  stroke-dashoffset: -44; }
-}
 /* Favicon handoff. While a tab loads the ring REPLACES its icon, as a native
    strip does — the column stays reserved, the icon is hidden. (The icon used to
    sit shrunk inside the ring; a square favicon's corners reach past a 16px

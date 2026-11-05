@@ -9,7 +9,7 @@ const overlayMenu = require('../features/overlay-menu');
 const path = require('path');
 const { resolveAppFile } = require('../app-paths');
 const { WebContentsView, Menu } = require('electron');
-const { broadcastBookmarksChanged } = require('./utils');
+const { broadcastBookmarksChanged, closeBookmarkPrompt } = require('./utils');
 const { sanitizeUrl } = require('../features/url-security');
 // Bookmark-prompt popup dimensions
 const { panelBounds, PANEL_RADIUS, W_MD } = require('../features/overlay-bounds');
@@ -155,14 +155,21 @@ function register(ipcMain, { wm, webContents }) {
                 anchor: { right: Math.floor(bounds.right), bottom: Math.floor(bounds.bottom) },
                 width: PROMPT_W, height: PROMPT_H,
             }));
-            wd.bookmarkPrompt.webContents.loadFile(resolveAppFile('renderer/BookmarkPrompt/index.html'));
-            await new Promise(res => wd.bookmarkPrompt.webContents.once('did-finish-load', () => res()));
-            wd.bookmarkPrompt.webContents.focus();
-            wd.bookmarkPrompt.webContents.send('init-prompt', { url, title, hasObj, id, mode });
+            const view = wd.bookmarkPrompt;
+            view.webContents.loadFile(resolveAppFile('renderer/BookmarkPrompt/index.html'));
+            await new Promise(res => {
+                view.webContents.once('did-finish-load', res);
+                view.webContents.once('destroyed', res);
+            });
+            // Dismissed while it was loading.
+            if (view.webContents.isDestroyed() || wd.bookmarkPrompt !== view)
+                return false;
+            view.webContents.focus();
+            view.webContents.send('init-prompt', { url, title, hasObj, id, mode });
             return true;
         }
         catch (err) {
-            console.error('bookmark-prompt-open:', err);
+            log.error('bookmarks', 'bookmark-prompt-open', err);
             return false;
         }
     });
@@ -171,14 +178,13 @@ function register(ipcMain, { wm, webContents }) {
         if (!wd || !wd.bookmarkPrompt)
             return false;
         try {
-            wd.window.contentView.removeChildView(wd.bookmarkPrompt);
-            wd.bookmarkPrompt = null;
+            closeBookmarkPrompt(wd);
             wd.window.webContents.focus();
             wd.window.webContents.send('bookmark-prompt-closed');
             return true;
         }
         catch (err) {
-            console.error('bookmark-prompt-close:', err);
+            log.error('bookmarks', 'bookmark-prompt-close', err);
             return false;
         }
     });

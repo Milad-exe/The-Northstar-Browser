@@ -12,10 +12,13 @@ const path = require('path');
 const { resolveAppFile } = require('../app-paths');
 const { panelBounds, PANEL_RADIUS, W_SM } = require('../features/overlay-bounds');
 const { WebContentsView, Menu } = require('electron');
-const { closeFolderDropdown, broadcastBookmarksChanged } = require('./utils');
+const { closeFolderDropdown, destroyOverlayView, broadcastBookmarksChanged } = require('./utils');
 const { sanitizeUrl } = require('../features/url-security');
 // Cursor-poll interval when dragging a bookmark out of the dropdown (ms)
 const EXTERN_DRAG_POLL_MS = 30;
+// Backstop: a drag whose end never reaches us (the page died, the drop landed
+// outside every surface) stops polling and frees the dropdown after this long.
+const EXTERN_DRAG_MAX_MS = 20000;
 function register(ipcMain, { wm, screen, webContents }) {
     // ── Open / close ──────────────────────────────────────────────────────────
     ipcMain.handle('folder-dropdown-open', async (_e, anchorRect, folderData) => {
@@ -44,7 +47,13 @@ function register(ipcMain, { wm, screen, webContents }) {
             wd.folderDropdownId = folderData.id;
             view.setBounds(initialBounds(anchorRect, folderData, wd.window));
             view.webContents.loadFile(resolveAppFile('renderer/FolderDropdown/index.html'));
-            await new Promise(res => view.webContents.once('did-finish-load', () => res()));
+            await new Promise(res => {
+                view.webContents.once('did-finish-load', res);
+                view.webContents.once('destroyed', res);
+            });
+            // Closed (or replaced by another folder) while it was loading.
+            if (view.webContents.isDestroyed() || wd.folderDropdown !== view)
+                return false;
             // Re-insert as last child to ensure it renders above all tab views
             wd.window.contentView.removeChildView(view);
             wd.window.contentView.addChildView(view);
@@ -60,7 +69,7 @@ function register(ipcMain, { wm, screen, webContents }) {
             return true;
         }
         catch (err) {
-            console.error('folder-dropdown-open:', err);
+            log.error('folder-dropdown', 'folder-dropdown-open', err);
             closeFolderDropdown(wd);
             return false;
         }
@@ -129,10 +138,20 @@ function register(ipcMain, { wm, screen, webContents }) {
     // ── Extern drag (from dropdown → bookmark bar) ────────────────────────────
     let pollInterval = null;
     let pollWindowData = null;
+    let pollBackstop = null;
+    // The dropdown the drag left from: off screen but alive until the drag
+    // ends, because its page is the one that reports the end.
+    let dragSource = null;
     function stopPoll() {
         if (pollInterval) {
             clearInterval(pollInterval);
             pollInterval = null;
+        }
+        clearTimeout(pollBackstop);
+        pollBackstop = null;
+        if (dragSource) {
+            destroyOverlayView(pollWindowData ? pollWindowData.window : null, dragSource, 'folder-dropdown drag source');
+            dragSource = null;
         }
         pollWindowData = null;
     }
@@ -140,12 +159,19 @@ function register(ipcMain, { wm, screen, webContents }) {
         const wd = wm.getWindowByWebContents(_e.sender);
         if (!wd)
             return;
-        closeFolderDropdown(wd);
+        stopPoll();
+        dragSource = closeFolderDropdown(wd, { keepAlive: true });
         wd.window.webContents.send('extern-bookmark-drag-start', id, folderId);
         // Poll cursor position and forward to the bar renderer so it can
         // highlight drop targets (HTML5 drag doesn't cross view boundaries).
-        stopPoll();
         pollWindowData = wd;
+        pollBackstop = setTimeout(() => {
+            log.debug('folder-dropdown', 'extern drag never reported its end; stopping');
+            const w = pollWindowData;
+            stopPoll();
+            try { w?.window.webContents.send('extern-bookmark-drag-end'); }
+            catch (e) { log.debug('folder-dropdown', 'backstop drag-end', e); }
+        }, EXTERN_DRAG_MAX_MS);
         pollInterval = setInterval(() => {
             if (!pollWindowData) {
                 stopPoll();
@@ -160,7 +186,9 @@ function register(ipcMain, { wm, screen, webContents }) {
         }, EXTERN_DRAG_POLL_MS);
     });
     ipcMain.on('folder-dropdown-drag-end', (_e) => {
-        const wd = wm.getWindowByWebContents(_e.sender);
+        // The sender is the off-screen drag source, which no longer resolves
+        // to its window — the poll remembers which window it was.
+        const wd = wm.getWindowByWebContents(_e.sender) || pollWindowData;
         stopPoll();
         if (wd)
             wd.window.webContents.send('extern-bookmark-drag-end');

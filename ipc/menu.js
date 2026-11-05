@@ -8,7 +8,7 @@ const log = require('../features/log');
 const path = require('path');
 const { resolveAppFile } = require('../app-paths');
 const { WebContentsView } = require('electron');
-const { closeWindowMenu, closeFolderDropdown } = require('./utils');
+const { closeWindowMenu, closeFolderDropdown, closeBookmarkPrompt } = require('./utils');
 const { panelBounds, PANEL_RADIUS, W_MD } = require('../features/overlay-bounds');
 // W_MD (340): at W_SM "New private window" + its Ctrl+Shift+N hint truncated,
 // and a menu label never truncates (U1-3).
@@ -156,10 +156,8 @@ function register(ipcMain, { wm }) {
         catch (e) { log.debug('menu', 'content-view-click focus', e); }
         if (wd.menu)
             closeWindowMenu(wd);
-        if (wd.bookmarkPrompt) {
-            wd.window.contentView.removeChildView(wd.bookmarkPrompt);
-            wd.bookmarkPrompt = null;
-        }
+        if (wd.bookmarkPrompt)
+            closeBookmarkPrompt(wd);
         if (wd.folderDropdown)
             closeFolderDropdown(wd);
         // Forward click to chrome renderer only when it came from a child view
@@ -218,14 +216,12 @@ function register(ipcMain, { wm }) {
                 const b = wd.bookmarkPrompt.getBounds();
                 const outside = pos.x < b.x || pos.x > b.x + b.width ||
                     pos.y < b.y || pos.y > b.y + b.height;
-                if (outside) {
-                    wd.window.contentView.removeChildView(wd.bookmarkPrompt);
-                    wd.bookmarkPrompt = null;
-                }
+                if (outside)
+                    closeBookmarkPrompt(wd);
             }
-            catch {
-                wd.window.contentView.removeChildView(wd.bookmarkPrompt);
-                wd.bookmarkPrompt = null;
+            catch (e) {
+                log.debug('menu', 'window-click prompt bounds', e);
+                closeBookmarkPrompt(wd);
             }
         }
     });

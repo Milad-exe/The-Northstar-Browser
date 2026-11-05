@@ -1844,7 +1844,10 @@
         // load ends, so idle rows carry no extra DOM. One <circle r=7> (C≈44, the
         // dasharray the CSS animates); colour (wait grey vs load accent) and the
         // favicon handoff are pure CSS off the waiting/loading classes.
-        const THROBBER_SVG = '<svg class="tab-throbber" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7"/></svg>';
+        // The rotation runs on an HTML wrapper, not the <svg>: Chromium won't
+        // hand an SVG element's transform animation to the compositor, so an
+        // animated <svg> re-ran the chrome's main thread every frame.
+        const THROBBER_SVG = '<span class="tab-throbber" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="7"/></svg></span>';
         function setTabLoading(index, loading, phase = 'loading') {
             if (loading)
                 tabLoading.add(index);
@@ -3653,9 +3656,9 @@
                 tabsContainer.appendChild(btn);
             }
             tabs.set(index, btn);
-            layoutFolders(); // keep the new tab in the composed order
+            layoutFolders(); // keep the new tab in the composed order (once — a
+            // second pass here rebuilt the whole strip again for nothing)
             applySplitMarks();
-            if (folderState.folders.length) layoutFolders();
             if (shouldActivate) {
                 setActiveTab(index);
             }
