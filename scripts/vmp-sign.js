@@ -62,9 +62,28 @@ function signPkg(dir) {
   }
 }
 
-// electron-builder afterPack hook (macOS/Linux only — too early on Windows,
-// see header comment; Windows goes through exports.sign below instead).
+// Electron fuses — compiled-in switches that close the shipped binary to
+// local tampering: no running it as a bare Node (ELECTRON_RUN_AS_NODE), no
+// NODE_OPTIONS / --inspect injection, and app code only from the integrity-
+// checked app.asar. Flipped HERE rather than via build.electronFuses because
+// electron-builder applies that config after afterPack, i.e. after the macOS
+// VMP signature below — rewriting the binary then would void it.
+// (Cookie encryption is left off: switching it on is a one-way profile change.)
+const FUSES = {
+  runAsNode: false,
+  enableNodeOptionsEnvironmentVariable: false,
+  enableNodeCliInspectArguments: false,
+  enableEmbeddedAsarIntegrityValidation: true,
+  onlyLoadAppFromAsar: true,
+};
+
+// electron-builder afterPack hook: fuses on every platform, then VMP signing
+// (macOS only — too early on Windows, see header comment; Windows goes through
+// exports.sign below instead).
 exports.default = async function vmpSign(context) {
+  // generateFuseConfig turns these option names into the versioned
+  // @electron/fuses config, exactly as build.electronFuses would.
+  await context.packager.addElectronFuses(context, await context.packager.generateFuseConfig(FUSES));
   // Windows is signed later via exports.sign (after rcedit). Linux is skipped
   // entirely: castlabs EVS only signs macOS .app / Windows .exe packages, and
   // Linux Widevine (L3) doesn't use VMP signing — trying to sign a Linux build

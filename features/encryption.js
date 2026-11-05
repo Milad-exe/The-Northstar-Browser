@@ -153,6 +153,37 @@ function getKey() {
 }
 
 /**
+ * Wrap a still-raw key with the OS secure store. On Windows that store (DPAPI)
+ * only reports available once the app is ready, but the key can be read before
+ * that — and getKey() caches the 'file' state for the rest of the run. Left
+ * there, the raw key sat beside the data it protects for good. Call once the
+ * app is ready; a no-op when the key is already wrapped or the store is absent.
+ */
+function upgradeProtection() {
+    if (protection === 'os-keychain')
+        return protection;
+    try {
+        const key = getKey();
+        const ss = safeStorage();
+        if (!ss || !fs.existsSync(rawKeyPath()))
+            return protection;
+        fs.writeFileSync(wrappedKeyPath(), ss.encryptString(key.toString('base64')), { mode: 0o600 });
+        // Prove the wrapped copy opens before the raw one goes.
+        const back = Buffer.from(ss.decryptString(fs.readFileSync(wrappedKeyPath())), 'base64');
+        if (!back.equals(key))
+            throw new Error('wrapped key did not round-trip');
+        fs.unlinkSync(rawKeyPath());
+        protection = 'os-keychain';
+        log.info('encryption', 'migrated the at-rest key into the OS secure store');
+    }
+    catch (e) {
+        log.warn('encryption', 'OS secure store migration failed; key stays file-protected', e);
+        try { if (fs.existsSync(rawKeyPath())) fs.rmSync(wrappedKeyPath(), { force: true }); }
+        catch (e2) { log.debug('encryption', 'clean up half-written wrapped key', e2); }
+    }
+    return protection;
+}
+/**
  * How the master key is protected: 'os-keychain' (wrapped by the OS), or 'file'
  * (permissions only — weaker). Settings surfaces this rather than implying the
  * strong case.
@@ -212,4 +243,4 @@ function isEncrypted(str) {
     }
 }
 
-module.exports = { encrypt, decrypt, isEncrypted, keyProtection };
+module.exports = { encrypt, decrypt, isEncrypted, keyProtection, upgradeProtection };

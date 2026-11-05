@@ -44,6 +44,17 @@ process.on('unhandledRejection', (reason) => {
 if (process.platform === 'win32') {
     app.setAppUserModelId(app.isPackaged ? 'com.northstar.browser' : 'com.northstar.browser.dev');
 }
+// A shipped build never runs with a debugging channel open. Relaunching the
+// installed exe with --remote-debugging-port hands every tab — Settings and its
+// password bridge included — to whoever connects, the infostealer pattern Chrome
+// 136 closed for the default profile. The fuses already refuse --inspect and
+// NODE_OPTIONS; this covers the Chromium-level switches. Source runs (the smoke
+// and e2e harnesses) still use them.
+if (app.isPackaged && ['remote-debugging-port', 'remote-debugging-pipe', 'remote-debugging-address']
+    .some((s) => app.commandLine.hasSwitch(s))) {
+    log.warn('main', 'refusing to start with a remote-debugging switch in a packaged build');
+    app.exit(1);
+}
 // Single-instance lock — a browser must run as ONE process per profile.
 // Without it, a second launch (or a previous run that hasn't fully exited)
 // opens a rival process against the SAME profile directory, and the two fight
@@ -201,6 +212,9 @@ class Northstar {
             log.warn('main', 'link intake setup failed', e);
         }
         app.whenReady().then(async () => {
+            // The settings were decrypted before ready, when Windows' secure
+            // store can't wrap a key yet — wrap it now (features/encryption.js).
+            require('./features/encryption').upgradeProtection();
             themes.bind(this.windowManager.persistence);
             // Spaces can carry their own theme, so a surface resolves through
             // the window it belongs to before falling back to the global one.
