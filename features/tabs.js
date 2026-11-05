@@ -6,6 +6,7 @@ const { overlayViewsOf } = require('./overlay-registry');
 const overlayMenu = require('./overlay-menu');
 const i18n = require('./i18n');
 const preloadForPage = require('./tabs/preload-for-page');
+const { isTrustedInternalUrl } = require('./ipc-guard');
 const path = require('path');
 const UserAgent = require('./user-agent');
 const containers = require('./containers');
@@ -912,6 +913,20 @@ class Tabs {
         try { tab.setBorderRadius(Tabs.PAGE_RADIUS); } catch (e) { log.debug('tabs', 'createTabWithPage', e); }
         this.mainWindow.contentView.addChildView(tab);
         tab.webContents.loadFile(resolveAppFile(pagePath), section ? { hash: section } : undefined);
+        // A page tab's preload (Settings' especially) is privileged and fixed at
+        // creation, so the view must never show anything but its own page: a
+        // link out of it opens a normal tab instead (loadUrl does the same for
+        // a typed address).
+        tab.pageType = pageType;
+        const stayInternal = (event, url) => {
+            if (isTrustedInternalUrl(url))
+                return;
+            event.preventDefault();
+            try { this.openUrlInNormalTab(tabIndex, url); }
+            catch (e) { log.debug('tabs', 'page tab link out', e); }
+        };
+        tab.webContents.on('will-navigate', stayInternal);
+        tab.webContents.on('will-redirect', stayInternal);
         this.raiseFloatingViews();
         UserAgent.setupTab(tab);
         this._applyTabBackground(tab, pageType);
@@ -1531,6 +1546,12 @@ class Tabs {
         if (this.splitPair && this.splitPair.includes(index))
             this._layoutSplit();
     }
+    /** Open a web address in a new normal tab beside `afterIndex` and show it. */
+    openUrlInNormalTab(afterIndex, url) {
+        const idx = this.createTab(afterIndex);
+        this.loadUrl(idx, url);
+        return idx;
+    }
     loadUrl(index, url) {
         // northstar:// internal pages open in a NEW tab. They cannot navigate an
         // existing tab (Settings needs its own privileged preload, chosen at tab
@@ -1553,6 +1574,12 @@ class Tabs {
             this.activeTabIndex = index;
             const blank = this.tabUrls.get(index) === 'newtab';
             this.openInternalPage(internal.type, internal.section, blank);
+            return;
+        }
+        // A web address typed into a Settings/History/Bookmarks tab opens in a new
+        // tab: loading it here would hand the site that tab's privileged preload.
+        if (this.tabMap.get(index)?.pageType) {
+            this.openUrlInNormalTab(index, url);
             return;
         }
         if (this.tabMap.has(index)) {

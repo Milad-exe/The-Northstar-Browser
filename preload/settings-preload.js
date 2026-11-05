@@ -1,4 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
+// These bridges belong to the Settings page alone. The tab's main process keeps
+// it from navigating anywhere else (features/tabs.js), and this is the second
+// lock: any other document that ends up running this preload gets nothing.
+const IS_SETTINGS = location.protocol === 'file:' && /\/renderer\/Settings\/index\.html$/i.test(location.pathname);
+const expose = (name, api) => { if (IS_SETTINGS) contextBridge.exposeInMainWorld(name, api); };
 // macOS frosted-glass flag (Settings runs with this preload).
 try {
     if (process.platform === 'darwin') {
@@ -29,7 +34,7 @@ ipcRenderer.on('theme-changed', (_e, theme) => {
         document.documentElement.removeAttribute('data-theme');
     }
 });
-contextBridge.exposeInMainWorld('northstarSettings', {
+expose('northstarSettings', {
     get: () => ipcRenderer.invoke('settings-get'),
     set: (key, val) => ipcRenderer.invoke('settings-set', key, val),
     clearHistory: () => ipcRenderer.invoke('settings-clear-history'),
@@ -48,21 +53,21 @@ contextBridge.exposeInMainWorld('northstarSettings', {
 /* Settings is a tab, and a tab belongs to a window, and a window is in one
    space — so "the theme" on this page means this space's theme. */
 // Spell check (features/spellcheck.js): on/off, languages, custom dictionary.
-contextBridge.exposeInMainWorld('northstarSpellcheck', {
+expose('northstarSpellcheck', {
     state: () => ipcRenderer.invoke('spellcheck:state'),
     set: (patch) => ipcRenderer.invoke('spellcheck:set', patch),
     words: () => ipcRenderer.invoke('spellcheck:words'),
     addWord: (w) => ipcRenderer.invoke('spellcheck:add-word', w),
     removeWord: (w) => ipcRenderer.invoke('spellcheck:remove-word', w),
 });
-contextBridge.exposeInMainWorld('northstarProfiles', {
+expose('northstarProfiles', {
     current: () => ipcRenderer.invoke('profiles:current'),
     update: (id, patch) => ipcRenderer.invoke('profiles:update', id, patch),
     onSpacesChanged: (cb) => ipcRenderer.on('profiles:changed', () => cb()),
 });
 // Profiles — the sign-in a space uses (Settings › Profiles). Internally named
 // containers; "Default" is the shared one every new space starts on.
-contextBridge.exposeInMainWorld('northstarLogins', {
+expose('northstarLogins', {
     list: () => ipcRenderer.invoke('containers:profiles'),
     create: (name) => ipcRenderer.invoke('containers:createNamed', name),
     update: (id, patch) => ipcRenderer.invoke('containers:update', id, patch),
@@ -70,7 +75,7 @@ contextBridge.exposeInMainWorld('northstarLogins', {
     assign: (spaceId, id) => ipcRenderer.invoke('profiles:update', spaceId, { container: id }),
     onChanged: (cb) => ipcRenderer.on('login-profiles:changed', () => cb()),
 });
-contextBridge.exposeInMainWorld('northstarThemes', {
+expose('northstarThemes', {
     list: () => ipcRenderer.invoke('themes-list'),
     preview: (seed) => ipcRenderer.invoke('theme-preview', seed),
     // Paint a seed on screen without saving it — what a drag uses.
@@ -81,21 +86,21 @@ contextBridge.exposeInMainWorld('northstarThemes', {
 });
 // Search engines, per-site zoom, import/export, updates, diagnostics — the
 // Settings page is the only surface that manages these.
-contextBridge.exposeInMainWorld('northstarEngines', {
+expose('northstarEngines', {
     list: () => ipcRenderer.invoke('engines:list'),
     save: (engine) => ipcRenderer.invoke('engines:save', engine),
     remove: (id) => ipcRenderer.invoke('engines:remove', id),
     onChanged: (cb) => ipcRenderer.on('engines-changed', (_e, list) => cb(list)),
 });
-contextBridge.exposeInMainWorld('northstarI18n', {
+expose('northstarI18n', {
     locales: () => ipcRenderer.invoke('i18n:locales'),
     set: (id) => ipcRenderer.invoke('i18n:set', id),
 });
-contextBridge.exposeInMainWorld('northstarZoom', {
+expose('northstarZoom', {
     list: () => ipcRenderer.invoke('zoom:list'),
     clear: (origin) => ipcRenderer.invoke('zoom:clear', origin),
 });
-contextBridge.exposeInMainWorld('userData', {
+expose('userData', {
     importBookmarks: () => ipcRenderer.invoke('data:import-bookmarks'),
     exportBookmarks: () => ipcRenderer.invoke('data:export-bookmarks'),
     importPasswords: () => ipcRenderer.invoke('data:import-passwords'),
@@ -108,6 +113,7 @@ contextBridge.exposeInMainWorld('userData', {
     installUpdate: () => ipcRenderer.invoke('app:install-update'),
     onUpdateState: (cb) => ipcRenderer.on('update-state', (_e, s) => cb(s)),
     openRelease: (url) => ipcRenderer.invoke('app:open-release', url),
+    openNotices: () => ipcRenderer.invoke('app:open-notices'),
     defaultBrowserStatus: () => ipcRenderer.invoke('app:default-browser-status'),
     makeDefaultBrowser: () => ipcRenderer.invoke('app:make-default-browser'),
     keyProtection: () => ipcRenderer.invoke('app:key-protection'),
@@ -117,17 +123,17 @@ contextBridge.exposeInMainWorld('userData', {
 });
 // Import from another browser, run inline on Settings > Import & export
 // (ipc/import-wizard.js). Detection never exposes on-disk paths.
-contextBridge.exposeInMainWorld('northstarImport', {
+expose('northstarImport', {
     sources: () => ipcRenderer.invoke('import-wizard:sources'),
     run: (id, types) => ipcRenderer.invoke('import-wizard:run', id, types),
 });
-contextBridge.exposeInMainWorld('northstarPasswords', {
+expose('northstarPasswords', {
     list: () => ipcRenderer.invoke('passwords-list'),
     reveal: (id) => ipcRenderer.invoke('passwords-reveal', id),
     remove: (id) => ipcRenderer.invoke('passwords-delete', id),
     onChanged: (cb) => ipcRenderer.on('passwords-changed', () => cb()),
 });
-contextBridge.exposeInMainWorld('northstarExtensions', {
+expose('northstarExtensions', {
     list: () => ipcRenderer.invoke('extensions-list'),
     add: (mode) => ipcRenderer.invoke('extensions-add', mode),
     installId: (idOrUrl) => ipcRenderer.invoke('extensions-install-id', idOrUrl),
