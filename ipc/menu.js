@@ -7,7 +7,7 @@
 const log = require('../features/log');
 const path = require('path');
 const { resolveAppFile } = require('../app-paths');
-const { WebContentsView } = require('electron');
+const { WebContentsView, webContents, app, BrowserWindow } = require('electron');
 const { closeWindowMenu, closeFolderDropdown, closeBookmarkPrompt } = require('./utils');
 const { panelBounds, PANEL_RADIUS, W_MD } = require('../features/overlay-bounds');
 // W_MD (340): at W_SM "New private window" + its Ctrl+Shift+N hint truncated,
@@ -29,7 +29,64 @@ const MENU_HEIGHT = 520; // 12 rows + the zoom row + separators, at --row-h
 const CARD_BLEED = 4;
 const alignCard = (rect) => ({ ...rect, x: rect.x + CARD_BLEED, y: rect.y - CARD_BLEED });
 
+// Win32: the frameless window's resize borders are hit-tested by Windows. A
+// press there reaches no page and moves no focus, so neither the click-outside
+// path nor the menu's blur sees it — the menu just stayed open. The press lands
+// on Chromium's child HWND, not this window, so its WM_NC*BUTTONDOWN never
+// reaches a hook here; what does is the size/move loop Windows enters on that
+// press (even with no movement after it). The NC button messages still cover
+// a caption press that does land on the top-level window.
+const WM_NCLBUTTONDOWN = 0x00A1;
+const WM_NCRBUTTONDOWN = 0x00A4;
+const WM_ENTERSIZEMOVE = 0x0231;
+// Window changes that leave a popup menu stranded (Win+Up, Aero Snap, a drag
+// on the border): a native menu closes on all of them.
+const DISMISS_EVENTS = ['will-move', 'will-resize', 'maximize', 'unmaximize', 'minimize', 'enter-full-screen', 'leave-full-screen'];
+
+/** Close the window's drop-down menus (app menu, bookmark folder). */
+function dismissMenus(wd) {
+    if (!wd)
+        return;
+    if (wd.menu)
+        closeWindowMenu(wd);
+    if (wd.folderDropdown)
+        closeFolderDropdown(wd);
+}
+
+function watchWindow(win, wm) {
+    if (!win || win.isDestroyed() || win.__northstarMenuWatch)
+        return;
+    win.__northstarMenuWatch = true;
+    const dismiss = () => {
+        try {
+            if (win.isDestroyed())
+                return;
+            const wd = wm.getWindowByWebContents(win.webContents);
+            if (wd && (wd.menu || wd.folderDropdown))
+                dismissMenus(wd);
+        }
+        catch (e) { log.debug('menu', 'window dismiss', e); }
+    };
+    for (const ev of DISMISS_EVENTS)
+        win.on(ev, dismiss);
+    if (process.platform === 'win32') {
+        // Deferred: the hook runs inside the window procedure.
+        const later = () => setImmediate(dismiss);
+        try {
+            win.hookWindowMessage(WM_NCLBUTTONDOWN, later);
+            win.hookWindowMessage(WM_NCRBUTTONDOWN, later);
+            win.hookWindowMessage(WM_ENTERSIZEMOVE, later);
+        }
+        catch (e) { log.debug('menu', 'hookWindowMessage', e); }
+    }
+}
+
 function register(ipcMain, { wm }) {
+    // Every window, present and future (devtools and other non-browser windows
+    // resolve to no window data and are left alone).
+    for (const w of BrowserWindow.getAllWindows())
+        watchWindow(w, wm);
+    app.on('browser-window-created', (_e, w) => watchWindow(w, wm));
     // ── Open ─────────────────────────────────────────────────────────────────
     ipcMain.handle('open', (_e, anchor) => {
         const wd = wm.getWindowByWebContents(_e.sender);
@@ -77,7 +134,23 @@ function register(ipcMain, { wm }) {
         // lands (a page's native view never reported clicks reliably, so the menu
         // "wouldn't go away"). A short grace ignores the focus churn of opening.
         const shownAt = Date.now();
+        const menuView = wd.menu;
         wd.menu.webContents.once('did-finish-load', () => {
+            if (wd.menu !== menuView)
+                return; // closed (or replaced) while it loaded
+            // The press that opened the menu put focus on the chrome. If focus
+            // is somewhere else by now, the user already clicked on (a page, an
+            // embedded frame) while the menu was still loading — that click was
+            // the dismissal, and focusing the menu here would steal focus back
+            // and leave it open with nothing left to close it.
+            try {
+                const focused = webContents.getFocusedWebContents();
+                if (focused && focused !== wd.window.webContents && focused !== menuView.webContents) {
+                    closeOnce();
+                    return;
+                }
+            }
+            catch (e) { log.debug('menu', 'focus check', e); }
             // Belt-and-suspenders theme: hand the menu its space's theme directly
             // (the same id the runtime injects the sheet for), so a freshly built
             // view is never left wearing the default palette.
@@ -89,7 +162,26 @@ function register(ipcMain, { wm }) {
             try { wd.menu.webContents.focus(); }
             catch (e) { log.debug('menu', 'focus', e); }
         });
-        const onBlur = () => { if (Date.now() - shownAt >= 250) closeOnce(); };
+        // A blur inside the opening grace is the focus churn of opening — but it
+        // can also be a real click elsewhere. Look again once the grace is over
+        // instead of dropping it: if the menu still doesn't hold focus, close.
+        let graceCheck = null;
+        const onBlur = () => {
+            const age = Date.now() - shownAt;
+            if (age >= 250) {
+                closeOnce();
+                return;
+            }
+            clearTimeout(graceCheck);
+            graceCheck = setTimeout(() => {
+                try {
+                    if (wd.menu === menuView && !menuView.webContents.isDestroyed() && !menuView.webContents.isFocused())
+                        closeOnce();
+                }
+                catch (e) { log.debug('menu', 'grace check', e); }
+            }, 250 - age + 30);
+        };
+        cleanups.push(() => clearTimeout(graceCheck));
         wd.menu.webContents.on('blur', onBlur);
         cleanups.push(() => { try { wd.menu?.webContents.removeListener('blur', onBlur); } catch (e) { log.debug('menu', 'cleanup', e); } });
         wd.window.once('blur', closeOnce);
@@ -227,4 +319,4 @@ function register(ipcMain, { wm }) {
     });
 }
 
-module.exports = { register };
+module.exports = { register, dismissMenus };

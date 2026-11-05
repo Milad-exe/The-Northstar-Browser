@@ -63,6 +63,11 @@ class Shortcuts {
                     const wd = this.getWindowData();
                     if (wd?.ctxMenuOpen)
                         require('./overlay-menu').hide(wd);
+                    // Same for the app menu and a bookmark folder: Ctrl+L
+                    // moved focus to the address bar but left the menu open,
+                    // because a focus change made from main doesn't blur it.
+                    if (wd?.menu || wd?.folderDropdown)
+                        require('../ipc/menu').dismissMenus(wd);
                 }
                 catch (e) { log.debug('shortcuts', 'handleInput overlay', e); }
                 const result = callback();
