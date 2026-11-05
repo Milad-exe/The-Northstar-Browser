@@ -140,6 +140,8 @@ async function main() {
 
     assertSigningReady();
     writeBuildStamp();
+    // Every build carries the current dependency licences (scripts/notices.js).
+    require('./notices').write();
 
     const results = [];
     for (const key of build) {

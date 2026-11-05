@@ -7,7 +7,7 @@
  * or writes a path chosen by a renderer.
  */
 'use strict';
-const { dialog, shell } = require('electron');
+const { app, dialog, shell } = require('electron');
 const path = require('path');
 const log = require('../features/log');
 const userData = require('../features/user-data');
@@ -213,6 +213,19 @@ function register(ipcMain, { wm, webContents, app }) {
     ipcMain.handle('app:install-update', (e) => {
         if (!trusted(e, 'app:install-update')) return false;
         return updates.install();
+    });
+    // Settings › About › Open-source licences. The file ships as an extra
+    // resource (scripts/notices.js); a source run reads the repo copy.
+    ipcMain.handle('app:open-notices', async (e) => {
+        if (!isTrustedInternalSender(e.sender))
+            return false;
+        const file = app.isPackaged
+            ? path.join(process.resourcesPath, 'THIRD_PARTY_NOTICES.txt')
+            : path.join(__dirname, '..', 'THIRD_PARTY_NOTICES.txt');
+        const err = await shell.openPath(file);
+        if (err)
+            log.warn('user-data', `open notices: ${err}`);
+        return !err;
     });
     ipcMain.handle('app:open-release', async (_e, url) => {
         // openExternal hands the URL to the OS, so only http/https — not the

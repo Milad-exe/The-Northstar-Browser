@@ -449,6 +449,7 @@
             { id: 'thirdparty-toggle', key: 'blockThirdPartyCookies', label: 'Third-party cookie blocking' },
             { id: 'https-toggle', key: 'httpsUpgrade', label: 'HTTPS upgrade' },
             { id: 'params-toggle', key: 'stripTrackingParams', label: 'Tracking-parameter stripping' },
+            { id: 'suggest-toggle', key: 'searchSuggestions', label: 'Search suggestions' },
             { id: 'signals-toggle', key: 'privacySignals', label: 'Do Not Track / GPC signals' },
             { id: 'referrer-toggle', key: 'trimReferrer', label: 'Referrer minimization' },
         ];
@@ -1146,6 +1147,9 @@
         checkBtn?.addEventListener('click', async () => renderUpdate(await window.userData.checkUpdate(true)));
         installBtn?.addEventListener('click', () => window.userData.installUpdate());
         releaseBtn?.addEventListener('click', () => { if (releaseUrl) window.userData.openRelease(releaseUrl); });
+        document.getElementById('open-privacy')?.addEventListener('click', () =>
+            window.userData.openRelease('https://github.com/Milad-exe/The-Northstar-Browser/blob/main/PRIVACY.md'));
+        document.getElementById('open-notices')?.addEventListener('click', () => window.userData.openNotices());
         autoToggle?.addEventListener('change', async () => {
             await save('autoUpdate', autoToggle.checked);
             showToast(autoToggle.checked ? 'Northstar will update automatically' : 'Automatic updates are off');

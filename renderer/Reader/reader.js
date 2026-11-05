@@ -68,9 +68,11 @@
             document.getElementById('rd-byline').textContent = article.byline || '';
             if (!article.byline)
                 document.getElementById('rd-byline').remove();
+            // Fail closed: page-derived HTML never reaches this privileged page
+            // unsanitised — without DOMPurify, show the article as plain text.
             const clean = (typeof DOMPurify !== 'undefined')
                 ? DOMPurify.sanitize(article.html, { ADD_ATTR: ['target'], FORBID_TAGS: ['style'] })
-                : article.html;
+                : Object.assign(document.createElement('div'), { textContent: article.html }).innerHTML;
             const art = document.getElementById('rd-article');
             art.setAttribute('dir', article.dir || 'ltr');
             art.innerHTML = clean;

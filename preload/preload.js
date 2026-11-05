@@ -394,6 +394,7 @@ exposeInternal('tabsUI', {
     // Search engines were edited in Settings — the omnibox resolves typed text
     // synchronously, so it keeps its own copy of the list.
     onEnginesChanged: (handler) => ipcRenderer.on('engines-changed', (_e, list) => handler(list)),
+    onSearchSuggestionsChanged: (handler) => ipcRenderer.on('search-suggestions-changed', (_e, on) => handler(on)),
     // Interface language changed in Settings — the chrome re-labels itself.
     onLanguageChanged: (handler) => ipcRenderer.on('language-changed', (_e, payload) => handler(payload)),
     onSidebarResizeEnded: (handler) => ipcRenderer.on('sidebar-resize-ended', (_e, w) => handler(w)),

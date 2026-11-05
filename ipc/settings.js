@@ -147,6 +147,13 @@ function register(ipcMain, { wm, webContents, nativeTheme, app, focusMode }) {
                 catch (e) { log.debug('settings', 'settings-set', e); }
             });
         }
+        if (key === 'searchSuggestions') {
+            // Takes effect on the next keystroke, not the next launch.
+            wm.getAllWindows().forEach(w => {
+                try { w.window.webContents.send('search-suggestions-changed', !!value); }
+                catch (e) { log.debug('settings', 'settings-set', e); }
+            });
+        }
         if (key === 'persistAllTabs') {
             const wd = wm.getWindowByWebContents(_e.sender);
             if (wd?.tabs) {

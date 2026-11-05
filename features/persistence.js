@@ -12,6 +12,9 @@ const DEFAULTS = {
     customThemes: [],
     persistAllTabs: false,
     searchEngine: 'google', // 'google' | 'duckduckgo' | 'bing'
+    // Send what's typed in the address bar to the search engine for live
+    // suggestions (never from private windows). Off = local results only.
+    searchSuggestions: true,
     bookmarkBarVisible: false,
     blockShortform: false,
     adBlockEnabled: true,

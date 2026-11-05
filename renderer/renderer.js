@@ -28,10 +28,11 @@
         }
         catch (e) { return fallback; }
     };
-    /** Sanitize an HTML string using DOMPurify when available. */
+    /** Sanitize an HTML string with DOMPurify. Fails closed: without it the
+     *  markup is reduced to its text rather than passed through raw. */
     const sanitizeHtml = (typeof DOMPurify !== 'undefined')
         ? (html) => DOMPurify.sanitize(html, { FORCE_BODY: false })
-        : (html) => html;
+        : (html) => { const d = document.createElement('div'); d.textContent = String(html); return d.innerHTML; };
     /** Returns a debounced wrapper around `fn` with a `.cancel()` method. */
     function paintCachedFavicon(imgEl, url) {
         let host = '';
@@ -145,6 +146,8 @@
         let engineList = Array.isArray(settings.engines) && settings.engines.length
             ? settings.engines
             : [{ id: 'google', name: 'Google', keyword: 'g', url: 'https://www.google.com/search?q=%s' }];
+        try { window.tabsUI?.onSearchSuggestionsChanged?.((on) => { settings.searchSuggestions = on; }); }
+        catch (e) { window.northstarLog?.debug('renderer', 'search suggestions listener: ' + e); }
         try { window.tabsUI?.onEnginesChanged?.((list) => { if (Array.isArray(list) && list.length) engineList = list; }); }
         catch (e) { window.northstarLog?.debug('renderer', 'getSearchEngine: ' + e); }
         const engineById = (id) => engineList.find(e => e.id === id) || engineList[0];
@@ -1395,6 +1398,9 @@
             // Firefox disables remote search suggestions in private browsing —
             // never leak keystrokes for a private window or private tab.
             if (isPrivateWindow || tabPrivate.get(activeTabIndex))
+                return [];
+            // The user's switch (Settings › Privacy): local results only.
+            if (settings.searchSuggestions === false)
                 return [];
             const engine = getSearchEngine();
             const suggestMap = {
