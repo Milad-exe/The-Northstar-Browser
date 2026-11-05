@@ -9,8 +9,9 @@
  * UA strategy: we present as Chrome in HTTP headers (user-agent.js) because
  * the engine really is Chromium. The JS environment must therefore look like
  * real Chrome, not like Electron:
- *  - navigator.userAgentData → must report Chrome brands (Electron reports
- *    only "Chromium", which Cloudflare/Google treat as a headless signal)
+ *  - navigator.userAgentData → must report a browser brand beside "Chromium"
+ *    (Electron reports only "Chromium", which Cloudflare treats as headless).
+ *    That brand is "Northstar" — never "Google Chrome" (see user-agent.js).
  *  - window.chrome           → must exist with the usual surface (runtime, etc.)
  *  - navigator.plugins       → must be non-empty (empty list = automation signal)
  *  - process                 → must not leak Electron/Node into the page world
@@ -42,14 +43,14 @@
     const mainWorldScript = `(function () {
   'use strict';
 
-  // ── 1. navigator.userAgentData → Chrome brands ────────────────────────────
-  // Electron's brand list lacks "Google Chrome"; sites cross-check it against
-  // the UA string. Present the same brands real Chrome sends.
+  // ── 1. navigator.userAgentData → engine + browser brands ──────────────────
+  // Must match the Sec-CH-UA header (features/user-agent.js brands()): the
+  // engine and this browser. Never "Google Chrome" — see the note there.
   try {
     const brands = [
-      { brand: 'Chromium',      version: '${CHROME_MAJOR}' },
-      { brand: 'Google Chrome', version: '${CHROME_MAJOR}' },
-      { brand: 'Not=A?Brand',   version: '24' },
+      { brand: 'Chromium',    version: '${CHROME_MAJOR}' },
+      { brand: 'Northstar',   version: '${CHROME_MAJOR}' },
+      { brand: 'Not=A?Brand', version: '24' },
     ];
     const fullVersionList = brands.map(b => ({
       brand: b.brand,

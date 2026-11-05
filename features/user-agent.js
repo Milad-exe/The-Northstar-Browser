@@ -28,15 +28,24 @@ class UserAgent {
     }
     /**
      * Rewrite (never strip) Chromium client-hint headers so they match the
-     * Chrome UA. Chromium sends "Chromium" only; real Chrome also sends a
-     * "Google Chrome" brand. Stripping them entirely is a Firefox signal that
-     * contradicts the engine and trips Cloudflare.
+     * Chrome UA. Stripping them entirely is a Firefox signal that contradicts
+     * the engine and trips Cloudflare. The brand list names the engine and this
+     * browser — never "Google Chrome": Northstar is not Google's product, and
+     * claiming its brand (to pass sign-in or bot checks) is a false statement of
+     * origin. Other Chromium browsers do the same ("Brave", "Chromium", …).
      */
+    static brands() {
+        return [
+            { brand: 'Chromium', version: CHROME_MAJOR },
+            { brand: 'Northstar', version: CHROME_MAJOR },
+            { brand: 'Not=A?Brand', version: '24' },
+        ];
+    }
     static applyClientHintHeaders(headers) {
         for (const key of Object.keys(headers)) {
             const k = key.toLowerCase();
             if (k === 'sec-ch-ua') {
-                headers[key] = `"Chromium";v="${CHROME_MAJOR}", "Google Chrome";v="${CHROME_MAJOR}", "Not=A?Brand";v="24"`;
+                headers[key] = UserAgent.brands().map(b => `"${b.brand}";v="${b.version}"`).join(', ');
             }
             else if (k === 'sec-ch-ua-platform') {
                 headers[key] = secChUaPlatform();
