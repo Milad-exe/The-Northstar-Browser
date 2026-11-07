@@ -69,6 +69,14 @@ function signPkg(dir) {
 // electron-builder applies that config after afterPack, i.e. after the macOS
 // VMP signature below — rewriting the binary then would void it.
 // (Cookie encryption is left off: switching it on is a one-way profile change.)
+//
+// NOT on Windows or macOS: castlabs EVS refuses to VMP-sign a binary whose fuse
+// wire differs from the stock castlabs build ("ValidityError: Binary signature
+// denied") — tested 2026-11-07 with all five flipped, only the three Node fuses,
+// and only the two asar fuses; every variant was denied, the stock wire was
+// signed. Without VMP, Widevine (Netflix, Crunchyroll) stops working, so on the
+// VMP-signed platforms the fuses stay at their defaults. The packaged-build
+// refusal of --remote-debugging-* (main.js) does not depend on fuses and stays.
 const FUSES = {
   runAsNode: false,
   enableNodeOptionsEnvironmentVariable: false,
@@ -77,13 +85,14 @@ const FUSES = {
   onlyLoadAppFromAsar: true,
 };
 
-// electron-builder afterPack hook: fuses on every platform, then VMP signing
-// (macOS only — too early on Windows, see header comment; Windows goes through
-// exports.sign below instead).
+// electron-builder afterPack hook: fuses on Linux only (see above), then VMP
+// signing (macOS only — too early on Windows, see header comment; Windows goes
+// through exports.sign below instead).
 exports.default = async function vmpSign(context) {
   // generateFuseConfig turns these option names into the versioned
   // @electron/fuses config, exactly as build.electronFuses would.
-  await context.packager.addElectronFuses(context, await context.packager.generateFuseConfig(FUSES));
+  if (context.electronPlatformName === 'linux')
+    await context.packager.addElectronFuses(context, await context.packager.generateFuseConfig(FUSES));
   // Windows is signed later via exports.sign (after rcedit). Linux is skipped
   // entirely: castlabs EVS only signs macOS .app / Windows .exe packages, and
   // Linux Widevine (L3) doesn't use VMP signing — trying to sign a Linux build
