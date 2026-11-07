@@ -162,17 +162,9 @@ class Shortcuts {
         this.tabManager.openInternalPage(type);
     }
     reopenClosedTab() {
-        const closed = this.tabManager.closedTabHistory;
-        if (!closed || closed.length === 0)
-            return;
-        const last = closed.pop();
-        /* Nothing to reopen means nothing happens. It used to open a BLANK
-           tab, which is not "reopen closed tab" — and this browser has no
-           blank tab to open. */
-        if (last && last.url && last.url !== 'newtab') {
-            const newIndex = this.tabManager.createTab();
-            this.tabManager.loadUrl(newIndex, last.url);
-        }
+        // One implementation (features/tabs/organize.js): history, place and
+        // folder come back with the tab.
+        this.tabManager.reopenClosedTab();
     }
     // ── Tab shortcuts ──────────────────────────────────────────────────────────
     registerTabShortcuts() {
@@ -223,6 +215,15 @@ class Shortcuts {
                         activeTab.webContents.focus();
                 }
             }, 10);
+        });
+        // Ctrl+F4 closes the tab too — the Windows/Linux standard for "close
+        // this document", which every browser there honours.
+        if (process.platform !== 'darwin')
+            this.registerShortcut('Ctrl+F4', () => this.shortcuts.get('CmdOrCtrl+W')?.());
+        // Alt+Home: the home page, which here is the new-tab page.
+        this.registerShortcut('Alt+Home', () => {
+            try { this.tabManager?.openInternalPage?.('home'); }
+            catch (e) { log.debug('shortcuts', 'home', e); }
         });
         // Reopen last closed tab
         this.registerShortcut('CmdOrCtrl+Shift+T', () => {
@@ -346,8 +347,18 @@ class Shortcuts {
     }
     // ── Address bar shortcuts ──────────────────────────────────────────────────
     registerAddressBarShortcuts() {
+        /* The chrome is its own view: focusing the field inside it is not
+           enough while the PAGE's view holds the window's keyboard focus — the
+           bar looked focused and every key went on into the page. Give the
+           chrome's view focus first (CLAUDE.md: each surface is a view). */
+        const focusChrome = () => {
+            try { this.mainWindow.webContents.focus(); }
+            catch (e) { log.debug('shortcuts', 'focus chrome', e); }
+        };
         const focusBar = () => {
-            this.mainWindow.webContents.executeJavaScript('try { const el = document.getElementById("searchBar"); if (el) { el.focus(); el.select(); } } catch {}').catch(() => { });
+            focusChrome();
+            this.mainWindow.webContents.executeJavaScript('try { const el = document.getElementById("searchBar"); if (el) { el.focus(); el.select(); } } catch {}')
+                .catch((e) => log.debug('shortcuts', 'focus bar', e));
         };
         this.registerShortcut('CmdOrCtrl+K', focusBar);
         this.registerShortcut('CmdOrCtrl+L', focusBar);
@@ -355,6 +366,7 @@ class Shortcuts {
         // which makes whatever follows a search even if it looks like an
         // address (toNavigableUrl in renderer/lib/util.js).
         this.registerShortcut('CmdOrCtrl+E', () => {
+            focusChrome();
             this.mainWindow.webContents.executeJavaScript('try { const el = document.getElementById("searchBar"); if (el) { el.focus(); el.value = "?"; el.setSelectionRange(1, 1); el.dispatchEvent(new Event("input", { bubbles: true })); } } catch {}').catch(() => { });
         });
         // F6 moves between the page and the chrome,: from
@@ -428,36 +440,17 @@ class Shortcuts {
             const tab = this.activeTab();
             if (tab) {
                 const url = tab.webContents.getURL();
+                // The Save dialog, as the page menu's "Save page as…" opens it.
+                // downloadURL fetched the address again and filed it straight
+                // into Downloads with no choice of where or what.
                 if (url && url.startsWith('http'))
-                    tab.webContents.downloadURL(url);
+                    require('./download-manager').saveAs(tab.webContents, url);
             }
         });
-        // Undo / Redo
-        this.registerShortcut('CmdOrCtrl+Z', () => {
-            const tab = this.activeTab();
-            if (tab?.webContents.isFocused())
-                tab.webContents.undo();
-            else if (this.mainWindow.webContents.isFocused())
-                this.mainWindow.webContents.undo();
-        });
-        if (process.platform === 'darwin') {
-            this.registerShortcut('CmdOrCtrl+Shift+Z', () => {
-                const tab = this.activeTab();
-                if (tab?.webContents.isFocused())
-                    tab.webContents.redo();
-                else if (this.mainWindow.webContents.isFocused())
-                    this.mainWindow.webContents.redo();
-            });
-        }
-        else {
-            this.registerShortcut('CmdOrCtrl+Y', () => {
-                const tab = this.activeTab();
-                if (tab?.webContents.isFocused())
-                    tab.webContents.redo();
-                else if (this.mainWindow.webContents.isFocused())
-                    this.mainWindow.webContents.redo();
-            });
-        }
+        // Undo / Redo are NOT bound. Every text field already undoes on its
+        // own, and this route sees keys from every surface: binding them here
+        // undid only a focused TAB or the chrome, and swallowed the key in the
+        // find bar, the bookmark prompt and every other popup with a text box.
         // Zoom
         this.registerShortcut('CmdOrCtrl+Plus', () => this.zoomIn());
         this.registerShortcut('CmdOrCtrl+-', () => this.zoomOut());
@@ -660,6 +653,8 @@ class Shortcuts {
             else if (key === 'return' && input.key === 'Enter')
                 keyMatches = true;
             else if (key === 'enter' && input.key === 'Enter')
+                keyMatches = true;
+            else if (key === 'home' && input.key === 'Home')
                 keyMatches = true;
             else if (key === 'delete' && input.key === 'Delete')
                 keyMatches = true;

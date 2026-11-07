@@ -5104,8 +5104,12 @@
             catch (e) { a11yOn = false; }
             const AUTO_CLOSE_MS = 5000;
             const visibleBtn = () => btns.find(b => b.offsetParent !== null) || btns[0];
+            // Before the first download the button is hidden (zero rect), so
+            // Ctrl+J anchors the panel to the menu button instead.
             const panelAnchor = () => {
-                const r = visibleBtn().getBoundingClientRect();
+                const btn = visibleBtn();
+                const el = btn && btn.offsetParent !== null ? btn : (document.getElementById('menu-btn') || btn);
+                const r = el.getBoundingClientRect();
                 return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
             };
             // Progress ring: determinate from aggregate bytes, indeterminate (a
@@ -5161,9 +5165,9 @@
             }
             // A click / Ctrl+J opens full mode (all session downloads), which never
             // auto-closes. The button is hidden until the first download.
+            // Ctrl+J opens it even before the first download — the panel says
+            // "No downloads yet" — rather than the key silently doing nothing.
             async function openManual() {
-                if (btns.every(b => b.classList.contains('hidden')))
-                    return;
                 if (panelOpen && !autoCloseArmed)
                     return; // already up in full mode → the click is a toggle-close handled below
                 await togglePanel({ auto: false });
