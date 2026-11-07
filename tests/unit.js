@@ -2044,6 +2044,54 @@ test('the install prompt names what an extension can reach', () => {
     assert.deepStrictEqual(narrow, ['Read and change your data on mail.example.com']);
 });
 
+// ── Extension worker guard ───────────────────────────────────────────────────
+test('extension events: a running worker is messaged, starts coalesce, nothing after quit', async () => {
+    const appHandlers = {};
+    const savedOn = electronStub.app.on;
+    electronStub.app.on = (ev, fn) => { (appHandlers[ev] = appHandlers[ev] || []).push(fn); };
+    const guardPath = path.join(root, 'features/ext-worker-guard');
+    delete require.cache[require.resolve(guardPath)];
+    const { guard } = require(guardPath);
+    const sent = [], starts = [], frameSends = [];
+    let running = {};
+    const worker = (id) => ({ send: (ch, ...a) => sent.push([id, ch, ...a]) });
+    let release;
+    const session = { serviceWorkers: {
+        getAllRunning: () => running,
+        getWorkerFromVersionID: (v) => worker(running[v].scope),
+        startWorkerForScope: (scope) => { starts.push(scope); return new Promise(r => { release = () => r(worker(scope)); }); },
+    } };
+    const router = {
+        session,
+        listeners: new Map([['tabs.onUpdated', [
+            { type: 'service-worker', extensionId: 'aaa' },
+            { type: 'frame', extensionId: 'bbb', host: { isDestroyed: () => false, send: (ch) => frameSends.push(ch) } },
+        ]]]),
+        sendEvent(target, name) { for (const l of this.listeners.get(name)) if (l.type !== 'service-worker') l.host.send(`crx-${name}`); },
+    };
+    guard({ ctx: { router } }); // registers its quit listeners on the stub
+    electronStub.app.on = savedOn;
+    // asleep: two events → ONE start, both delivered when it resolves
+    router.sendEvent(undefined, 'tabs.onUpdated', 1);
+    router.sendEvent(undefined, 'tabs.onUpdated', 2);
+    assert.deepStrictEqual(starts, ['chrome-extension://aaa/']);
+    assert.strictEqual(frameSends.length, 2, 'extension pages still get the event');
+    release();
+    await new Promise(r => setTimeout(r, 0));
+    assert.deepStrictEqual(sent.map(s => s[2]), [1, 2]);
+    // running: sent directly, no new start
+    running = { 7: { scope: 'chrome-extension://aaa/' } };
+    router.sendEvent(undefined, 'tabs.onUpdated', 3);
+    assert.strictEqual(starts.length, 1);
+    assert.strictEqual(sent[sent.length - 1][2], 3);
+    // quitting: nothing at all
+    running = {};
+    for (const fn of appHandlers['before-quit'] || []) fn();
+    router.sendEvent(undefined, 'tabs.onUpdated', 4);
+    assert.strictEqual(starts.length, 1);
+    assert.strictEqual(frameSends.length, 3, 'nothing is delivered once quitting');
+});
+
 // ── Report ───────────────────────────────────────────────────────────────────
 Promise.all(pending).then(() => {
     if (failures.length) {

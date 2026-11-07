@@ -160,6 +160,10 @@ class Extensions {
             catch (e) { log.debug('extensions', '_makeHost', e); }
         });
         this._trackActionClicks(host);
+        // No worker wake-ups during quit, one start per worker at a time — the
+        // two places Electron crashed on (features/ext-worker-guard.js).
+        try { require('./ext-worker-guard').guard(host); }
+        catch (e) { log.warn('extensions', 'worker guard', e); }
         try { handleCrx(session); }
         catch (e) { log.debug('extensions', '_makeHost', e); }
         this._registerPolyfill(session);
