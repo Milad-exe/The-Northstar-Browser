@@ -181,9 +181,11 @@ class TabContextMenu {
         // The engine the address bar would use — the menu used to say Google
         // and go to Google even when the default was something else.
         const engine = this.defaultEngine();
+        // In a text field the editing rows below carry Copy already — showing
+        // it here too gave the menu two Copy rows.
+        if (!params.isEditable)
+            this.contextTemplate.push(this.edit('Copy', 'copy', 'CmdOrCtrl+C', params.editFlags.canCopy));
         this.contextTemplate.push({
-            ...this.edit('Copy', 'copy', 'CmdOrCtrl+C', params.editFlags.canCopy),
-        }, {
             label: `Search ${engine.name} for “${truncated}”`,
             click: () => {
                 const { buildUrl } = require('./search-engines');
@@ -222,7 +224,13 @@ class TabContextMenu {
         this.sep();
         const redo = process.platform === 'darwin' ? 'CmdOrCtrl+Shift+Z' : 'CmdOrCtrl+Y';
         const f = params.editFlags || {};
-        this.contextTemplate.push(this.edit('Undo', 'undo', 'CmdOrCtrl+Z', f.canUndo), this.edit('Redo', 'redo', redo, f.canRedo), { type: 'separator' }, this.edit('Cut', 'cut', 'CmdOrCtrl+X', f.canCut), this.edit('Copy', 'copy', 'CmdOrCtrl+C', f.canCopy), this.edit('Paste', 'paste', 'CmdOrCtrl+V', f.canPaste), this.edit('Select all', 'selectAll', 'CmdOrCtrl+A', true));
+        this.contextTemplate.push(this.edit('Undo', 'undo', 'CmdOrCtrl+Z', f.canUndo), this.edit('Redo', 'redo', redo, f.canRedo), { type: 'separator' }, this.edit('Cut', 'cut', 'CmdOrCtrl+X', f.canCut), this.edit('Copy', 'copy', 'CmdOrCtrl+C', f.canCopy), this.edit('Paste', 'paste', 'CmdOrCtrl+V', f.canPaste), {
+            // The clipboard's text without its formatting (Ctrl+Shift+V).
+            label: 'Paste as plain text',
+            accelerator: 'CmdOrCtrl+Shift+V',
+            enabled: f.canPaste !== false,
+            click: () => { try { this.tab.webContents.pasteAndMatchStyle(); } catch (e) { log.debug('tab-context-menu', 'paste plain', e); } },
+        }, this.edit('Select all', 'selectAll', 'CmdOrCtrl+A', true));
     }
     addLinkItems(params) {
         if (!params.linkURL)
@@ -330,20 +338,43 @@ class TabContextMenu {
                 click: () => {
                     const src = JSON.stringify(params.srcURL || '');
                     // userGesture=true so the PiP request counts as user-activated.
-                    this.tab.webContents.executeJavaScript(`(() => {
-                        try {
-                            if (document.pictureInPictureElement) { document.exitPictureInPicture(); return; }
-                            const src = ${src};
-                            const vids = Array.from(document.querySelectorAll('video'));
-                            let v = vids.find(x => x.currentSrc === src || x.src === src)
-                                 || vids.filter(x => !x.paused)[0] || vids[0];
-                            if (v && v.requestPictureInPicture) v.requestPictureInPicture().catch(()=>{});
-                        } catch (e) { log.debug('tab-context-menu', 'addMediaItems', e); }
-                    })()`, true).catch(() => { });
+                    // Runs IN THE PAGE: no app logger there, so failures come
+                    // back through the returned promise and are logged here.
+                    this.tab.webContents.executeJavaScript(`(async () => {
+                        if (document.pictureInPictureElement) { await document.exitPictureInPicture(); return; }
+                        const src = ${src};
+                        const vids = Array.from(document.querySelectorAll('video'));
+                        let v = vids.find(x => x.currentSrc === src || x.src === src)
+                             || vids.filter(x => !x.paused)[0] || vids[0];
+                        if (v && v.requestPictureInPicture) await v.requestPictureInPicture();
+                    })()`, true).catch((e) => log.debug('tab-context-menu', 'picture in picture', e));
                 },
             });
         }
+        // Loop and the player's own controls, as every browser offers. Found by
+        // the point that was clicked, else by its address.
+        const flags = params.mediaFlags || {};
+        const toggle = (prop) => {
+            const at = JSON.stringify({ x: params.x || 0, y: params.y || 0, src: params.srcURL || '', prop });
+            this.tab.webContents.executeJavaScript(`(() => {
+                const a = ${at};
+                const hit = document.elementFromPoint(a.x, a.y);
+                let m = hit && hit.closest && hit.closest('video, audio');
+                if (!m) m = Array.from(document.querySelectorAll('video, audio')).find(x => x.currentSrc === a.src || x.src === a.src);
+                if (m) m[a.prop] = !m[a.prop];
+            })()`, true).catch((e) => log.debug('tab-context-menu', 'media ' + prop, e));
+        };
         this.contextTemplate.push({
+            label: 'Loop',
+            type: 'checkbox',
+            checked: !!flags.isLooping,
+            click: () => toggle('loop'),
+        }, {
+            label: 'Show controls',
+            type: 'checkbox',
+            checked: !!flags.isControlsVisible,
+            click: () => toggle('controls'),
+        }, { type: 'separator' }, {
             label: `Open ${label} in new tab`,
             click: () => this.openInNewTab(params.srcURL),
         }, {

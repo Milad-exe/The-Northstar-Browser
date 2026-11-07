@@ -62,6 +62,20 @@ class WindowManager {
             try { this.getWindowByWebContents(wc)?.shortcuts?.handleInput(event, input); }
             catch (e) { log.debug('window-manager', 'route input', e); }
         });
+        // The last surface you were EDITING in — the chrome or a tab, never a
+        // menu or panel. The menu bar's Edit → Copy/Paste act on it: by the time
+        // you click one, the menu itself holds focus (features/app-menu.js).
+        wc.on('focus', () => {
+            try {
+                const wd = this.getWindowByWebContents(wc);
+                if (!wd)
+                    return;
+                const isTab = [...(wd.tabs?.tabMap?.values() || [])].some(t => t?.webContents === wc);
+                if (isTab || wc === wd.window?.webContents)
+                    wd.lastEditTarget = wc;
+            }
+            catch (e) { log.debug('window-manager', 'edit target', e); }
+        });
     }
     get history() {
         if (!this.cachedHistory) {

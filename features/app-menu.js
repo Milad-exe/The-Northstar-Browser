@@ -47,8 +47,22 @@ const activeTabWc = () => {
     return (tab && tab.webContents && !tab.webContents.isDestroyed()) ? tab.webContents : null;
 };
 const newTab = () => { const wd = focusedWd(); if (wd?.tabs) { try { wd.tabs.openInternalPage('home'); } catch (e) { log.debug('app-menu', 'newtab', e); } } };
-/** Whatever webContents currently holds focus — the right target for clipboard. */
-const focusedWc = () => { try { return webContents.getFocusedWebContents(); } catch { return null; } };
+/** What Edit → Undo/Cut/Copy/Paste act on: the page or chrome you were editing.
+ *  Not simply the focused webContents — clicking an item in the in-chrome menu
+ *  bar's dropdown (an overlay) gives THE MENU focus, so Copy copied nothing. */
+const focusedWc = () => {
+    const wd = focusedWd();
+    let f = null;
+    try { f = webContents.getFocusedWebContents(); } catch { f = null; }
+    const live = (wc) => wc && !wc.isDestroyed?.();
+    const isContent = (wc) => wd && (wc === wd.window?.webContents
+        || [...(wd.tabs?.tabMap?.values() || [])].some(t => t?.webContents === wc));
+    if (live(f) && (!wd || isContent(f)))
+        return f;
+    if (live(wd?.lastEditTarget))
+        return wd.lastEditTarget;
+    return activeTabWc();
+};
 
 /* Display an accelerator without binding it (see the KEY RULE above). On macOS
    the roles/tab items that legitimately register are built with plain
