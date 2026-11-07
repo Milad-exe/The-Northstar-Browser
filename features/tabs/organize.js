@@ -356,6 +356,9 @@ module.exports = {
             this.activeTabIndex = -1;
             try { this.mainWindow.webContents.send('tab-switched', { index: -1 }); }
             catch (e) { log.debug('organize', 'applyWorkspace', e); }
+            // Its tab views are all hidden now, focused one included — without
+            // this the keyboard went nowhere and Ctrl+Alt+1–9 stopped working.
+            this._focusChromeWhenEmpty();
             return;
         }
         let target = mine.includes(this.activeTabIndex) ? this.activeTabIndex : null;

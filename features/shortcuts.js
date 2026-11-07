@@ -213,6 +213,8 @@ class Shortcuts {
                     const activeTab = this.tabManager.tabMap.get(this.tabManager.activeTabIndex);
                     if (activeTab?.webContents)
                         activeTab.webContents.focus();
+                    else // the space is empty: the chrome keeps the keyboard
+                        this.mainWindow.webContents.focus();
                 }
             }, 10);
         });

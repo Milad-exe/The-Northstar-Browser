@@ -1409,6 +1409,21 @@ class Tabs {
      * (double-close races) pass through a transient empty state, and acting on
      * that closed the window spuriously.
      */
+    /**
+     * The window has no tab to show: hand the keyboard to the chrome. The tab
+     * that held focus has just been hidden or closed, and Chromium does not
+     * pass focus on — so NOTHING in the window had it, and every shortcut
+     * (Ctrl+Alt+1–9 to leave an empty space, Ctrl+T, Ctrl+L…) went nowhere
+     * until you clicked. Shortcuts are read from whichever surface is focused
+     * (window-manager _routeShortcuts), so the chrome must be that surface.
+     */
+    _focusChromeWhenEmpty() {
+        try {
+            if (!this.mainWindow.isDestroyed() && this.activeTabIndex === -1)
+                this.mainWindow.webContents.focus();
+        }
+        catch (e) { log.debug('tabs', 'focus chrome when empty', e); }
+    }
     _onEmptied() {
         setImmediate(() => {
             if (this.mainWindow.isDestroyed() || this.tabMap.size !== 0)
@@ -1421,6 +1436,7 @@ class Tabs {
             this.activeTabIndex = -1;
             try { this.mainWindow.webContents.send('tab-switched', { index: -1 }); }
             catch (e) { log.debug('tabs', '_onEmptied', e); }
+            this._focusChromeWhenEmpty();
         });
     }
     showTab(index) {
@@ -1749,6 +1765,7 @@ class Tabs {
                     this.activeTabIndex = -1;
                     try { this.mainWindow.webContents.send('tab-switched', { index: -1 }); }
                     catch (e) { log.debug('tabs', 'removeTab', e); }
+                    this._focusChromeWhenEmpty();
                 }
             }
             if (this.tabMap.size === 0)
@@ -1759,10 +1776,12 @@ class Tabs {
     removeTabWithTargetFocus(index, targetTabIndex = null) {
         if (this.tabMap.has(index)) {
             const wasActive = this.activeTabIndex === index;
-            // Prefer an explicit valid target; otherwise fall back to the
-            // visually-adjacent tab (right, else left) in tab-bar order.
+            // Prefer an explicit valid target; otherwise the visually-adjacent
+            // tab (right, else left) IN THIS TAB'S SPACE. The whole-strip
+            // neighbour (and the old tabOrder[0] fallback) showed another
+            // space's tab while you stayed in this one.
             const nextActive = (targetTabIndex !== null && this.tabMap.has(targetTabIndex))
-                ? targetTabIndex : this._neighborInOrder(index);
+                ? targetTabIndex : this._neighborInWorkspace(index);
             const tab = this.tabMap.get(index);
             this.recordClosed(index);
             this.destroyTab(tab);
@@ -1799,9 +1818,16 @@ class Tabs {
                 this._onEmptied();
             else {
                 if (wasActive) {
-                    const target = (nextActive !== null && this.tabMap.has(nextActive))
-                        ? nextActive : this.tabOrder[0];
-                    this.showTab(target);
+                    if (nextActive !== null && this.tabMap.has(nextActive))
+                        this.showTab(nextActive);
+                    else {
+                        // The space is empty now: stay in it (as the close
+                        // button does) and keep the keyboard alive.
+                        this.activeTabIndex = -1;
+                        try { this.mainWindow.webContents.send('tab-switched', { index: -1 }); }
+                        catch (e) { log.debug('tabs', 'removeTabWithTargetFocus', e); }
+                        this._focusChromeWhenEmpty();
+                    }
                 }
                 setTimeout(() => {
                     if (!this.mainWindow.isDestroyed()) {
