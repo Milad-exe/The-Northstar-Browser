@@ -124,7 +124,13 @@
                 svg.appendChild(p);
                 ic.appendChild(svg);
             }
-            else if (r.icon) ic.textContent = r.icon;
+            else if (r.icon) {
+                // An emoji (a space, a container): drawn as its line icon when
+                // one exists (renderer/lib/space-glyphs.js), else monochrome text
+                // — a colour emoji beside line icons read as clip-art.
+                if (window.Northstar?.spaceGlyphs) window.Northstar.spaceGlyphs.render(ic, r.icon);
+                else ic.textContent = r.icon;
+            }
             b.appendChild(ic);
             const lbl = document.createElement('span');
             lbl.className = 'row-title ctx-label';
@@ -148,13 +154,13 @@
             if (r.checked) {
                 // Phosphor `check`, 14px — an icon, never a text glyph.
                 trail.classList.add('ctx-check');
-                trail.innerHTML = '<svg viewBox="0 0 256 256" width="14" height="14" fill="currentColor"><path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"/></svg>';
+                trail.innerHTML = '<svg viewBox="0 0 256 256" width="14" height="14" fill="currentColor"><path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"/></svg>';
                 b.setAttribute('aria-checked', 'true');
             }
             else if (r.sub) {
                 // Phosphor `caret-right`, 12px.
                 trail.classList.add('ctx-sub-arrow');
-                trail.innerHTML = '<svg viewBox="0 0 256 256" width="12" height="12" fill="currentColor"><path d="M184.49,136.49l-80,80a12,12,0,0,1-17-17L159,128,87.51,56.49a12,12,0,1,1,17-17l80,80A12,12,0,0,1,184.49,136.49Z"/></svg>';
+                trail.innerHTML = '<svg viewBox="0 0 256 256" width="12" height="12" fill="currentColor"><path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"/></svg>';
             }
             else if (r.accelerator && window.Northstar?.keys?.formatAccelerator) {
                 trail.classList.add('surface-kbd');
@@ -182,11 +188,14 @@
     // Emoji picker shares the overlay so it also paints above the page.
     const buildEmoji = (data) => {
         const menu = document.createElement('div');
-        menu.className = 'ctx-menu emoji-pop';
+        // `icons`: a space's picker — drawn Phosphor icons (space-glyphs.js),
+        // keyed by the emoji the space model stores. Otherwise plain emoji.
+        const glyphs = data.icons ? window.Northstar?.spaceGlyphs : null;
+        menu.className = 'ctx-menu emoji-pop' + (glyphs ? ' icon-pop' : '');
         const search = document.createElement('input');
         search.className = 'emoji-search';
         search.type = 'text';
-        search.placeholder = 'Search emojis';
+        search.placeholder = glyphs ? 'Search icons' : 'Search emojis';
         const grid = document.createElement('div');
         grid.className = 'emoji-pop-grid';
         const paint = (q) => {
@@ -195,7 +204,7 @@
             if (data.allowNone && !needle) {
                 const none = document.createElement('button');
                 none.className = 'emoji-opt emoji-none';
-                none.title = 'No emoji (dot)';
+                none.title = glyphs ? 'No icon (dot)' : 'No emoji (dot)';
                 none.addEventListener('click', () => { clear(); window.overlayMenu.pick({ emoji: '' }); });
                 grid.appendChild(none);
             }
@@ -203,8 +212,15 @@
                 if (needle && !kw.includes(needle)) continue;
                 const b = document.createElement('button');
                 b.className = 'emoji-opt';
-                b.textContent = e;
-                b.title = kw.split(' ')[0];
+                if (glyphs) {
+                    glyphs.render(b, e);
+                    b.title = glyphs.labelFor(e);
+                    b.setAttribute('aria-label', b.title);
+                }
+                else {
+                    b.textContent = e;
+                    b.title = kw.split(' ')[0];
+                }
                 b.addEventListener('click', () => { clear(); window.overlayMenu.pick({ emoji: e }); });
                 grid.appendChild(b);
             }

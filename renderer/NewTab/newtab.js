@@ -359,7 +359,7 @@
         const plus = document.createElement('span');
         plus.className = 'ntp-fav ntp-fav-add';
         // Phosphor plus, not a "+" character (ui-polish rule 5).
-        plus.innerHTML = '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M228,128a12,12,0,0,1-12,12H140v76a12,12,0,0,1-24,0V140H40a12,12,0,0,1,0-24h76V40a12,12,0,0,1,24,0v76h76A12,12,0,0,1,228,128Z"/></svg>';
+        plus.innerHTML = '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/></svg>';
         const label = document.createElement('span');
         label.className = 'ntp-tile-label';
         label.textContent = T('ntp.addShortcut', 'Add shortcut');

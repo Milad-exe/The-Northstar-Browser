@@ -1103,6 +1103,73 @@ test('placeHoverLabel keeps the label in the chrome, off the page card', () => {
 // ── displayUrl (ui-polish U1-5) ──────────────────────────────────────────────
 // Show meaning, not data: host + the first path segment, no scheme, www. or
 // query. One helper for the new-tab page, History and the address-bar dropdown.
+// ── One icon weight (premium finish) ─────────────────────────────────────────
+// Every icon is Phosphor REGULAR: a 16-unit stroke on the 256 grid (1.125px at
+// 18px), which sits with Segoe UI Variable's text weight. Bold (24-unit) icons
+// read heavy beside it and kept creeping back in via copy-paste. A Phosphor
+// path's round stroke caps give its weight away — radius 8 regular, 12 bold,
+// 6 light, 4 thin — so a path whose caps are mostly NOT radius 8 is flagged.
+// Filled "on" partners (.i-fill) carry no caps and are not checked. Stroked
+// SVGs must draw at Regular's stroke-to-size ratio and are allowlisted by file.
+test('every icon is drawn at one weight (Phosphor regular)', () => {
+    const W = { 4: 'thin', 6: 'light', 8: 'regular', 12: 'bold' };
+    // Only true stroke CAPS count: a half-circle arc spanning exactly 2r. Dots
+    // (Phosphor draws them as radius-12 circles at every weight) do not.
+    // Measured on @phosphor-icons/core 2.1.1: 0.4% of regular icons misread
+    // as bold, so this never cries wolf; it catches about half of pasted bold
+    // icons — a guard, not the audit (that was done against the real set).
+    const weightOf = (d) => {
+        const c = {};
+        for (const m of d.matchAll(/a(\d+),\1,0,0,[01],(-?\d+),(-?\d+)/g)) {
+            const r = +m[1], dx = Math.abs(+m[2]), dy = Math.abs(+m[3]);
+            if (W[r] && ((dx === 2 * r && dy === 0) || (dy === 2 * r && dx === 0))) c[r] = (c[r] || 0) + 1;
+        }
+        const best = Object.entries(c).sort((a, b) => b[1] - a[1])[0];
+        return best ? W[best[0]] : 'unknown';
+    };
+    const files = [];
+    (function walk(d) {
+        for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+            const p = path.join(d, e.name);
+            if (e.isDirectory()) { if (!/node_modules|vendor|fonts/.test(p)) walk(p); }
+            else if (/\.(html|js|css|svg)$/.test(e.name) && e.name !== 'logo.svg') files.push(p);
+        }
+    })(path.join(root, 'renderer'));
+    const heavy = [];
+    // Stroke-drawn icons that render at Regular's stroke-to-size ratio: the
+    // sidebar folders (1.25 on a 20 grid at 18px = 1.125px) and the Windows
+    // caption buttons (1px-class glyphs, as the OS draws them).
+    const STROKE_OK = new Set(['renderer/renderer.js']);
+    for (const f of files) {
+        const src = fs.readFileSync(f, 'utf8'); const rel = path.relative(root, f).split(path.sep).join('/');
+        for (const m of src.matchAll(/\bd=\\?["'](M[^"'\\]{20,})\\?["']/g)) {
+            const w = weightOf(m[1]);
+            if (w !== 'regular' && w !== 'unknown') heavy.push(`${rel}: ${w} ${m[1].slice(0, 32)}…`);
+        }
+        if (/stroke-width=\\?["']/.test(src) && !STROKE_OK.has(rel)) heavy.push(`${rel}: stroke-drawn icon (use a Phosphor regular path)`);
+    }
+    assert.ok(heavy.length === 0, `off-weight icons: ${heavy.join(' | ')}`);
+});
+
+// Spaces are drawn as line icons, not colour emoji (premium finish).
+test('spaceGlyphs maps space emoji to line icons, ignoring variation selectors', () => {
+    const g = require(path.join(root, 'renderer/lib/space-glyphs'));
+    const profiles = require(path.join(root, 'features/profiles'));
+    for (const e of profiles.EMOJIS)
+        assert.ok(g.pathFor(e), `default space emoji ${e} has a drawn glyph`);
+    assert.ok(g.pathFor('✈️') && g.pathFor('✈'), 'with and without U+FE0F');
+    assert.strictEqual(g.pathFor('🦊'), null, 'unmapped emoji fall back to text');
+    assert.strictEqual(g.pathFor(''), null);
+    // The pickers offer drawn icons only, once each, and never these two.
+    const keys = g.CHOICES.map(([e]) => e.replace(/️/g, ''));
+    assert.ok(keys.every(k => g.pathFor(k)), 'every choice is drawn');
+    assert.strictEqual(new Set(keys).size, keys.length, 'no duplicate choices');
+    for (const banned of ['🐢', '🛰'])
+        assert.ok(!keys.includes(banned), `${banned} is not offered`);
+    assert.strictEqual(g.labelFor('💼'), 'Work');
+    for (const d of Object.values(g.PATHS)) assert.ok(/^M[\d.]/.test(d), 'a path, never markup');
+});
+
 test('displayUrl shows host + first path segment', () => {
     const { displayUrl } = require(path.join(root, 'renderer/lib/display-url'));
     assert.strictEqual(displayUrl('https://www.youtube.com/watch?v=abc123&t=9'), 'youtube.com/watch');
@@ -1177,11 +1244,11 @@ test('recently closed lists tabs and windows newest first, and skips private', (
 // fails. Comments are stripped first; radius 0 / 50% are allowed.
 test('no new raw font sizes, radii or durations in component CSS', () => {
     const BASELINE = { // file: [max raw font-size, max raw border-radius]
-        'renderer/Browser/styles.css': [30, 31],
+        'renderer/Browser/styles.css': [24, 30],
         'renderer/Menu/styles.css': [0, 0],
-        'renderer/CtxMenu/styles.css': [2, 0],
+        'renderer/CtxMenu/styles.css': [1, 0],
         'renderer/NewTab/styles.css': [0, 0], // U1-4: all tokens now
-        'renderer/Settings/styles.css': [4, 1],
+        'renderer/Settings/styles.css': [2, 0], // premium finish: titles on --fs-title
         'renderer/styles/surface.css': [1, 0],
     };
     // The focus-timer ring's dashoffset moves once per second: a clock, not motion.

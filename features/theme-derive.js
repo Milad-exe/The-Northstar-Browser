@@ -534,6 +534,25 @@ function derive(seed) {
         '--surface-grad': depth > 0
             ? `linear-gradient(180deg, rgba(255,255,255,${round((mode === 'light' ? 0.42 : 0.03) * depth, 3)}) 0%, rgba(255,255,255,0) 42%)`
             : 'none',
+        /* Depth, part three (the "lit material" finish, themes.css FINISH).
+           --shadow-lift is a short contact shadow for the few things raised IN
+           the chrome (the active tab, the address field, the space pill);
+           --shadow-card is the page card settling into the shell; --shell-light
+           is a faint top light on the shell. Light grounds take a cool,
+           low-alpha shadow and a white light — black at dark-theme alpha reads
+           as dirt on paper. */
+        '--shadow-lift': mode === 'light'
+            ? '0 0.5px 1px rgba(30,35,60,0.12), 0 1px 3px rgba(30,35,60,0.08)'
+            : '0 0.5px 1px rgba(0,0,0,0.45), 0 1px 3px rgba(0,0,0,0.22)',
+        '--shadow-card': mode === 'light'
+            ? '0 1px 2px rgba(30,35,60,0.07), 0 8px 24px -10px rgba(30,35,60,0.18)'
+            : '0 1px 2px rgba(0,0,0,0.35), 0 8px 24px -8px rgba(0,0,0,0.55)',
+        '--shell-light': mode === 'light'
+            ? 'linear-gradient(180deg, rgba(255,255,255,0.40), rgba(255,255,255,0) 220px)'
+            : 'linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0) 220px)',
+        /* The new-tab page's pool of light. White in both modes — an ink-tinted
+           pool reads as a light on a dark page but as a smudge on a pale one. */
+        '--light-pool': mode === 'light' ? 'rgba(255,255,255,0.70)' : 'rgba(255,255,255,0.05)',
     };
 
     /* The chrome's wash — the theme's gradient, painted OVER --shell rather than

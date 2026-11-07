@@ -18,19 +18,9 @@
     // ─────────────────────────────────────────────────────────────────────────────
     // Constants
     // ─────────────────────────────────────────────────────────────────────────────
-    const FOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="12"
-  viewBox="0 0 24 20" fill="currentColor">
-  <path d="M10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0
-           22,18V8C22,6.89 21.1,6 20,6H12L10,4Z"/>
-</svg>`;
-    const BACK_ARROW_SVG = `<svg width="6" height="10" viewBox="0 0 6 10" fill="none"
-  stroke="currentColor" stroke-width="1.05" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M5 1L1 5l4 4"/>
-</svg>`;
-    const CHEVRON_RIGHT_SVG = `<svg width="5" height="9" viewBox="0 0 5 9" fill="none"
-  stroke="currentColor" stroke-width="1.05" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M1 1l3 3.5L1 8"/>
-</svg>`;
+    const FOLDER_SVG = `<svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216,72H130.67L102.93,51.2a16.12,16.12,0,0,0-9.6-3.2H40A16,16,0,0,0,24,64V200a16,16,0,0,0,16,16H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72Zm0,128H40V64H93.33L123.2,86.4A8,8,0,0,0,128,88h88Z"/></svg>`;
+    const BACK_ARROW_SVG = `<svg width="14" height="14" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M165.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L91.31,128Z"/></svg>`;
+    const CHEVRON_RIGHT_SVG = `<svg width="14" height="14" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"/></svg>`;
     const DRAG_SPRING_DELAY = 500;
     const MAX_HEIGHT = 480;
     // 244 + 16 = the shared small-panel width (features/overlay-bounds W_SM);

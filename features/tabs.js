@@ -1144,7 +1144,7 @@ class Tabs {
     // Browser/styles.css). The page floats in a rounded card on a tinted shell
     // instead of filling the window edge-to-edge.
     static SHELL_PAD = 8;
-    static PAGE_RADIUS = 8;
+    static PAGE_RADIUS = 10;   // = --card-radius (themes.css / ui.css)
     // Width of the left tab sidebar (tabBarSide: 'side').
     static SIDEBAR_W = 256;
     static SIDEBAR_MAX = 460; // resize clamp (min 180)

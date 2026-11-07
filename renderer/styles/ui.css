@@ -747,7 +747,7 @@ html[data-private-window="true"], html[data-private-tab="true"] {
   --shell-pad:   8px;    /* (JS SHELL_PAD)   gutter around the page card */
   --bar-h:      40px;    /* (JS UTILITY_BAR_H) toolbar */
   --tabstrip-h: 44px;    /* (JS TAB_BAR_H)   top-mode tab strip */
-  --card-radius: 8px;   /* (JS PAGE_RADIUS) page card corner */
+  --card-radius: 10px;  /* (JS PAGE_RADIUS) page card corner */
 
   /* Control and row heights */
   --row-h:     36px;     /* sidebar rows */
@@ -835,6 +835,72 @@ html[data-private-window="true"], html[data-private-tab="true"] {
   .tab-throbber, .tab-throbber circle { animation: none !important; } /* static ring */
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   FINISH — lit material
+
+   The premium pass. Nothing here adds colour: the accent keeps its three jobs
+   and the grounds keep their hue. What changes is how surfaces meet light.
+     · Raised things catch light on their top edge (--surface-hi) and sit on a
+       short, offset contact shadow (--shadow-lift) — a lifted pill, not a box
+       with a glow. Only things that are actually raised IN the chrome take it:
+       the active tab, the space pill, the address field, NTP tiles.
+     · The page card casts a soft shadow into the shell (--shadow-card). It is
+       painted by #content-area in the chrome DOM, under the native view, so it
+       only ever shows in the gutter around the card — it never clips.
+     · The shell falls off from a faint top light (--shell-light), the way a
+       physical panel lit from above would.
+     · Titles take the Display optical cut of the UI face, tracked in; body
+       text stays on the Text cut, which is already tuned for its size.
+   These are the Slate (and private) defaults; theme-derive emits per-mode
+   values for every derived theme, so light grounds get lighter shadows.
+   Mirror every change in themes.css / ui.css.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --font-display: 'Segoe UI Variable Display', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --fs-title: 28px;              /* internal page titles: Settings, History, Bookmarks */
+  --tracking-display: -0.022em;  /* titles in the display cut */
+  --tracking-label: 0.01em;      /* small quiet labels (section names, group heads) */
+
+  --surface-hi: inset 0 0.5px 0 rgba(255,255,255,0.135);
+  --surface-grad: linear-gradient(180deg, rgba(255,255,255,0.017) 0%, rgba(255,255,255,0) 42%);
+  --shadow-lift: 0 0.5px 1px rgba(0,0,0,0.45), 0 1px 3px rgba(0,0,0,0.22);
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.35), 0 8px 24px -8px rgba(0,0,0,0.55);
+  --shell-light: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0) 220px);
+  --light-pool: rgba(255,255,255,0.05);  /* the new-tab page's pool of light: always a LIGHT, never ink */
+}
+
+/* What every surface the user did not draw still carries: the selection, the
+   caret and the scrollbars. Browser defaults here are the cheapest tell that a
+   page was assembled rather than built. Base layer, so any component that
+   styles its own (the chrome's rail, a panel's .surface-scroll) still wins. */
+@layer base {
+  ::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+  input, textarea, [contenteditable] { caret-color: var(--accent); }
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text) 14%, transparent); background-clip: padding-box;
+    border: 3.5px solid transparent; border-radius: var(--r-pill);
+  }
+  ::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--text) 26%, transparent); }
+
+  /* Form controls do not inherit type: a <button> falls back to the UA's
+     control font (Arial at 13.33px on Windows), which is how the space name in
+     the sidebar foot and the "New tab" row came to be set in Arial beside
+     Segoe UI Variable. Every control takes its page's face; components that
+     want another still set one. */
+  button, input, select, textarea { font-family: inherit; letter-spacing: inherit; }
+
+  /* A space's identity (renderer/lib/space-glyphs.js): its emoji drawn as a
+     line icon in the surrounding ink, or — for an emoji with no drawn
+     equivalent — the emoji's monochrome TEXT presentation, never 3D colour. */
+  .space-glyph-svg { display: inline-flex; align-items: center; justify-content: center; }
+  .space-glyph-svg > svg { width: var(--glyph-size, 16px); height: var(--glyph-size, 16px); flex-shrink: 0; }
+  .space-glyph-text {
+    font-family: 'Segoe UI Symbol', 'Apple Symbols', 'Segoe UI Emoji', sans-serif;
+    font-variant-emoji: text; filter: grayscale(1); line-height: 1;
+  }
+}
 /* Light themes need less shadow — the same alpha that reads as depth on a dark
    shell reads as dirt on a pale one. That used to be a rule naming the two
    light themes that shipped; it lives in features/theme-derive.js now, so every
@@ -897,7 +963,12 @@ html[data-private-window="true"], html[data-private-tab="true"] {
   .btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
   .btn svg { width: var(--icon); height: var(--icon); }
 
-  .btn-primary { background: var(--accent); box-shadow: none; color: var(--accent-ink); font-weight: 600; }
+  /* Flat accent still, but lit: a bright top edge and a contact shadow make
+     the one primary action the one thing on the page that looks pressable. */
+  .btn-primary {
+    background: var(--accent); color: var(--accent-ink); font-weight: 600;
+    box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.28), var(--shadow-lift, none);
+  }
   .btn-primary:hover { background: var(--accent); filter: brightness(1.06); }
   .btn-primary:focus-visible { box-shadow: var(--focus-ring); }
 

@@ -4,7 +4,16 @@
 .ntp {
   display: flex; min-height: 100vh; margin: 0;
   justify-content: center;
+  /* A pool of light over the mark and the field, falling off into the page —
+     the same top light the shell carries (FINISH in themes.css), stronger here
+     because this page is the room you arrive in. Neutral, never the accent:
+     the accent stays for selection, the primary action and focus. Only the
+     image is set, so .page (and macOS vibrancy) still own the ground colour. */
+  background-image: radial-gradient(ellipse 62% 46% at 50% 0%,
+    var(--light-pool, rgba(255,255,255,0.05)), transparent 72%);
+  background-repeat: no-repeat;
 }
+.ntp-tabsearch, .ntp-minimal { background-image: none; }
 /* `hidden` must always win. Any rule here that sets `display` (the sections are
    flex) outranks the UA's [hidden] { display: none }, so a section switched off
    in Customise stayed on screen and the tiles only shifted. One rule for the
@@ -35,13 +44,16 @@
      a solid accent edge — no glow: a glowing ring read as an alert. */
   height: 48px; padding: 0 var(--sp-6, 20px);
   background: color-mix(in srgb, var(--text) 6%, var(--page)); border-radius: var(--r-pill);
-  box-shadow: var(--ring);
+  /* Lit material: the top edge catches light and the pill sits on a contact
+     shadow, so the page's one control is the one thing raised off it. */
+  background-image: var(--surface-grad, none);
+  box-shadow: var(--surface-hi, none), var(--ring), var(--shadow-lift, none);
   transition: box-shadow var(--dur-2) var(--ease), background var(--dur-2) var(--ease);
 }
-.ntp-omni:hover:not(:focus-within) { background: color-mix(in srgb, var(--text) 9%, var(--page)); }
+.ntp-omni:hover:not(:focus-within) { background-color: color-mix(in srgb, var(--text) 9%, var(--page)); }
 .ntp-omni:focus-within {
-  background: var(--page);
-  box-shadow: inset 0 0 0 2px var(--accent);
+  background-color: var(--page);
+  box-shadow: inset 0 0 0 2px var(--accent), var(--shadow-lift, none);
 }
 .ntp-omni-icon { width: 20px; height: 20px; color: var(--text-3); flex-shrink: 0; }
 
@@ -94,6 +106,7 @@
 }
 .ntp-h {
   margin: 0 0 0 var(--sp-5, 12px); font-size: var(--fs-small); font-weight: 600; color: var(--text-2);
+  letter-spacing: var(--tracking-label, 0.01em);
 }
 
 /* Quick-link tiles. */
@@ -111,12 +124,22 @@
   background: transparent; color: var(--text);
   transition: background var(--dur-1) var(--ease), transform var(--dur-1) var(--ease);
 }
+/* The bubble is a lit coin: top highlight, hairline, contact shadow. On hover
+   it rises a pixel (the one authored motion on this page); the tile behind it
+   only takes a faint wash, so the coin is what answers the pointer. */
 .ntp-tile > .ntp-fav, .ntp-tile > .ntp-fav-img {
   width: 48px; height: 48px; border-radius: var(--r-pill);
   background: color-mix(in srgb, var(--text) 8%, var(--page));
+  background-image: var(--surface-grad, none);
+  box-shadow: var(--surface-hi, none), var(--ring), var(--shadow-lift, none);
+  transition: transform var(--dur-2) var(--ease-decel), background-color var(--dur-1) var(--ease);
 }
 .ntp-tile > .ntp-fav-img { padding: 12px; box-sizing: border-box; object-fit: contain; }
-.ntp-tile:hover { background: var(--hover); }
+.ntp-tile:hover { background: color-mix(in srgb, var(--hover) 60%, transparent); }
+.ntp-tile:hover > .ntp-fav, .ntp-tile:hover > .ntp-fav-img {
+  transform: translateY(-1px);
+  background-color: color-mix(in srgb, var(--text) 11%, var(--page));
+}
 .ntp-tile:active { transform: scale(0.97); }
 .ntp-tile:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
 .ntp-fav, .ntp-fav-img {
@@ -165,7 +188,8 @@
 @media (prefers-reduced-motion: reduce) {
   .ntp-suggest { animation: none; }
   .ntp-omni, .ntp-tile, .ntp-recent-row { transition: none; }
-  .ntp-tile:active { transform: none; }
+  .ntp-tile:active,
+  .ntp-tile:hover > .ntp-fav, .ntp-tile:hover > .ntp-fav-img { transform: none; }
 }
 
 /* Tab search (Ctrl+Shift+A): the field and its tab list are the whole page;
@@ -203,7 +227,9 @@
   display: inline-flex; align-items: center; gap: var(--sp-3, 6px);
   height: 34px; padding: 0 var(--sp-5, 12px);
   border: none; border-radius: var(--r-pill); cursor: pointer;
-  background: var(--surface); color: var(--text-2); box-shadow: var(--ring);
+  background: var(--surface); color: var(--text-2);
+  background-image: var(--surface-grad, none);
+  box-shadow: var(--surface-hi, none), var(--ring), var(--shadow-lift, none);
   font-family: var(--font); font-size: var(--fs-micro, 12px); font-weight: 500;
   transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
 }

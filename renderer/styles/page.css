@@ -59,14 +59,19 @@
     display: flex; align-items: center; gap: var(--sp-5);
     margin-bottom: var(--sp-7);
   }
+  /* The Display cut of the UI face, which is drawn for this size: tighter
+     spacing and finer joins than the Text cut scaled up. 650, not 700 — at
+     28px a full bold reads as a shout. */
   .page-head h1 {
     margin: 0; flex: 1; min-width: 0;
-    font-size: 26px; font-weight: 700; letter-spacing: -0.025em;
-    color: var(--text);
+    font-family: var(--font-display, var(--font));
+    font-size: var(--fs-title, 28px); font-weight: 650; letter-spacing: var(--tracking-display, -0.022em);
+    line-height: 1.15; color: var(--text);
   }
   .page-head .count {
-    font-family: var(--mono); font-size: var(--fs-micro);
-    color: var(--text-2); letter-spacing: 0.04em;
+    font-family: var(--mono); font-size: var(--fs-small);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-3);
   }
 
   .page-search {
@@ -75,13 +80,13 @@
     margin-bottom: var(--sp-6);
     /* The same tonal pill as the address field and the new-tab page. */
     background: color-mix(in srgb, var(--text) 6%, var(--page));
-    border-radius: var(--r-pill); box-shadow: none;
+    border-radius: var(--r-pill); box-shadow: var(--surface-hi, none);
     transition: background var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease);
   }
   .page-search:hover:not(:focus-within) { background: color-mix(in srgb, var(--text) 9%, var(--page)); }
   .page-search:focus-within {
     background: var(--page);
-    box-shadow: var(--focus-field);
+    box-shadow: var(--focus-field), var(--shadow-lift, none);
   }
   .page-search svg { width: var(--icon); height: var(--icon); color: var(--text-3); flex-shrink: 0; }
   .page-search input {
@@ -107,22 +112,32 @@
     box-shadow: none;
     margin-bottom: var(--sp-7);
   }
+  /* A day heading sits on the rows' own left edge (the favicon column), with
+     more air above it than below so it belongs to the rows it names. */
   .group-label {
-    padding: var(--sp-5) var(--sp-2) var(--sp-3);
+    padding: var(--sp-6) var(--sp-6) var(--sp-3);
     font-size: var(--fs-small); font-weight: 600; color: var(--text-2);
+    letter-spacing: var(--tracking-label, 0.01em);
   }
 
   .list-row {
     display: flex; align-items: center; gap: var(--sp-5);
     min-height: 52px; padding: var(--sp-3) var(--sp-6);
     color: var(--text); cursor: pointer;
+    /* Rounded, so the hover reads as the row lifting a tone rather than as a
+       rectangle cut out of the sheet. */
+    border-radius: var(--r-md);
     transition: background var(--dur-1) var(--ease);
     position: relative;
   }
   .list-row + .list-row::before {
-    content: ''; position: absolute; left: 46px; right: 0; top: 0; height: 1px;
+    content: ''; position: absolute; left: 46px; right: var(--sp-6); top: 0; height: 1px;
     background: color-mix(in srgb, var(--border) 60%, transparent);
   }
+  /* The rule under a hovered row, and over the one after it, steps aside so
+     the rounded hover is not crossed by a hairline. */
+  .list-row:hover::before,
+  .list-row:hover + .list-row::before { opacity: 0; }
   .list-row:hover { background: var(--hover); }
   .list-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
@@ -150,6 +165,7 @@
   }
   .list-row .meta {
     flex-shrink: 0; font-family: var(--mono); font-size: var(--fs-micro);
+    font-variant-numeric: tabular-nums;
     color: var(--text-2); letter-spacing: 0.02em;
   }
   /* Row actions appear on hover — always-visible × buttons make a list noisy. */

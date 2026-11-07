@@ -57,12 +57,19 @@
         let current = ctx.currentTheme || 'default';
         let list = [];
 
-        const svg = (paths, w = 24) => {
-            const s = `<svg viewBox="0 0 ${w} ${w}" fill="none" stroke="currentColor"
-                stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
-            const t = document.createElement('template');
-            t.innerHTML = s.trim();
-            return t.content.firstChild;
+        /* A Phosphor (regular) path, filled — the weight every other icon in
+           the browser is drawn at. Replaced 24-grid 2.2px strokes, which read
+           half again as heavy as the icons around them. */
+        const glyph = (d) => {
+            const NS = 'http://www.w3.org/2000/svg';
+            const s = document.createElementNS(NS, 'svg');
+            s.setAttribute('viewBox', '0 0 256 256');
+            s.setAttribute('fill', 'currentColor');
+            s.setAttribute('aria-hidden', 'true');
+            const p = document.createElementNS(NS, 'path');
+            p.setAttribute('d', d);
+            s.appendChild(p);
+            return s;
         };
 
         /* ── The presets ─────────────────────────────────────────────────────
@@ -109,7 +116,7 @@
             b.appendChild(sw);
             // A tick marks the one that is on (chosen in --accent-ink against its
             // own face so it reads on a light and a dark circle alike).
-            b.appendChild(svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>'));
+            b.appendChild(glyph('M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z'));
             b.addEventListener('click', () => choosePreset(t));
             // Hover previews the whole browser in this preset, live (no save).
             b.addEventListener('mouseenter', () => {
@@ -606,7 +613,7 @@
         function buildPaletteArrows(host) {
             if (!host.parentNode || host.parentNode.classList?.contains('te-palette-wrap'))
                 return;
-            const chevron = (d) => svg(d === -1 ? '<path d="M15 6l-6 6 6 6"/>' : '<path d="M9 6l6 6-6 6"/>');
+            const chevron = (d) => glyph(d === -1 ? 'M165.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L91.31,128Z' : 'M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z');
             const mkArrow = (d) => {
                 const a = document.createElement('button');
                 a.type = 'button';

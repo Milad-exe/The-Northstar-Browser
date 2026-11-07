@@ -25,7 +25,9 @@ const downloadManager = require('./download-manager');
 
 const COLORS = ['#e0894a', '#4a9eff', '#3fbf7f', '#c86fe0', '#e05a7a', '#e0c341', '#5ad0d0', '#9a7bff'];
 // Default per-profile emoji avatars; a profile can clear its emoji (→ coloured dot).
-const EMOJIS = ['🏠', '💼', '🎨', '🚀', '🌙', '🎧', '🐙', '🔥'];
+// Each is a key with a drawn Phosphor icon (renderer/lib/space-glyphs.js), so a
+// new space never starts as a fallback glyph.
+const EMOJIS = ['🏠', '💼', '🎨', '🚀', '🌙', '🎧', '💡', '🔥'];
 const sessions = new Map(); // profile id → Electron Session (non-default only)
 
 let _reg = null; // { nextId, list: [{id,name,color,essentials:[{url,title,profile}]}] }

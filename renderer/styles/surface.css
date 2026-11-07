@@ -143,7 +143,8 @@
   }
   .surface-title {
     flex: 1; min-width: 0;
-    font-size: var(--fs-lg); font-weight: 600; letter-spacing: var(--tracking);
+    font-family: var(--font-display, var(--font));
+    font-size: var(--fs-lg); font-weight: 600; letter-spacing: -0.01em;
     color: var(--text);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
@@ -182,6 +183,7 @@
   .surface-kbd {
     flex-shrink: 0; margin-left: auto;
     font-family: var(--mono); font-size: var(--fs-micro); letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
     color: var(--text-3);
   }
   .surface-row:hover .surface-kbd { color: var(--text-2); }
@@ -206,8 +208,10 @@
   }
 
   /* ── Structure ──────────────────────────────────────────────────────────── */
+  /* Inset from the card's sides, like the context menu's: a rule that runs
+     edge to edge cuts the panel in two; one that stops short groups rows. */
   .surface-sep {
-    height: 1px; margin: var(--sp-2) 0;
+    height: 1px; margin: var(--sp-2) var(--sp-3);
     background: color-mix(in srgb, var(--border) 70%, transparent);
   }
   .surface-label {

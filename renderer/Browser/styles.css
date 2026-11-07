@@ -36,7 +36,10 @@ body::before {
        replacing it, so everything reading --shell as a flat colour (the
        vibrancy mix, the tab-strip scroll fades) still works. `none` for every
        theme that is a single ground. */
-    var(--shell-wash, none);
+    var(--shell-wash, none),
+    /* The top light (FINISH in themes.css): the shell is brightest where the
+       toolbar sits and falls off below it, as a panel lit from above. */
+    var(--shell-light, none);
 }
 /* Grain. Texture belongs behind the UI, not on it, so it sits on this fixed
    layer under the chrome — the dotted dither this shell used to carry read as
@@ -89,7 +92,7 @@ html[data-vibrancy="true"] body { background: color-mix(in srgb, var(--shell) 88
 html[data-vibrancy="true"] #content-area {
   /* Hairline around the page card — the native view rounds its own corners, so
      this only has to trace them. */
-  box-shadow: var(--ring);
+  box-shadow: var(--ring), var(--shadow-card);
   border-radius: var(--card-radius); background: var(--page, var(--surface)); }
 
 /* Settings → Appearance → Toolbar can remove items entirely. */
@@ -446,8 +449,11 @@ html[data-tabbar="top"] #tabs-container > .tab-button:not(.in-folder) {
   align-self: flex-end; height: calc(var(--row-h) - 2px);
   border-radius: var(--r-md) var(--r-md) 0 0;
 }
+/* The active tab is one surface with the toolbar band below it, so it takes no
+   shadow (that would draw a seam where they join) — only the lit top edge,
+   which is what makes it read as the front of the band rather than a fill. */
 html[data-tabbar="top"] .tab-button.active:not(.in-folder) {
-  background: var(--surface); box-shadow: none; font-weight: 500;
+  background: var(--surface); box-shadow: var(--surface-hi, none); font-weight: 500;
 }
 /* The toolbar band: one surface with the active tab, a clear step above the
    frame (--surface, not --page: on the dark grounds --page sits too close to
@@ -536,8 +542,8 @@ html.sidebar-resizing .sidebar-resizer { pointer-events: auto; }
 html[data-tabbar="side"] .bookmark-bar { grid-column: 2; grid-row: 2; }
 html[data-tabbar="side"] #content-area {
   /* Hairline around the page card — the native view rounds its own corners, so
-     this only has to trace them. */
-  box-shadow: var(--ring);
+     this only has to trace them — and the card settling into the shell. */
+  box-shadow: var(--ring), var(--shadow-card);
   border-radius: var(--card-radius); grid-column: 2; grid-row: 3; }
 
 /* Menu bar shown (Alt tapped): insert a full-width row at the very top and push
@@ -609,12 +615,15 @@ html[data-tabbar="side"] .tab-button .tab-title { font-size: var(--fs-body); }
    sticker stuck onto the row rather than as the row being lifted out of the
    column. The reference marks its selected row by fill alone; the accent is
    kept for focus and live state, where it carries information.
-   The fill takes a hairline, never a shadow: a shadow on a row that sits IN
-   the panel reads as padding, not as depth. */
+   A wide soft shadow on a row that sits IN the panel reads as padding, so
+   the lift is a CONTACT shadow only (--shadow-lift: 1-3px, offset down) plus
+   the lit top edge every raised surface carries: the row reads as a pill
+   picked up off the rail, not as a box with a glow. */
 html[data-tabbar="side"] .tab-button.active {
   color: var(--text);
   background: var(--surface-2, var(--surface));
-  box-shadow: var(--ring);
+  background-image: var(--surface-grad, none);
+  box-shadow: var(--surface-hi, none), var(--ring), var(--shadow-lift, none);
 }
 html[data-tabbar="side"] .tab-button.active .tab-title { font-weight: 500; }
 /* Split view: both on-screen tabs read as soft pills; the focused one is a touch
@@ -1043,6 +1052,7 @@ html[data-tabbar="side"] #tab-bar.creating-space > *:not(#space-create):not(#win
 }
 .sc-emoji:hover { background: var(--hover); }
 .sc-emoji.has-emoji { border-style: solid; }
+.sc-emoji.space-glyph-svg { color: var(--text); --glyph-size: var(--icon); }
 .sc-input {
   flex: 1; min-width: 0; height: 30px; border: none; background: transparent;
   color: var(--text); font-family: var(--font); font-size: 13px; outline: none;
@@ -1104,7 +1114,11 @@ html[data-tabbar="side"] .sidebar-foot {
   scroll-snap-align: center;
 }
 .sb-ws:hover { background: var(--hover); }
-.sb-ws.active { background: var(--surface); box-shadow: var(--ring); }
+/* The space you are in is lifted the same way the active tab is. */
+.sb-ws.active {
+  background: var(--surface-2, var(--surface)); background-image: var(--surface-grad, none);
+  box-shadow: var(--surface-hi, none), var(--ring), var(--shadow-lift, none);
+}
 /* The space you are in says its name (the Trunk Test's "where am I"); the
    others stay icons and name themselves on hover. */
 .sb-ws.active { width: auto; max-width: 140px; padding: 0 var(--sp-4) 0 var(--sp-2); gap: var(--sp-3); }
@@ -1119,7 +1133,7 @@ html[data-tabbar="side"] .sidebar-foot {
 #profile-btn .profile-name { display: none; }
 html[data-tabbar="top"] #profile-btn {
   width: auto; max-width: 168px; height: 28px; gap: var(--sp-3);
-  padding: 0 var(--sp-4) 0 var(--sp-1);
+  padding: 0 var(--sp-4) 0 var(--sp-3);
   border-radius: var(--r-pill);
 }
 html[data-tabbar="top"] #profile-btn .profile-badge {
@@ -1129,7 +1143,12 @@ html[data-tabbar="top"] #profile-btn .profile-badge {
   background: color-mix(in srgb, var(--text) 9%, transparent);
   color: var(--text); font-family: var(--font); font-size: var(--fs-micro); font-weight: 600;
 }
-html[data-tabbar="top"] #profile-btn .profile-badge.has-emoji { font-size: calc(var(--icon) - 4px); }
+/* With a drawn glyph the badge needs no disc behind it: an icon in a grey
+   bubble read as a sticker. The letter fallback keeps its disc. */
+html[data-tabbar="top"] #profile-btn .profile-badge.has-emoji {
+  width: var(--icon); height: var(--icon); background: transparent; color: var(--text-2);
+}
+html[data-tabbar="top"] #profile-btn:hover .profile-badge.has-emoji { color: var(--text); }
 html[data-tabbar="top"] #profile-btn .profile-badge.is-dot::before { display: none; }
 html[data-tabbar="top"] #profile-btn .profile-name {
   display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -1144,10 +1163,14 @@ html[data-tabbar="top"] #profile-btn .profile-name {
    a ring), so the inactive ones do not need to be crushed to be told apart.
    Partial desaturation keeps them legible on a light ground too, where a
    brightness lift would have blown them out. */
-.sb-ws:not(.active) .profile-badge { opacity: 0.75; filter: grayscale(0.55); }
-.sb-ws:hover .profile-badge { opacity: 1; filter: none; }
+/* Spaces are line icons now, so "muted" is simply the tertiary ink — the same
+   way the gear and + rest — and the space you are in is full ink. */
+.sb-ws .profile-badge { color: var(--text-3); transition: color var(--dur-1) var(--ease); }
+.sb-ws.active .profile-badge,
+.sb-ws:hover .profile-badge { color: var(--text); }
 .sb-add-ws { flex-shrink: 0; width: var(--control-h); height: var(--control-h); display: flex; align-items: center; justify-content: center; color: var(--text-3); }
-.sb-add-ws svg { width: 14px; height: 14px; }
+/* Regular-weight strokes thin out below 16px; the + keeps the gear's weight. */
+.sb-add-ws svg { width: 16px; height: 16px; }
 .sb-add-ws:hover { color: var(--text); }
 .sb-settings, .sb-downloads { flex-shrink: 0; width: var(--control-h); height: var(--control-h); }
 .sb-downloads.hidden { display: none; }
@@ -1170,7 +1193,8 @@ html[data-tabbar="top"] #profile-btn .profile-name {
   margin-top: 8px; padding: 6px; display: grid; grid-template-columns: repeat(8, 1fr);
   gap: 2px; max-height: 168px; overflow-y: auto;
   border: 1px solid var(--border); border-radius: 10px; background: var(--page);
-  scrollbar-width: thin; scrollbar-color: var(--border-2) transparent;
+  /* No scrollbar-width/-color here: either one switches Chromium to the stock
+     scrollbar (arrows and all) and overrides the themed one in ui.css. */
 }
 .emoji-picker.hidden { display: none; }
 .emoji-opt {
@@ -1178,6 +1202,11 @@ html[data-tabbar="top"] #profile-btn .profile-name {
   font-size: 16px; line-height: 1; display: flex; align-items: center; justify-content: center;
 }
 .emoji-opt:hover { background: var(--hover); }
+/* A space's icon, drawn (space-glyphs.js): in the grid it rests at secondary
+   ink and comes up on hover; on the field it is the chosen icon, full ink. */
+.emoji-opt.space-glyph-svg { color: var(--text-2); --glyph-size: var(--icon); }
+.emoji-opt.space-glyph-svg:hover { color: var(--text); }
+.prf-emoji.space-glyph-svg { color: var(--text); --glyph-size: var(--icon); }
 .emoji-none::before { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--text-3); }
 .prf-hint { margin-top: 7px; font-size: var(--fs-small); color: var(--text-2); }
 #tab-bar.merge-target::after {
@@ -1583,8 +1612,13 @@ html[data-tabbar="top"] .tab-button.pinned .tab-close { top: 1px; right: 1px; wi
   font-family: var(--mono); font-size: var(--fs-micro); font-weight: 700; line-height: 1;
   text-transform: uppercase; pointer-events: none;
 }
-/* Emoji avatar: the glyph carries the identity, no coloured fill. */
-.profile-badge.has-emoji { background: transparent; color: inherit; font-size: calc(var(--icon) - 2px); text-transform: none; }
+/* Emoji avatar: the glyph carries the identity, no coloured fill. It is drawn
+   as a line icon in the toolbar's own ink (renderer/lib/space-glyphs.js), at
+   the size the gear and the + beside it are drawn at. */
+.profile-badge.has-emoji {
+  background: transparent; color: inherit; font-size: calc(var(--icon) - 4px); text-transform: none;
+  --glyph-size: calc(var(--icon) - 1px);
+}
 /* Opted out of an emoji → a small coloured dot in the profile's colour. */
 .profile-badge.is-dot { background: transparent; }
 .profile-badge.is-dot::before {
@@ -1625,12 +1659,20 @@ html[data-tabbar="top"] .tab-button.pinned .tab-close { top: 1px; right: 1px; wi
      which on a dark ground read as a hole cut in the toolbar.) Focus lifts it to
      the page colour with a solid accent edge. */
   background: color-mix(in srgb, var(--text) 9%, var(--shell));
-  border: none; box-shadow: none;
+  /* Still no hairline at rest — but the pill catches light on its top edge like
+     every other raised surface, so it reads as a lozenge set ON the bar rather
+     than a flat tint painted into it. */
+  border: none; box-shadow: var(--surface-hi, none);
   border-radius: var(--r-pill); padding: 0 var(--sp-5) 0 var(--sp-4); gap: var(--sp-4);
   transition: background var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease);
 }
 .omnibox:hover:not(:focus-within) { background: color-mix(in srgb, var(--text) 12%, var(--shell)); }
-html[data-tabbar="top"] .omnibox { background: var(--shell); }
+/* Top strip: the field is a well cut into the toolbar band, so it takes a soft
+   inner shade along its top edge instead of a highlight. */
+html[data-tabbar="top"] .omnibox {
+  background: var(--shell);
+  box-shadow: inset 0 1px 1.5px color-mix(in srgb, #000 16%, transparent);
+}
 html[data-tabbar="top"] .omnibox:hover:not(:focus-within) { background: color-mix(in srgb, var(--text) 4%, var(--shell)); }
 /* Sidebar mode: the page card starts after the sidebar, so the toggle's column
    is exactly that wide and NAVIGATION begins where the card does. Compact mode
@@ -1643,7 +1685,9 @@ html[data-tabbar="top"] .omnibox:hover:not(:focus-within) { background: color-mi
 .omnibox:focus-within {
   transition-duration: var(--dur-instant);
   background: var(--page);
-  box-shadow: inset 0 0 0 2px var(--accent);
+  /* The solid accent edge says "focus"; the contact shadow says the field has
+     come forward to be typed in. */
+  box-shadow: inset 0 0 0 2px var(--accent), var(--shadow-lift, none);
 }
 
 /* Page actions, at the field's trailing end. The divider is what makes it read
@@ -1960,8 +2004,11 @@ browser-action-list::part(badge) {
   margin: var(--shell-pad);
   background: var(--page, var(--surface));
   border-radius: var(--card-radius);
-  /* Hairline only. The card is inset into the shell, not hovering over it. */
-  box-shadow: var(--ring);
+  /* A hairline, and a soft shadow that settles the card into the shell. The
+     shadow is painted HERE, in the chrome under the native view, so only the
+     part in the gutter around the card ever shows — it cannot clip the way a
+     shadow inside an overlay view would. */
+  box-shadow: var(--ring), var(--shadow-card);
   position: relative; overflow: hidden;
 }
 /* Sidebar mode: the sidebar already provides the left gutter — but only while
