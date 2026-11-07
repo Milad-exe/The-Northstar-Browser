@@ -1785,7 +1785,9 @@ browser-action-list {
      smudge around the badge on the light themes. */
   --browser-action-badge-outline: var(--surface);
 }
-browser-action-list::part(action) { width: 30px; height: 30px; border-radius: 8px; background-size: 60%; }
+/* cursor: the action is a button in the list's shadow root, which the
+   toolbar's own `button { cursor: pointer }` rules cannot reach. */
+browser-action-list::part(action) { width: 30px; height: 30px; border-radius: 8px; background-size: 60%; cursor: pointer; }
 browser-action-list::part(badge) {
   font-size: 8px; min-width: 12px; height: 12px; line-height: 12px;
   border-radius: 6px; padding: 0 2px;
