@@ -181,6 +181,15 @@ document.addEventListener('mousedown', (event) => {
     if (event.button === 3) { event.preventDefault(); try { ipcRenderer.send('nav:mouse', 'back'); } catch (e) { } }
     else if (event.button === 4) { event.preventDefault(); try { ipcRenderer.send('nav:mouse', 'forward'); } catch (e) { } }
 }, true);
+// Chromium ALSO navigates the page's own history on the thumb button's RELEASE
+// unless that mouseup is cancelled — so one press went back two pages (ours,
+// then Chromium's) and the second, unrecorded step was appended to the tab's
+// history tree as a fresh visit. The tree is the only history (CLAUDE.md
+// invariant 9): cancel the release so the press above is the one navigation.
+document.addEventListener('mouseup', (event) => {
+    if (event && event.isTrusted && (event.button === 3 || event.button === 4))
+        event.preventDefault();
+}, true);
 document.addEventListener('selectstart', (event) => {
     if (!suppressLinkSelection)
         return;
