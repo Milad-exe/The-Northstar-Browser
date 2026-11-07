@@ -123,11 +123,9 @@ class TabContextMenu {
                 label: 'Print…',
                 accelerator: 'CmdOrCtrl+P',
                 click: () => wc.print(),
-            }, ...this.readerItem(), {
-                label: 'View page source',
-                accelerator: 'CmdOrCtrl+U',
-                click: () => this.openInNewTab(`view-source:${currentUrl}`),
-            });
+            }, ...this.readerItem());
+            // No "View page source" row: Inspect element (below) covers it,
+            // and the two read as the same item. Ctrl+U still opens the source.
             this.sep();
             this.contextTemplate.push({
                 label: 'Copy page URL',
