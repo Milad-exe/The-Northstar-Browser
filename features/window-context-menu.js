@@ -22,6 +22,15 @@ class WindowContextMenu {
             this.contextTemplate.push({ type: 'separator' });
         }
     }
+    /* An editing row: `role` for a native menu, click() for the app's overlay
+       menu, which never runs a role (so these rows used to do nothing). */
+    edit(label, role, enabled) {
+        const wc = this.window.webContents;
+        return {
+            label, role, enabled: enabled !== false,
+            click: () => { try { wc[role](); } catch (e) { log.debug('window-context-menu', role, e); } },
+        };
+    }
     getWindowData() {
         return this.windowManager.getWindowByWebContents(this.window.webContents);
     }
@@ -41,9 +50,7 @@ class WindowContextMenu {
         engine = engine || engines.byId('google');
         const text = params.selectionText;
         this.contextTemplate.push({
-            label: 'Copy',
-            role: 'copy',
-            enabled: params.editFlags.canCopy,
+            ...this.edit('Copy', 'copy', params.editFlags.canCopy),
         }, {
             label: `Search ${engine.name} for “${text.slice(0, 40)}${text.length > 40 ? '…' : ''}”`,
             click: () => {
@@ -58,7 +65,8 @@ class WindowContextMenu {
         if (!params.isEditable)
             return;
         this.sep();
-        this.contextTemplate.push({ label: 'Undo', role: 'undo', enabled: params.editFlags.canUndo }, { label: 'Redo', role: 'redo', enabled: params.editFlags.canRedo }, { type: 'separator' }, { label: 'Cut', role: 'cut', enabled: params.editFlags.canCut }, { label: 'Copy', role: 'copy', enabled: params.editFlags.canCopy }, { label: 'Paste', role: 'paste', enabled: params.editFlags.canPaste }, { label: 'Select All', role: 'selectAll' });
+        const f = params.editFlags || {};
+        this.contextTemplate.push(this.edit('Undo', 'undo', f.canUndo), this.edit('Redo', 'redo', f.canRedo), { type: 'separator' }, this.edit('Cut', 'cut', f.canCut), this.edit('Copy', 'copy', f.canCopy), this.edit('Paste', 'paste', f.canPaste), this.edit('Select all', 'selectAll', true));
     }
     addTabItems(params) {
         if (!params.isTabButton)

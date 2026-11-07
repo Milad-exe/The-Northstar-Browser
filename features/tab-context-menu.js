@@ -32,6 +32,17 @@ class TabContextMenu {
             this.contextTemplate.push({ type: 'separator' });
         }
     }
+    /* An editing row. `role` is what a NATIVE menu runs; the app's overlay menu
+       (features/overlay-menu.js) only ever calls click(), so a role-only row
+       was a Copy/Paste/Cut that did nothing — each row carries both. Electron
+       ignores click when a role is set, so the native fallback is unchanged. */
+    edit(label, role, accelerator, enabled) {
+        const wc = this.tab.webContents;
+        return {
+            label, role, accelerator, enabled: enabled !== false,
+            click: () => { try { wc[role](); } catch (e) { log.debug('tab-context-menu', role, e); } },
+        };
+    }
     hasHighlightedText(params) {
         return typeof params.selectionText === 'string' && params.selectionText.trim().length > 0;
     }
@@ -77,19 +88,13 @@ class TabContextMenu {
         this.contextTemplate.push({
             label: 'Back',
             accelerator: mac ? 'Cmd+[' : 'Alt+Left',
-            enabled: wc.navigationHistory?.canGoBack() ?? false,
-            click: () => { try {
-                wc.navigationHistory.goBack();
-            }
-            catch (e) { log.debug('tab-context-menu', 'addPageItems', e); } },
+            enabled: this.canStep(-1),
+            click: () => this.step(-1),
         }, {
             label: 'Forward',
             accelerator: mac ? 'Cmd+]' : 'Alt+Right',
-            enabled: wc.navigationHistory?.canGoForward() ?? false,
-            click: () => { try {
-                wc.navigationHistory.goForward();
-            }
-            catch (e) { log.debug('tab-context-menu', 'addPageItems', e); } },
+            enabled: this.canStep(1),
+            click: () => this.step(1),
         }, {
             label: 'Reload',
             accelerator: 'CmdOrCtrl+R',
@@ -116,6 +121,39 @@ class TabContextMenu {
                 click: () => clipboard.writeText(currentUrl),
             });
         }
+    }
+    /* The tab's index in its Tabs, or null (a glance view is not a tab). */
+    tabIndex() {
+        for (const [i, t] of this.tabManager?.tabMap || [])
+            if (t === this.tab) return i;
+        return null;
+    }
+    /* Back/Forward go through the tab's own history tree (CLAUDE.md invariant
+       9), like the toolbar buttons. Calling the webContents' native goBack()
+       here moved the page without moving the tree, so the step was recorded as
+       a fresh visit and Back/Forward lost their place afterwards. */
+    canStep(dir) {
+        const i = this.tabIndex();
+        const nav = this.tab.webContents.navigationHistory;
+        try {
+            if (i === null)
+                return dir < 0 ? !!nav?.canGoBack() : !!nav?.canGoForward();
+            const h = this.tabManager.navigationHistory;
+            return dir < 0 ? !!h.canGoBack(i) : !!h.canGoForward(i);
+        }
+        catch (e) { log.debug('tab-context-menu', 'canStep', e); return false; }
+    }
+    step(dir) {
+        const i = this.tabIndex();
+        try {
+            if (i === null) {
+                const nav = this.tab.webContents.navigationHistory;
+                dir < 0 ? nav.goBack() : nav.goForward();
+            }
+            else if (dir < 0) this.tabManager.goBack(i);
+            else this.tabManager.goForward(i);
+        }
+        catch (e) { log.debug('tab-context-menu', 'step', e); }
     }
     addInspect(params) {
         // Internal chrome pages (new tab, settings, history, …) are UI, not
@@ -144,10 +182,7 @@ class TabContextMenu {
         // and go to Google even when the default was something else.
         const engine = this.defaultEngine();
         this.contextTemplate.push({
-            label: 'Copy',
-            role: 'copy',
-            accelerator: 'CmdOrCtrl+C',
-            enabled: params.editFlags.canCopy,
+            ...this.edit('Copy', 'copy', 'CmdOrCtrl+C', params.editFlags.canCopy),
         }, {
             label: `Search ${engine.name} for “${truncated}”`,
             click: () => {
@@ -186,7 +221,8 @@ class TabContextMenu {
             return;
         this.sep();
         const redo = process.platform === 'darwin' ? 'CmdOrCtrl+Shift+Z' : 'CmdOrCtrl+Y';
-        this.contextTemplate.push({ label: 'Undo', role: 'undo', accelerator: 'CmdOrCtrl+Z', enabled: params.editFlags.canUndo }, { label: 'Redo', role: 'redo', accelerator: redo, enabled: params.editFlags.canRedo }, { type: 'separator' }, { label: 'Cut', role: 'cut', accelerator: 'CmdOrCtrl+X', enabled: params.editFlags.canCut }, { label: 'Copy', role: 'copy', accelerator: 'CmdOrCtrl+C', enabled: params.editFlags.canCopy }, { label: 'Paste', role: 'paste', accelerator: 'CmdOrCtrl+V', enabled: params.editFlags.canPaste }, { label: 'Select all', role: 'selectAll', accelerator: 'CmdOrCtrl+A' });
+        const f = params.editFlags || {};
+        this.contextTemplate.push(this.edit('Undo', 'undo', 'CmdOrCtrl+Z', f.canUndo), this.edit('Redo', 'redo', redo, f.canRedo), { type: 'separator' }, this.edit('Cut', 'cut', 'CmdOrCtrl+X', f.canCut), this.edit('Copy', 'copy', 'CmdOrCtrl+C', f.canCopy), this.edit('Paste', 'paste', 'CmdOrCtrl+V', f.canPaste), this.edit('Select all', 'selectAll', 'CmdOrCtrl+A', true));
     }
     addLinkItems(params) {
         if (!params.linkURL)
@@ -225,7 +261,10 @@ class TabContextMenu {
         }, {
             label: 'Copy link address',
             click: () => clipboard.writeText(params.linkURL),
-        }, {
+        }, ...(params.linkText && params.linkText.trim() ? [{
+            label: 'Copy link text',
+            click: () => clipboard.writeText(params.linkText.trim()),
+        }] : []), {
             // Same tracking-param list the privacy engine strips on navigation,
             // so a copied link matches what the browser would have requested.
             label: 'Copy clean link',
@@ -261,6 +300,11 @@ class TabContextMenu {
         this.contextTemplate.push({
             label: 'Save image as…',
             click: () => downloadManager.saveAs(this.tab.webContents, params.srcURL),
+        }, {
+            // The picture itself onto the clipboard, as every browser offers.
+            label: 'Copy image',
+            click: () => { try { this.tab.webContents.copyImageAt(params.x, params.y); }
+                catch (e) { log.warn('tab-context-menu', 'copy image failed', e); } },
         }, {
             label: 'Copy image address',
             click: () => clipboard.writeText(params.srcURL),
