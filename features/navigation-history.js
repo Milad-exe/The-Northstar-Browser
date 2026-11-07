@@ -48,7 +48,11 @@ class NavigationHistory {
             return;
         tabHistory.titles.set(tabHistory.currentIndex, title);
     }
-    addEntry(tabIndex, url) {
+    /* `exact`: the page itself pushed this entry (pushState / a #fragment
+       link), so record it as its own step even when it looks like the current
+       address — the "similar URL" folding exists for redirects, and folding a
+       web app's pushed pages made Back skip every one of them. */
+    addEntry(tabIndex, url, { exact = false } = {}) {
         if (!this.tabHistories.has(tabIndex)) {
             this.initializeTab(tabIndex, url);
             return;
@@ -58,7 +62,7 @@ class NavigationHistory {
         if (currentNode && currentNode.data === url) {
             return;
         }
-        if (currentNode && this.isSimilarUrl(currentNode.data, url)) {
+        if (!exact && currentNode && this.isSimilarUrl(currentNode.data, url)) {
             this.replaceCurrentEntry(tabIndex, url);
             return;
         }

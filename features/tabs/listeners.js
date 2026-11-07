@@ -31,6 +31,58 @@ module.exports = {
     setupTabListeners(tabIndex, tab) {
         let isNavigatingProgrammatically = false;
         let lastAddedUrl = null;
+        /* Chromium's own session history as of the last commit: the addresses
+           and which one was showing. Compared on the next commit to tell a
+           Back/Forward the PAGE made (history.back(), a site's own Back button,
+           a web app closing a dialog) from a fresh navigation. */
+        let nativeSnap = null;
+        const nativeUrls = () => {
+            const nav = tab.webContents.navigationHistory;
+            const urls = [];
+            for (let k = 0; k < nav.length(); k++)
+                urls.push(nav.getEntryAtIndex(k)?.url || '');
+            return { at: nav.getActiveIndex(), urls };
+        };
+        const snapNative = () => {
+            try { nativeSnap = nativeUrls(); }
+            catch (e) { nativeSnap = null; log.debug('tabs', 'native history snapshot', e); }
+        };
+        /* If this commit is the page moving through its own history, move the
+           tab's tree (the only Back/Forward the app uses, CLAUDE.md invariant 9)
+           the same number of steps instead of recording a new visit. Without
+           this, history.back() appended the previous page as a fresh entry, so
+           the toolbar's Back then went FORWARD to the page just left. Returns
+           true when it moved the tree. */
+        const followNativeStep = (url) => {
+            const before = nativeSnap;
+            if (!before)
+                return false;
+            let now;
+            try { now = nativeUrls(); }
+            catch (e) { log.debug('tabs', 'native history step', e); return false; }
+            // A traversal keeps the list as it was and only moves the cursor; a
+            // new navigation drops the forward entries and adds itself.
+            const delta = now.at - before.at;
+            if (!delta || now.urls.length !== before.urls.length
+                || now.urls.some((u, k) => k !== now.at && u !== before.urls[k]))
+                return false;
+            const h = this.navigationHistory.getHistory(tabIndex);
+            if (!h || !Array.isArray(h.entries))
+                return false;
+            const pos = h.entries.findIndex(e => e.index === h.currentIndex);
+            const target = h.entries[pos + delta];
+            if (pos < 0 || !target || target.data !== url)
+                return false;
+            this.navigationHistory.goToIndex(tabIndex, target.index);
+            return true;
+        };
+        const recordStep = (url) => {
+            this.tabUrls.set(tabIndex, url);
+            lastAddedUrl = url;
+            this.sendTabUpdate(tabIndex, tab, url);
+            this.sendNavigationUpdate(tabIndex);
+            this.saveStateDebounced();
+        };
         if (this.shortcuts) {
             this.shortcuts.onTabCreated(tab);
         }
@@ -87,6 +139,7 @@ module.exports = {
                 }
                 catch (e) { log.debug('tabs', 'blockDangerousNav', e); }
                 isNavigatingProgrammatically = false;
+                snapNative();
                 return;
             }
             // Any other navigation exits reader mode for this tab.
@@ -107,7 +160,10 @@ module.exports = {
                 this.sendNavigationUpdate(tabIndex);
                 return;
             }
-            if (!url.startsWith('file://') && !isNavigatingProgrammatically) {
+            if (!url.startsWith('file://') && !isNavigatingProgrammatically && followNativeStep(url)) {
+                recordStep(url);
+            }
+            else if (!url.startsWith('file://') && !isNavigatingProgrammatically) {
                 if (lastAddedUrl !== url) {
                     this.tabUrls.set(tabIndex, url);
                     this.navigationHistory.addEntry(tabIndex, url);
@@ -144,6 +200,7 @@ module.exports = {
                 focusMode.applyToTab(windowData, tab.webContents, url);
             this.applyYouTubeSpaceFix(tab, url);
             isNavigatingProgrammatically = false;
+            snapNative();
         });
         // window.open / target="_blank" handling.
         //
@@ -261,7 +318,11 @@ module.exports = {
                 this.loadUrl(newIndex, url);
             });
         });
-        tab.webContents.on('did-navigate-in-page', (event, url) => {
+        tab.webContents.on('did-navigate-in-page', (event, url, isMainFrame) => {
+            // An iframe's own hash/pushState change is not this tab moving: it
+            // put the embedded frame's address in the tab's history and bar.
+            if (isMainFrame === false)
+                return;
             if (url === 'about:blank') {
                 // The blank tab. It carries the 'newtab' token so the omnibox
                 // stays empty and the tab still reads as blank.
@@ -271,11 +332,22 @@ module.exports = {
                 this.sendNavigationUpdate(tabIndex);
                 return;
             }
-            if (!url.startsWith('file://') && !isNavigatingProgrammatically) {
+            if (!url.startsWith('file://') && !isNavigatingProgrammatically && followNativeStep(url)) {
+                recordStep(url);
+            }
+            else if (!url.startsWith('file://') && !isNavigatingProgrammatically) {
                 const currentUrl = this.tabUrls.get(tabIndex);
                 if (currentUrl !== url && lastAddedUrl !== url) {
                     this.tabUrls.set(tabIndex, url);
-                    this.navigationHistory.addEntry(tabIndex, url);
+                    // Mirror what the page did: replaceState (same slot) swaps
+                    // the current entry, pushState / a #link adds its own step.
+                    let now = null;
+                    try { now = nativeUrls(); }
+                    catch (e) { log.debug('tabs', 'in-page native history', e); }
+                    if (now && nativeSnap && now.at === nativeSnap.at && now.urls.length === nativeSnap.urls.length)
+                        this.navigationHistory.replaceCurrentEntry(tabIndex, url);
+                    else
+                        this.navigationHistory.addEntry(tabIndex, url, { exact: !!(now && nativeSnap && now.at > nativeSnap.at) });
                     lastAddedUrl = url;
                     this.sendTabUpdate(tabIndex, tab, url);
                     this.sendNavigationUpdate(tabIndex);
@@ -305,6 +377,7 @@ module.exports = {
             // history navigation (SPA hash/pushState routes) fires only this
             // event, and a stuck flag would suppress the NEXT real entry.
             isNavigatingProgrammatically = false;
+            snapNative();
         });
         tab.isNavigatingProgrammatically = () => isNavigatingProgrammatically;
         tab.setNavigatingProgrammatically = (value) => { isNavigatingProgrammatically = value; };

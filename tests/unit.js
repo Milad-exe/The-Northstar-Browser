@@ -2044,6 +2044,24 @@ test('the install prompt names what an extension can reach', () => {
     assert.deepStrictEqual(narrow, ['Read and change your data on mail.example.com']);
 });
 
+// ── Tab history: pages a web app pushes are their own steps ─────────────────
+test('tab history: a #fragment push is its own entry; a redirect-like change still folds', () => {
+    const h = new NavigationHistory();
+    h.initializeTab(1, 'newtab');
+    h.addEntry(1, 'https://app.example/p');
+    h.addEntry(1, 'https://app.example/p#a', { exact: true });
+    h.addEntry(1, 'https://app.example/p#b', { exact: true });
+    assert.deepStrictEqual(h.getHistory(1).entries.map(e => e.data),
+        ['newtab', 'https://app.example/p', 'https://app.example/p#a', 'https://app.example/p#b']);
+    assert.strictEqual(h.goBack(1), 'https://app.example/p#a');
+    // Without `exact` (a full navigation), the old folding still applies.
+    const g = new NavigationHistory();
+    g.initializeTab(2, 'newtab');
+    g.addEntry(2, 'https://site.example/');
+    g.addEntry(2, 'https://site.example/index.html');
+    assert.strictEqual(g.getHistory(2).entries.length, 2);
+});
+
 // ── Extension worker guard ───────────────────────────────────────────────────
 test('extension events: a running worker is messaged, starts coalesce, nothing after quit', async () => {
     const appHandlers = {};
