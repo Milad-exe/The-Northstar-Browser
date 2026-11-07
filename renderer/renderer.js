@@ -808,6 +808,15 @@
                 }, 400);
             });
             searchBar.addEventListener('keydown', onSearchKeyDown);
+            // "Paste and go / search" from the address bar's right-click menu:
+            // the same commit Enter makes, with the clipboard's text.
+            window.electronAPI?.onPasteAndGo?.((text) => {
+                if (!text) return;
+                searchBar.value = text;
+                hideSuggestions();
+                commitNavigation(text);
+                searchBar.blur();
+            });
             // Moving the caret invalidates a completion that was drawn for the end
             // of the text.
             searchBar.addEventListener('mouseup', () => setTimeout(clearGhost, 0));
@@ -2276,6 +2285,7 @@
                         if (currentTabUrl) window.browserBookmarks.add(currentTabUrl, title);
                     }, '', { accelerator: 'CmdOrCtrl+D' }],
                     ['Reopen closed tab', () => window.tabsUI.reopenClosed(), '', { accelerator: 'CmdOrCtrl+Shift+T' }],
+                    ['Bookmark all tabs', () => window.browserBookmarks.addAllTabs?.(), '', { accelerator: 'CmdOrCtrl+Shift+D' }],
                     ['sep'],
                     /* The sidebar you right-clicked belongs to a space, so this
                        edits THAT space's theme — same as the space menu. Passing
@@ -3347,15 +3357,8 @@
                     [T('chrome.newTab', 'New tab'), () => window.tab.newPage(), '', { accelerator: 'CmdOrCtrl+T', glyph: 'plus' }],
                     ['sep'],
                     ['Reload', () => window.tab.reload(idx), '', { accelerator: 'CmdOrCtrl+R', glyph: 'reload' }],
-                    ['Duplicate', async () => {
-                        const url = await tabUrl();
-                        const ni = await window.tab.add();
-                        if (typeof ni !== 'number') return;
-                        // tabUrls holds TOKENS for internal pages, which are not
-                        // loadable URLs; northstarUrlFor maps them.
-                        const target = northstarUrlFor(url);
-                        if (target) window.tab.loadUrl(ni, target);
-                    }, '', { accelerator: 'CmdOrCtrl+Shift+K', glyph: 'duplicate' }],
+                    // Right after this tab, with its history (Tabs.duplicateTab).
+                    ['Duplicate', () => window.tab.duplicate(idx), '', { accelerator: 'CmdOrCtrl+Shift+K', glyph: 'duplicate' }],
                     [isPinned ? 'Unpin' : 'Pin', () => window.tab.pin(idx), '', { accelerator: 'CmdOrCtrl+Shift+L', glyph: isPinned ? 'unpin' : 'pin' }],
                     [btn.dataset.muted ? 'Unmute tab' : 'Mute tab', () => window.tab.toggleMute(idx), '', { glyph: btn.dataset.muted ? 'unmute' : 'mute' }],
                     ['sep'],

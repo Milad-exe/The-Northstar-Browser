@@ -673,7 +673,9 @@ class WindowManager {
                 // the first one showing.
                 let first = null;
                 for (const u of options.urls) {
-                    const idx = tabs.createTab(null, first === null, false);
+                    // A private window's tabs are private too ("Open all in
+                    // new private window" on a bookmark folder).
+                    const idx = tabs.createTab(null, first === null, !!options?.private);
                     tabs.loadUrl(idx, u);
                     if (first === null) first = idx;
                 }

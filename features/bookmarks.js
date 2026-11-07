@@ -157,6 +157,18 @@ class Bookmarks {
         await this.save();
         return id;
     }
+    /** A new top-level folder holding `items` ([{ url, title }]) — "Bookmark
+     *  all tabs". Returns the folder id. */
+    async addFolderOfLinks(title, items) {
+        const bookmarks = await this.load();
+        const id = this.genId();
+        const children = (items || []).filter(i => i && i.url).map(i => ({
+            type: 'bookmark', id: this.genId(), url: i.url, title: i.title || i.url, addedAt: Date.now(),
+        }));
+        bookmarks.push({ type: 'folder', id, title: title || 'Tabs', children });
+        await this.save();
+        return id;
+    }
     async addDivider() {
         const bookmarks = await this.load();
         const id = this.genId();

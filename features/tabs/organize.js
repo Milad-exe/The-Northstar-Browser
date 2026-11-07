@@ -299,6 +299,37 @@ module.exports = {
         this.loadUrl(i, last.url);
         return i;
     },
+    /** Ctrl+Shift+D: every web tab of this space into a new bookmarks folder
+     *  on the bar, the way Chrome's "Bookmark all tabs" does. */
+    async bookmarkAllTabs() {
+        const items = [];
+        for (const i of this.tabsInWorkspace(this.profileId)) {
+            const url = this.tabUrls.get(i);
+            if (!/^https?:/i.test(url || '') || this.privateTabs.has(i))
+                continue;
+            let title = url;
+            try { title = this.tabMap.get(i)?.webContents?.getTitle() || url; }
+            catch (e) { log.debug('organize', 'bookmark all title', e); }
+            items.push({ url, title });
+        }
+        if (!items.length)
+            return null;
+        const wm = this.windowManager;
+        const store = wm?.bookmarksFor(this.profileId || '1');
+        if (!store)
+            return null;
+        const name = 'Tabs ' + new Date().toLocaleDateString();
+        const id = await store.addFolderOfLinks(name, items);
+        // Every surface redraws its bookmarks (the bar, the manager, panels);
+        // extensions hear chrome.bookmarks events from the same diff.
+        for (const wc of require('electron').webContents.getAllWebContents()) {
+            try { wc.send('bookmarks-changed'); }
+            catch (e) { log.debug('organize', 'bookmark all broadcast', e); }
+        }
+        try { require('../ext-events').bookmarksChanged(); }
+        catch (e) { log.debug('organize', 'bookmark all ext events', e); }
+        return id;
+    },
     toggleCompact() {
         this.sidebarCompact = !this.sidebarCompact;
         this.resizeAllTabs();

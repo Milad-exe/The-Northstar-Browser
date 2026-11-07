@@ -34,6 +34,7 @@ module.exports = {
         }
         tab.webContents.executeJavaScript(READERABLE_JS, true)
             .then((ok) => {
+            tab._readerable = !!ok; // the page menu offers reader view from this
             try {
                 this.mainWindow.webContents.send('reader-state', { index, active: false, available: !!ok });
             }

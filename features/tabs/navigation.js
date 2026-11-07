@@ -124,6 +124,7 @@ module.exports = {
         const pos = h.entries.findIndex(e => e.index === h.currentIndex);
         const at = which === 'back' ? pos - 1
             : which === 'forward' ? pos + 1
+                : which === 'current' ? pos
                 : h.entries.findIndex(e => e.index === Number(which));
         const target = h.entries[at];
         // The blank-tab root is not a place (canGoBack refuses it too).
@@ -145,6 +146,17 @@ module.exports = {
             this.sendTabUpdate(idx, tab, target.data, target.title);
         }
         this.sendNavigationUpdate(idx);
+        return idx;
+    },
+    /**
+     * Duplicate a tab the way other browsers do: right after it, with its
+     * Back/Forward history, and shown. It used to be a fresh tab at the end of
+     * the strip with only the current address.
+     */
+    duplicateTab(index) {
+        const idx = this.openHistoryInNewTab(index, 'current');
+        if (idx != null)
+            this.showTab(idx);
         return idx;
     },
     // Jump straight to a history entry (back/forward long-press dropdown)

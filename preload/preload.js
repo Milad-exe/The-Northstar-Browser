@@ -247,6 +247,7 @@ exposeInternal("tab", {
     showNavHistoryMenu: (index, x, y) => ipcRenderer.invoke("show-nav-history-menu", index, x, y),
     // which: 'back' | 'forward' | a history index → that entry in a new tab.
     openHistoryInNewTab: (index, which) => ipcRenderer.invoke('tab:openHistoryInNewTab', index, which),
+    duplicate: (index) => ipcRenderer.invoke('tab:duplicate', index),
     reload: (index) => ipcRenderer.invoke("reload", index),
     stop: (index) => ipcRenderer.invoke("stopTab", index),
     getTabUrl: (index) => ipcRenderer.invoke("getTabUrl", index),
@@ -535,6 +536,8 @@ exposeInternal("electronAPI", {
     navigateActiveTab: (url) => ipcRenderer.invoke('navigate-active-tab', url),
     activeTabGoBack: () => ipcRenderer.invoke('active-tab-go-back'),
     onToggleBookmarkBar: (handler) => ipcRenderer.on('toggle-bookmark-bar', () => handler()),
+    // The address-bar menu's "Paste and go": main hands the clipboard text over.
+    onPasteAndGo: (handler) => ipcRenderer.on('omnibox:paste-and-go', (_e, text) => handler(String(text || ''))),
     onBookmarkPromptClosed: (handler) => ipcRenderer.on('bookmark-prompt-closed', () => handler()),
     onBookmarkAddPrompt: (handler) => ipcRenderer.on('bookmark-add-from-bar', () => handler()),
     onBookmarkEditPrompt: (handler) => ipcRenderer.on('bookmark-edit-prompt', (_e, d) => handler(d)),
@@ -573,6 +576,7 @@ exposeInternal('browserBookmarks', {
     reorderInFolder: (folderId, ids) => ipcRenderer.invoke('bookmarks-reorder-in-folder', folderId, ids),
     addFolder: (title) => ipcRenderer.invoke('bookmarks-add-folder', title),
     addDivider: () => ipcRenderer.invoke('bookmarks-add-divider'),
+    addAllTabs: () => ipcRenderer.invoke('bookmarks-add-all-tabs'),
     moveIntoFolder: (itemId, folderId, beforeId) => ipcRenderer.invoke('bookmarks-move-into-folder', itemId, folderId, beforeId ?? null),
     moveOutOfFolder: (itemId, folderId, beforeId) => ipcRenderer.invoke('bookmarks-move-out-of-folder', itemId, folderId, beforeId),
     updateById: (id, updates) => ipcRenderer.invoke('bookmarks-update-by-id', id, updates),

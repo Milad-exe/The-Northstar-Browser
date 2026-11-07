@@ -48,6 +48,11 @@ function register(ipcMain, { wm, webContents }) {
         return bmFor(_e).has(url, activeProfileTag(_e.sender));
     });
     // ── Write ─────────────────────────────────────────────────────────────────
+    ipcMain.handle('bookmarks-add-all-tabs', async (_e) => {
+        const wd = wm.getWindowByWebContents(_e.sender);
+        try { return await wd?.tabs?.bookmarkAllTabs(); }
+        catch (e) { log.warn('bookmarks', 'bookmark all tabs failed', e); return null; }
+    });
     ipcMain.handle('bookmarks-add', async (_e, url, title) => {
         const added = await bmFor(_e).add(sanitizeUrl(url), title, activeProfileTag(_e.sender));
         broadcast();
@@ -201,12 +206,14 @@ function register(ipcMain, { wm, webContents }) {
             return;
         const sourceTabIndex = getSenderTabIndex(wd, _e.sender);
         const template = [
-            { label: 'Open in New Tab', click: () => { const i = wd.tabs.createTab(sourceTabIndex, true); wd.tabs.loadUrl(i, url); } },
-            { label: 'Open in Background Tab', click: () => { const i = wd.tabs.createTab(sourceTabIndex, false); wd.tabs.loadUrl(i, url); } },
+            { label: 'Open in new tab', click: () => { const i = wd.tabs.createTab(sourceTabIndex, true); wd.tabs.loadUrl(i, url); } },
+            { label: 'Open in background tab', click: () => { const i = wd.tabs.createTab(sourceTabIndex, false); wd.tabs.loadUrl(i, url); } },
+            { label: 'Open in new window', click: () => { try { wm.createWindow(1000, 700, { url }); } catch (e) { log.warn('bookmarks', 'open in window failed', e); } } },
+            { label: 'Open in new private window', click: () => { try { wm.createWindow(1000, 700, { url, private: true }); } catch (e) { log.warn('bookmarks', 'open in window failed', e); } } },
             { type: 'separator' },
-            { label: 'Copy URL', click: () => { require('electron').clipboard.writeText(url); } },
+            { label: 'Copy link address', click: () => { require('electron').clipboard.writeText(url); } },
             { type: 'separator' },
-            { label: 'Remove Bookmark', click: async () => { await bmFor(_e).remove(url); broadcast(); } },
+            { label: 'Delete', click: async () => { await bmFor(_e).remove(url); broadcast(); } },
         ];
         // The app's own menu, like every other right-click; native only if it
         // cannot be shown.
@@ -220,25 +227,45 @@ function showBookmarkBarContextMenu(wd, item, wm, webContents) {
     const broadcast = () => broadcastBookmarksChanged(webContents);
     const addItems = [
         { type: 'separator' },
-        { label: 'Add Bookmark', click: () => wd.window.webContents.send('bookmark-add-from-bar') },
-        { label: 'Add Folder', click: () => wd.window.webContents.send('bookmark-new-folder-prompt') },
-        { label: 'Add Divider', click: async () => { await wm.bookmarksFor(wd.profileId || "1").addDivider(); broadcast(); } },
+        { label: 'Add bookmark…', click: () => wd.window.webContents.send('bookmark-add-from-bar') },
+        { label: 'Add folder…', click: () => wd.window.webContents.send('bookmark-new-folder-prompt') },
+        { label: 'Add divider', click: async () => { await wm.bookmarksFor(wd.profileId || "1").addDivider(); broadcast(); } },
+        { type: 'separator' },
+        { label: 'Open bookmarks manager', accelerator: 'CmdOrCtrl+Shift+O', click: () => wd.tabs.openInternalPage('bookmarks') },
     ];
+    // A Northstar window — normal or private — showing these addresses.
+    const openInWindow = (urls, makePrivate) => {
+        const list = (urls || []).filter(Boolean);
+        if (!list.length)
+            return;
+        try { wm.createWindow(1000, 700, list.length === 1 ? { url: list[0], private: !!makePrivate } : { urls: list, private: !!makePrivate }); }
+        catch (e) { log.warn('bookmarks', 'open in window failed', e); }
+    };
+    const folderUrls = async () => {
+        const all = await wm.bookmarksFor(wd.profileId || "1").getAll();
+        const find = (list) => { for (const b of list || []) { if (b.id === id) return b; const f = find(b.children); if (f) return f; } return null; };
+        return (find(all)?.children || []).filter(c => c.type === 'bookmark').map(c => c.url);
+    };
     let template = [];
     if (type === 'bookmark') {
         template = [
             { label: 'Open', click: () => wd.tabs.loadUrl(wd.tabs.activeTabIndex, url) },
-            { label: 'Open in New Tab', click: () => { const i = wd.tabs.createTab(wd.tabs.activeTabIndex, true); wd.tabs.loadUrl(i, url); } },
-            { label: 'Open in Background', click: () => { const i = wd.tabs.createTab(wd.tabs.activeTabIndex, false); wd.tabs.loadUrl(i, url); } },
+            { label: 'Open in new tab', click: () => { const i = wd.tabs.createTab(wd.tabs.activeTabIndex, true); wd.tabs.loadUrl(i, url); } },
+            { label: 'Open in background tab', click: () => { const i = wd.tabs.createTab(wd.tabs.activeTabIndex, false); wd.tabs.loadUrl(i, url); } },
+            { label: 'Open in new window', click: () => openInWindow([url], false) },
+            { label: 'Open in new private window', click: () => openInWindow([url], true) },
             { type: 'separator' },
-            { label: 'Edit', click: () => wd.window.webContents.send('bookmark-edit-prompt', { id, url, title }) },
+            { label: 'Edit…', click: () => wd.window.webContents.send('bookmark-edit-prompt', { id, url, title }) },
+            { label: 'Copy link address', click: () => require('electron').clipboard.writeText(url || '') },
             { label: 'Delete', click: async () => { await wm.bookmarksFor(wd.profileId || "1").removeById(id); broadcast(); } },
             ...addItems,
         ];
     }
     else if (type === 'folder') {
         template = [
-            { label: 'Open All in New Tabs', click: async () => {
+            { label: 'Open all in new window', click: async () => openInWindow(await folderUrls(), false) },
+            { label: 'Open all in new private window', click: async () => openInWindow(await folderUrls(), true) },
+            { label: 'Open all in new tabs', click: async () => {
                     const all = await wm.bookmarksFor(wd.profileId || "1").getAll();
                     const folder = all.find(b => b.id === id);
                     if (folder?.children) {
@@ -249,24 +276,25 @@ function showBookmarkBarContextMenu(wd, item, wm, webContents) {
                     }
                 } },
             { type: 'separator' },
-            { label: 'Rename', click: () => wd.window.webContents.send('bookmark-folder-rename', { id, title }) },
+            { label: 'Rename…', click: () => wd.window.webContents.send('bookmark-folder-rename', { id, title }) },
             { label: 'Delete', click: async () => { await wm.bookmarksFor(wd.profileId || "1").removeById(id); broadcast(); } },
             ...addItems,
         ];
     }
     else if (type === 'divider') {
         template = [
-            { label: 'Delete Divider', click: async () => { await wm.bookmarksFor(wd.profileId || "1").removeById(id); broadcast(); } },
+            { label: 'Delete divider', click: async () => { await wm.bookmarksFor(wd.profileId || "1").removeById(id); broadcast(); } },
         ];
     }
     else {
         // bar background
         template = [
-            { label: 'Add Bookmark', click: () => wd.window.webContents.send('bookmark-add-from-bar') },
-            { label: 'Add Folder', click: () => wd.window.webContents.send('bookmark-new-folder-prompt') },
-            { label: 'Add Divider', click: async () => { await wm.bookmarksFor(wd.profileId || "1").addDivider(); broadcast(); } },
+            { label: 'Add bookmark…', click: () => wd.window.webContents.send('bookmark-add-from-bar') },
+            { label: 'Add folder…', click: () => wd.window.webContents.send('bookmark-new-folder-prompt') },
+            { label: 'Add divider', click: async () => { await wm.bookmarksFor(wd.profileId || "1").addDivider(); broadcast(); } },
             { type: 'separator' },
-            { label: 'Show Bookmark Bar', type: 'checkbox', checked: !!barVisible,
+            { label: 'Open bookmarks manager', accelerator: 'CmdOrCtrl+Shift+O', click: () => wd.tabs.openInternalPage('bookmarks') },
+            { label: 'Show bookmarks bar', type: 'checkbox', checked: !!barVisible, accelerator: 'CmdOrCtrl+Shift+B',
                 click: () => wd.window.webContents.send('toggle-bookmark-bar') },
         ];
     }

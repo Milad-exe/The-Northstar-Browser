@@ -274,6 +274,19 @@ module.exports = {
                     },
                 };
             }
+            // Shift+click: a new window, as every browser does it.
+            if (disposition === 'new-window' && this.windowManager) {
+                setImmediate(() => {
+                    try { this.windowManager.createWindow(1000, 700, { url, private: this.privateTabs.has(tabIndex) || !!this.isPrivateWindow }); }
+                    catch (e) { log.warn('tabs', 'shift-click window failed', e); }
+                });
+                return { action: 'deny' };
+            }
+            // A plain click on a target=_blank link, or Ctrl+Shift+click, opens
+            // the tab IN FRONT ('foreground-tab'); Ctrl+click and middle-click
+            // keep it behind ('background-tab'). Every tab used to open behind,
+            // so a target=_blank link looked as if it had done nothing.
+            const foreground = disposition === 'foreground-tab';
             setImmediate(async () => {
                 const isPriv = this.privateTabs.has(tabIndex);
                 const srcContainer = this.tabContainers.get(tabIndex) || null;
@@ -288,12 +301,12 @@ module.exports = {
                         this.openInContainer(url, containers.instanceForHost(url, this.profileId).id, tabIndex);
                         return;
                     }
-                    const ni = this.createTab(tabIndex, false, isPriv);
+                    const ni = this.createTab(tabIndex, foreground, isPriv);
                     this.loadUrl(ni, url);
                     return;
                 }
                 // 'keep' carries the opener's instance; 'default' → default session.
-                const newIndex = this.createTab(tabIndex, false, isPriv, srcContainer);
+                const newIndex = this.createTab(tabIndex, foreground, isPriv, srcContainer);
                 this.loadUrl(newIndex, url);
             });
             return { action: 'deny' };

@@ -108,7 +108,7 @@ function template() {
             { label: 'Close Tab', ...acc('CmdOrCtrl+W'), click: onTabs((wd, t) => t.removeTab(t.activeTabIndex)) },
             { type: 'separator' },
             { label: 'Print…', ...acc('CmdOrCtrl+P'), click: () => activeTabWc()?.print() },
-            ...(mac ? [] : [{ type: 'separator' }, { label: 'Quit', accelerator: 'CmdOrCtrl+Q', click: () => app.quit() }]),
+            ...(mac ? [] : [{ type: 'separator' }, { label: 'Exit', click: () => app.quit() }]),
         ],
     };
     // Edit: on macOS the editMenu role gives the clipboard its key-equivalents

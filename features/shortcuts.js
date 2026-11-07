@@ -231,6 +231,9 @@ class Shortcuts {
         });
         // Duplicate active tab (opens in background)
         this.registerShortcut('CmdOrCtrl+Shift+K', () => {
+            // Same as the tab menu's Duplicate: after this tab, with history.
+            if (this.tabManager.duplicateTab?.(this.tabManager.activeTabIndex) != null)
+                return;
             const url = this.tabManager.tabUrls.get(this.tabManager.activeTabIndex);
             if (url && url !== 'newtab' && !url.startsWith('file://')) {
                 let title = url;
@@ -481,6 +484,10 @@ class Shortcuts {
         this.registerShortcut('CmdOrCtrl+D', () => {
             this.mainWindow.webContents.send('bookmark-add-from-bar');
         });
+        // Bookmark all tabs — this space's web tabs into a new folder.
+        this.registerShortcut('CmdOrCtrl+Shift+D', () => {
+            this.tabManager?.bookmarkAllTabs?.().catch?.((e) => log.warn('shortcuts', 'bookmark all tabs', e));
+        });
         // Toggle bookmark bar
         this.registerShortcut('CmdOrCtrl+Shift+B', () => {
             this.mainWindow.webContents.send('toggle-bookmark-bar');
@@ -521,6 +528,11 @@ class Shortcuts {
             if (this.tabManager)
                 this.tabManager.toggleReader(this.tabManager.activeTabIndex);
         });
+        // …and Alt+Shift+R, the key Chrome gives its reading mode.
+        this.registerShortcut('Alt+Shift+R', () => {
+            if (this.tabManager)
+                this.tabManager.toggleReader(this.tabManager.activeTabIndex);
+        });
         // Picture-in-Picture — Cmd/Ctrl+Alt+P
         this.registerShortcut('CmdOrCtrl+Alt+P', () => {
             if (this.tabManager)
@@ -536,6 +548,20 @@ class Shortcuts {
                 try { require('./menu-bar').toggle(this.getWindowData()); }
                 catch (e) { log.debug('shortcuts', 'F10 menu bar', e); }
             });
+        }
+        // Alt+F / Alt+E open the app menu, as they open Chrome's. (A bare Alt
+        // tap still opens the menu bar; these are chords, so they don't.)
+        if (process.platform !== 'darwin') {
+            const openAppMenu = () => {
+                try {
+                    this.mainWindow.webContents.focus();
+                    this.mainWindow.webContents.executeJavaScript('document.getElementById("menu-btn")?.click()')
+                        .catch((e) => log.debug('shortcuts', 'app menu', e));
+                }
+                catch (e) { log.debug('shortcuts', 'app menu', e); }
+            };
+            this.registerShortcut('Alt+F', openAppMenu);
+            this.registerShortcut('Alt+E', openAppMenu);
         }
         // Minimize
         this.registerShortcut('CmdOrCtrl+M', () => {
@@ -597,7 +623,11 @@ class Shortcuts {
     }
     // ── Application shortcuts ──────────────────────────────────────────────────
     registerApplicationShortcuts() {
-        // Quit
+        // Quit — macOS only (Cmd+Q is the platform's quit). On Windows/Linux
+        // Ctrl+Q is a slip away from Ctrl+W/Tab/A and threw away every window;
+        // Chrome there binds no quit key either. Both keys below are mac-only.
+        if (process.platform !== 'darwin')
+            return;
         this.registerShortcut('CmdOrCtrl+Q', () => {
             if (this.windowManager) {
                 this.windowManager.getAllWindows().forEach(wd => {

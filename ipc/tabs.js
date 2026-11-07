@@ -917,6 +917,10 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
         if (!wd?.tabs) return null;
         return wd.tabs.openHistoryInNewTab(Number(index), which === 'back' || which === 'forward' ? which : Number(which));
     });
+    ipcMain.handle('tab:duplicate', (_e, index) => {
+        const wd = wm.getWindowByWebContents(_e.sender);
+        return wd?.tabs ? wd.tabs.duplicateTab(Number(index)) : null;
+    });
     ipcMain.handle('show-nav-history-menu', (_e, index, x, y) => {
         const wd = wm.getWindowByWebContents(_e.sender);
         if (!wd?.tabs)

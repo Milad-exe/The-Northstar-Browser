@@ -31,6 +31,32 @@ class WindowContextMenu {
             click: () => { try { wc[role](); } catch (e) { log.debug('window-context-menu', role, e); } },
         };
     }
+    /* "Paste and go to <address>" / "Paste and search for “text”": put the
+       clipboard in the address bar and submit it, as the omnibox's own Enter
+       would. Absent when the clipboard has no text. */
+    pasteAndGo() {
+        let text = '';
+        try { text = require('electron').clipboard.readText().trim(); }
+        catch (e) { log.debug('window-context-menu', 'clipboard', e); }
+        if (!text)
+            return [];
+        const oneLine = text.replace(/\s+/g, ' ');
+        // A scheme, a dotted host name, an IPv4 address or host:port.
+        const looksLikeUrl = !/\s/.test(text) && (/^[a-z][a-z0-9+.-]*:\/\//i.test(text)
+            || /^[^\s/]+\.[a-z]{2,}(\/|$|:)/i.test(text)
+            || /^\d{1,3}(\.\d{1,3}){3}(:\d+)?(\/|$)/.test(text)
+            || /^[a-z0-9-]+:\d+(\/|$)/i.test(text)
+            || /^localhost(:|\/|$)/i.test(text));
+        const show = oneLine.length > 40 ? oneLine.slice(0, 40) + '…' : oneLine;
+        const wc = this.window.webContents;
+        return [{
+            label: looksLikeUrl ? `Paste and go to ${show}` : `Paste and search for “${show}”`,
+            click: () => {
+                try { wc.send('omnibox:paste-and-go', oneLine); }
+                catch (e) { log.debug('window-context-menu', 'paste and go', e); }
+            },
+        }];
+    }
     getWindowData() {
         return this.windowManager.getWindowByWebContents(this.window.webContents);
     }
@@ -66,7 +92,17 @@ class WindowContextMenu {
             return;
         this.sep();
         const f = params.editFlags || {};
-        this.contextTemplate.push(this.edit('Undo', 'undo', f.canUndo), this.edit('Redo', 'redo', f.canRedo), { type: 'separator' }, this.edit('Cut', 'cut', f.canCut), this.edit('Copy', 'copy', f.canCopy), this.edit('Paste', 'paste', f.canPaste), this.edit('Select all', 'selectAll', true));
+        const omnibox = params.targetElementId === 'searchBar';
+        this.contextTemplate.push(this.edit('Undo', 'undo', f.canUndo), this.edit('Redo', 'redo', f.canRedo), { type: 'separator' }, this.edit('Cut', 'cut', f.canCut), this.edit('Copy', 'copy', f.canCopy), this.edit('Paste', 'paste', f.canPaste));
+        if (omnibox)
+            this.contextTemplate.push(...this.pasteAndGo(), this.edit('Delete', 'delete', f.canDelete));
+        this.contextTemplate.push({ type: 'separator' }, this.edit('Select all', 'selectAll', true));
+        if (omnibox) {
+            this.contextTemplate.push({ type: 'separator' }, {
+                label: 'Manage search engines',
+                click: () => { try { this.getWindowData()?.tabs?.openInternalPage('settings', 'general'); } catch (e) { log.debug('window-context-menu', 'search engines', e); } },
+            });
+        }
     }
     addTabItems(params) {
         if (!params.isTabButton)

@@ -2,6 +2,19 @@ const log = require('./log');
 const { clipboard, shell } = require('electron');
 const { sanitizeUrl, isSafeExternal } = require('./url-security');
 const downloadManager = require('./download-manager');
+/* A text-fragment link (#:~:text=) to `text` on `url`: start,end words for a
+   long selection, the whole of a short one. */
+function highlightLink(url, text) {
+    const enc = (s) => encodeURIComponent(s).replace(/-/g, '%2D');
+    const words = String(text || '').trim().split(/\s+/).filter(Boolean);
+    const base = String(url).split('#')[0];
+    if (!words.length)
+        return base;
+    const frag = words.length > 8
+        ? enc(words.slice(0, 4).join(' ')) + ',' + enc(words.slice(-4).join(' '))
+        : enc(words.join(' '));
+    return `${base}#:~:text=${frag}`;
+}
 class TabContextMenu {
     tab; // the TabView the menu was opened on
     tabManager; // Tabs instance
@@ -110,7 +123,7 @@ class TabContextMenu {
                 label: 'Print…',
                 accelerator: 'CmdOrCtrl+P',
                 click: () => wc.print(),
-            }, {
+            }, ...this.readerItem(), {
                 label: 'View page source',
                 accelerator: 'CmdOrCtrl+U',
                 click: () => this.openInNewTab(`view-source:${currentUrl}`),
@@ -121,6 +134,21 @@ class TabContextMenu {
                 click: () => clipboard.writeText(currentUrl),
             });
         }
+    }
+    /* Reader view, offered when the page looks like an article (the same test
+       that lights the toolbar's reader button) or is already in it. */
+    readerItem() {
+        const i = this.tabIndex();
+        if (i === null)
+            return [];
+        const on = this.tabManager.readerMode?.has(i);
+        if (!on && !this.tab._readerable)
+            return [];
+        return [{
+            label: on ? 'Exit reader view' : 'Open in reader view',
+            accelerator: 'CmdOrCtrl+Alt+R',
+            click: () => { try { this.tabManager.toggleReader(i); } catch (e) { log.debug('tab-context-menu', 'reader', e); } },
+        }];
     }
     /* The tab's index in its Tabs, or null (a glance view is not a tab). */
     tabIndex() {
@@ -185,6 +213,14 @@ class TabContextMenu {
         // it here too gave the menu two Copy rows.
         if (!params.isEditable)
             this.contextTemplate.push(this.edit('Copy', 'copy', 'CmdOrCtrl+C', params.editFlags.canCopy));
+        // A link that scrolls to and highlights this text (a text fragment).
+        const pageUrl = this.tab.webContents.getURL?.() || '';
+        if (!params.isEditable && /^https?:/i.test(pageUrl)) {
+            this.contextTemplate.push({
+                label: 'Copy link to highlight',
+                click: () => clipboard.writeText(highlightLink(pageUrl, params.selectionText)),
+            });
+        }
         this.contextTemplate.push({
             label: `Search ${engine.name} for “${truncated}”`,
             click: () => {
@@ -224,6 +260,19 @@ class TabContextMenu {
         this.sep();
         const redo = process.platform === 'darwin' ? 'CmdOrCtrl+Shift+Z' : 'CmdOrCtrl+Y';
         const f = params.editFlags || {};
+        // The system emoji picker, into this field. The menu took focus, so the
+        // page gets it back first or the picker types into nothing.
+        if (process.platform !== 'linux') {
+            this.contextTemplate.push({
+                label: 'Emoji',
+                accelerator: process.platform === 'darwin' ? 'Ctrl+Cmd+Space' : 'Super+.',
+                click: () => {
+                    try { this.tab.webContents.focus(); }
+                    catch (e) { log.debug('tab-context-menu', 'emoji focus', e); }
+                    setTimeout(() => { try { require('electron').app.showEmojiPanel(); } catch (e) { log.debug('tab-context-menu', 'emoji', e); } }, 60);
+                },
+            }, { type: 'separator' });
+        }
         this.contextTemplate.push(this.edit('Undo', 'undo', 'CmdOrCtrl+Z', f.canUndo), this.edit('Redo', 'redo', redo, f.canRedo), { type: 'separator' }, this.edit('Cut', 'cut', 'CmdOrCtrl+X', f.canCut), this.edit('Copy', 'copy', 'CmdOrCtrl+C', f.canCopy), this.edit('Paste', 'paste', 'CmdOrCtrl+V', f.canPaste), {
             // The clipboard's text without its formatting (Ctrl+Shift+V).
             label: 'Paste as plain text',
@@ -327,6 +376,53 @@ class TabContextMenu {
             click: () => this.openInNewTab(`https://lens.google.com/uploadbyurl?url=${encodeURIComponent(params.srcURL)}`),
         });
     }
+    /* The video's current frame as an image. Drawn through a canvas in the
+       page; a cross-origin video taints that canvas, so then the frame is
+       grabbed from the screen instead (what you see, at screen resolution). */
+    async videoFrame(params) {
+        const { nativeImage } = require('electron');
+        const wc = this.tab.webContents;
+        const at = JSON.stringify({ x: params.x || 0, y: params.y || 0, src: params.srcURL || '' });
+        let res = null;
+        try {
+            res = await wc.executeJavaScript(`(() => {
+                const a = ${at};
+                const hit = document.elementFromPoint(a.x, a.y);
+                let v = hit && hit.closest && hit.closest('video');
+                if (!v) v = Array.from(document.querySelectorAll('video')).find(x => x.currentSrc === a.src || x.src === a.src);
+                if (!v) return null;
+                const r = v.getBoundingClientRect();
+                const rect = { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) };
+                try {
+                    const c = document.createElement('canvas');
+                    c.width = v.videoWidth; c.height = v.videoHeight;
+                    c.getContext('2d').drawImage(v, 0, 0);
+                    return { data: c.toDataURL('image/png'), rect };
+                } catch (e) { return { data: null, rect }; }
+            })()`, true);
+        }
+        catch (e) { log.debug('tab-context-menu', 'video frame', e); }
+        if (res?.data && res.data.length > 30)
+            return nativeImage.createFromDataURL(res.data);
+        if (res?.rect && res.rect.width > 0 && res.rect.height > 0) {
+            try { return await wc.capturePage(res.rect); }
+            catch (e) { log.warn('tab-context-menu', 'video frame capture failed', e); }
+        }
+        return null;
+    }
+    async saveImage(img, name) {
+        try {
+            const { dialog, app } = require('electron');
+            const path = require('path');
+            const r = await dialog.showSaveDialog(this.tabManager.mainWindow, {
+                defaultPath: path.join(app.getPath('downloads'), name),
+                filters: [{ name: 'PNG image', extensions: ['png'] }],
+            });
+            if (!r.canceled && r.filePath)
+                await require('fs').promises.writeFile(r.filePath, img.toPNG());
+        }
+        catch (e) { log.warn('tab-context-menu', 'save frame failed', e); }
+    }
     addMediaItems(params) {
         if (!params.srcURL || (params.mediaType !== 'video' && params.mediaType !== 'audio'))
             return;
@@ -374,14 +470,20 @@ class TabContextMenu {
             type: 'checkbox',
             checked: !!flags.isControlsVisible,
             click: () => toggle('controls'),
-        }, { type: 'separator' }, {
-            label: `Open ${label} in new tab`,
+        }, { type: 'separator' }, ...(params.mediaType === 'video' ? [{
+            label: 'Copy video frame',
+            click: () => this.videoFrame(params).then((img) => { if (img) clipboard.writeImage(img); }),
+        }, {
+            label: 'Save video frame as…',
+            click: () => this.videoFrame(params).then((img) => img && this.saveImage(img, 'video-frame.png')),
+        }] : []), {
+            label: `Open ${label.toLowerCase()} in new tab`,
             click: () => this.openInNewTab(params.srcURL),
         }, {
-            label: `Save ${label} as…`,
+            label: `Save ${label.toLowerCase()} as…`,
             click: () => downloadManager.saveAs(this.tab.webContents, params.srcURL),
         }, {
-            label: 'Copy media address',
+            label: `Copy ${label.toLowerCase()} address`,
             click: () => clipboard.writeText(params.srcURL),
         });
     }
