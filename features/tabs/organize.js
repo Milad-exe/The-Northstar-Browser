@@ -262,11 +262,42 @@ module.exports = {
         this.broadcastFolders();
         this.saveStateDebounced?.();
     },
-    reopenClosedTab() {
-        const last = this.closedTabHistory.pop();
+    /**
+     * Reopen a closed tab — the newest, or `entry` from closedTabHistory — the
+     * way it was: in its old place in the strip, in its folder and container,
+     * with its Back/Forward history. It used to come back as a fresh tab at the
+     * end with only its last address, so Back did nothing.
+     */
+    reopenClosedTab(entry = null) {
+        const stack = this.closedTabHistory;
+        let last = null;
+        if (entry) {
+            const at = stack.lastIndexOf(entry);
+            if (at >= 0) stack.splice(at, 1);
+            last = entry;
+        }
+        else last = stack.pop();
         // Nothing to reopen means nothing happens — a blank tab is not a
         // reopened one.
-        if (last && last.url && last.url !== 'newtab') { const i = this.createTab(); this.loadUrl(i, last.url); }
+        if (!last || !last.url || last.url === 'newtab')
+            return null;
+        // Back after the tab it sat after, if that is still in this space's
+        // strip. createTab treats it as an opener, which also pulls the tab into
+        // that neighbour's folder — so the folder is set back to its own below.
+        const inSpace = new Set(this.tabsInWorkspace(this.profileId));
+        const anchor = last.after != null && inSpace.has(last.after) ? last.after : null;
+        const i = this.createTab(anchor, true, false, last.container || null);
+        const folder = last.folder && this.folders.some(f => f.id === last.folder) ? last.folder : null;
+        if (folder) this.tabFolders.set(i, folder);
+        else this.tabFolders.delete(i);
+        setImmediate(() => this.broadcastFolders());
+        const h = last.history;
+        if (h && Array.isArray(h.entries) && h.entries.length) {
+            this.navigationHistory.restoreTab(i, h.entries, h.at);
+            this.sendNavigationUpdate?.(i);
+        }
+        this.loadUrl(i, last.url);
+        return i;
     },
     toggleCompact() {
         this.sidebarCompact = !this.sidebarCompact;

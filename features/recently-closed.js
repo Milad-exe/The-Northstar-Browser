@@ -90,11 +90,9 @@ function reopenTab(wd, entry) {
     const stack = wd?.tabs?.closedTabHistory;
     if (!stack)
         return;
-    const at = stack.lastIndexOf(entry);
-    if (at >= 0)
-        stack.splice(at, 1);
-    const idx = wd.tabs.createTab();
-    wd.tabs.loadUrl(idx, entry.url);
+    // Tabs.reopenClosedTab takes it off the stack and restores its history,
+    // place and folder — not just its address.
+    wd.tabs.reopenClosedTab(entry);
 }
 
 function reopenWindow(wm, entry) {

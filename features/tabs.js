@@ -1647,7 +1647,26 @@ class Tabs {
                 title = tab?.webContents?.getTitle() || url;
             }
             catch (e) { log.debug('tabs', 'recordClosed', e); }
-            this.closedTabHistory.push({ url, title, closedAt: Date.now() });
+            // Enough to put it back the way it was: its Back/Forward history,
+            // the tab it sat after, its folder and container (reopenClosedTab).
+            let history = null;
+            try {
+                const h = this.navigationHistory.getHistory(index);
+                if (h && Array.isArray(h.entries) && h.entries.length) {
+                    history = {
+                        entries: h.entries.map(e => ({ url: e.data, title: e.title || null })),
+                        at: Math.max(0, h.entries.findIndex(e => e.index === h.currentIndex)),
+                    };
+                }
+            }
+            catch (e) { log.debug('tabs', 'recordClosed history', e); }
+            const pos = this.tabOrder.indexOf(index);
+            this.closedTabHistory.push({
+                url, title, closedAt: Date.now(), history,
+                after: pos > 0 ? this.tabOrder[pos - 1] : null,
+                folder: this.tabFolders.get(index) || null,
+                container: this.tabContainers?.get(index) || null,
+            });
             if (this.closedTabHistory.length > 20)
                 this.closedTabHistory.shift();
         }
