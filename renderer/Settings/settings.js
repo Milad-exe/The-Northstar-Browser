@@ -216,6 +216,24 @@
                 await save('tabSleepMinutes', v);
             });
         }
+        // ── General: Performance (graphics acceleration) ──────────────────────
+        // Applied at launch only, so a change offers a relaunch — and takes the
+        // offer back if the switch returns to what this run started with.
+        const gpuToggle = document.getElementById('gpu-toggle');
+        const gpuRelaunchRow = document.getElementById('gpu-relaunch-row');
+        if (gpuToggle) {
+            gpuToggle.checked = settings.hardwareAcceleration !== false;
+            let launchedWith = gpuToggle.checked;
+            window.userData.gpuLaunchedWith?.().then((v) => {
+                launchedWith = v !== false;
+                gpuRelaunchRow?.classList.toggle('hidden', gpuToggle.checked === launchedWith);
+            }).catch((e) => window.northstarLog?.debug('settings', 'gpu state: ' + e));
+            gpuToggle.addEventListener('change', async () => {
+                await save('hardwareAcceleration', gpuToggle.checked);
+                gpuRelaunchRow?.classList.toggle('hidden', gpuToggle.checked === launchedWith);
+            });
+            document.getElementById('gpu-relaunch')?.addEventListener('click', () => window.userData.relaunch());
+        }
         // ── General: Media (mini player) ───────────────────────────────────────
         const miniPlayerToggle = document.getElementById('miniplayer-toggle');
         if (miniPlayerToggle) {

@@ -65,7 +65,8 @@ async function main() {
         (fromExtension ? extensionErrors : uncaught).push(line);
     });
 
-    const fail = (msg) => { console.error(`✗ ${msg}`); app.kill(); process.exit(1); };
+    stopApp = () => killTree(app);
+    const fail = (msg) => { console.error(`✗ ${msg}`); stopApp(); process.exit(1); };
     const pass = (msg) => console.log(`✓ ${msg}`);
 
     // Wait for the chrome window target
@@ -108,8 +109,22 @@ async function main() {
         console.log(`  – ${extensionErrors.length} error(s) thrown inside installed extensions (not ours):\n    ${extensionErrors.slice(0, 3).join('\n    ')}`);
 
     console.log('\nSMOKE OK');
-    app.kill();
+    stopApp();
     process.exit(0);
 }
 
-main().catch((e) => { console.error('smoke failed:', e); process.exit(1); });
+/* npx runs under a shell on Windows, so app.kill() only ended the shell and
+   left Electron running — on the REAL profile, with its stdout pipe gone. Kill
+   the whole tree. */
+function killTree(child) {
+    if (!child || child.exitCode !== null)
+        return;
+    if (process.platform === 'win32') {
+        try { require('child_process').spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' }); }
+        catch (e) { console.error('could not stop the app:', e.message); }
+    }
+    else child.kill();
+}
+let stopApp = () => {};
+
+main().catch((e) => { console.error('smoke failed:', e); stopApp(); process.exit(1); });

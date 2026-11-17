@@ -61,9 +61,8 @@ function watchWindow(win, wm) {
         try {
             if (win.isDestroyed())
                 return;
-            const wd = wm.getWindowByWebContents(win.webContents);
-            if (wd && (wd.menu || wd.folderDropdown))
-                dismissMenus(wd);
+            // Every popup, not just the menus (ipc/popup-dismiss.js).
+            require('./popup-dismiss').dismissAll(wm.getWindowByWebContents(win.webContents));
         }
         catch (e) { log.debug('menu', 'window dismiss', e); }
     };
@@ -113,6 +112,7 @@ function register(ipcMain, { wm }) {
         wd.menu.setBackgroundColor('#00000000');
         try { wd.menu.setBorderRadius(PANEL_RADIUS); } catch (e) { log.debug('menu', 'open', e); }
         wd.window.contentView.addChildView(wd.menu);
+        require('./popup-dismiss').arm(wd); // watch for a press outside it
         // While it is open, the strip's drag regions stand down (as for the
         // right-click menus, ctxmenu.js): a click there is then a click the
         // chrome sees, and "click outside" closes the menu.

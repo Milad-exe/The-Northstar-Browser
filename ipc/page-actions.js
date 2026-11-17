@@ -101,6 +101,7 @@ function register(ipcMain, { wm }) {
             catch (e) { log.debug('page-actions', 'raise', e); }
             view.setVisible(true);
             wd.pageActionsOpen = true;
+            require('./popup-dismiss').arm(wd); // watch for a press outside it
             wd.pageActionsShownAt = Date.now();
             try { view.webContents.send('page-actions-state', state || {}); }
             catch (e) { log.debug('page-actions', 'state', e); }

@@ -182,6 +182,7 @@ select:focus { box-shadow: inset 0 0 0 2px var(--accent); }
 .card .toggle-row + .toggle-row,
 .card .toggle-row + .card-desc + .toggle-row { margin-top: var(--sp-6); }
 .card .toggle-row + .card-desc { margin-top: var(--sp-6); }
+.card .cbd-range-row + .toggle-row { margin-top: var(--sp-6); }
 .toggle-row > div:first-child { max-width: 78%; }
 .row-label { font-size: var(--fs-body); font-weight: 500; color: var(--text); }
 .row-desc { font-size: var(--fs-small); color: var(--text-2); margin-top: 2px; line-height: 1.45; }

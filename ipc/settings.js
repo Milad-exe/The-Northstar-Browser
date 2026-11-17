@@ -17,6 +17,7 @@ const themes = require('../features/themes');
 const themeRuntime = require('../features/theme-runtime');
 const themeDerive = require('../features/theme-derive');
 const { isTrustedInternalSender } = require('../features/ipc-guard');
+const gpuPref = require('../features/gpu-pref');
 // Privacy / tracking-protection settings routed through the privacy orchestrator.
 const PRIVACY_KEYS = [
     'adBlockEnabled', 'blockThirdPartyCookies', 'httpsUpgrade',
@@ -163,6 +164,10 @@ function register(ipcMain, { wm, webContents, nativeTheme, app, focusMode }) {
                 catch (e) { log.debug('settings', 'settings-set', e); }
             }
         }
+        if (key === 'hardwareAcceleration') {
+            // Takes effect on the next launch (features/gpu-pref.js).
+            gpuPref.save(value !== false);
+        }
         if (key === 'blockShortform') {
             focusMode.setShortformEnabled(wm, !!value);
         }
@@ -186,6 +191,26 @@ function register(ipcMain, { wm, webContents, nativeTheme, app, focusMode }) {
                 });
             }
         }
+        return true;
+    });
+    // Graphics acceleration: what this run started with, so Settings can say
+    // a relaunch is pending; and the relaunch itself.
+    if (!wm.persistence._loadFailed)
+        gpuPref.sync(wm.persistence.get('hardwareAcceleration') !== false);
+    ipcMain.handle('gpu:launched-with', () => gpuPref.launchedWith());
+    ipcMain.handle('app:relaunch', (e) => {
+        if (!isTrustedInternalSender(e.sender)) {
+            log.warn('settings', 'blocked app:relaunch from untrusted sender');
+            return false;
+        }
+        // Every tab comes back, whatever the startup setting — the same
+        // one-shot flag an update relaunch uses (cleared once restored).
+        try { wm.persistence.set('restoreAfterUpdate', true); }
+        catch (err) { log.warn('settings', 'could not keep the session for the relaunch', err); }
+        setImmediate(() => {
+            app.relaunch();
+            app.quit();
+        });
         return true;
     });
     // Live tracking-protection stats for the Privacy settings panel.

@@ -866,6 +866,7 @@ function register(ipcMain, { wm }) {
             view.webContents.send('extensions-data', items);
             view.setVisible(true);
             wd.extensionsPanelOpen = true;
+            require('./popup-dismiss').arm(wd); // watch for a press outside it
             wd.extensionsPanelAnchor = anchor; // for the self-measured resize
             signalEnter(view); // P1-6 fade-in
             return true;
@@ -910,4 +911,4 @@ function register(ipcMain, { wm }) {
     });
 }
 
-module.exports = { attachGapHandlers, registerFrameGapHandlers, register };
+module.exports = { attachGapHandlers, registerFrameGapHandlers, register, hidePanel };

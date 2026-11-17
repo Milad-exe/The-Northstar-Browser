@@ -127,6 +127,20 @@
               <span class="unit">min</span>
             </div>
           </div>
+          <div class="toggle-row">
+            <div>
+              <div class="row-label">Use graphics acceleration when available</div>
+              <div class="row-desc">Draws pages with your graphics card. Turn it off to leave the card to a game running alongside; pages then use more of your processor, and video and 3D pages get heavier.</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="gpu-toggle">
+              <span class="switch-track"></span>
+            </label>
+          </div>
+          <div class="toggle-row hidden" id="gpu-relaunch-row">
+            <div><div class="row-desc">Relaunch Northstar to apply this. Your tabs come back.</div></div>
+            <button class="btn" id="gpu-relaunch">Relaunch</button>
+          </div>
         </div>
 
         <div class="card">

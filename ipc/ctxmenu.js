@@ -117,6 +117,7 @@ function register(ipcMain, { wm }) {
             catch (e) { log.debug('ctxmenu', 'ctxmenu:open', e); }
             view.setVisible(true);
             wd.ctxMenuOpen = true;
+            require('./popup-dismiss').arm(wd); // watch for a press outside it
             wd.ctxMenuShownAt = Date.now();
             // Tell the chrome to drop its window-drag regions while the menu is up.
             // On Windows a drag region is hit-tested by the OS as the title-bar

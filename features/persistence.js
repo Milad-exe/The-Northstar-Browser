@@ -30,6 +30,9 @@ const DEFAULTS = {
     // means automatic — the OS locale plus English.
     spellcheck: { enabled: true, languages: [] },
     tabSleepMinutes: 30,
+    // "Use graphics acceleration when available". Applied at launch from a
+    // plain mirror file (features/gpu-pref.js); changes need a relaunch.
+    hardwareAcceleration: true,
     // Mini player overlay for media playing in a background tab
     miniPlayerEnabled: true,
     // An Essential stays on its site: a link leaving it opens as a glance over

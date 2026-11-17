@@ -22,9 +22,25 @@ const LEVELS = { debug: 10, info: 20, warn: 30, error: 40 };
 
 let logDir = null;
 let logPath = null;
-let stream = null;
+let fd = null;     // the open log file; written synchronously (see rotate)
+let size = 0;      // bytes in the current file, so rotation needs no stat per line
 let minLevel = LEVELS.info;
 let failed = false; // a broken log must never break the browser
+let consoleDead = false; // stdout/stderr pipe went away (parent exited)
+let writing = false; // re-entrancy guard: a log call must never log itself
+
+/* When the process that launched us exits (a dev script, a test runner), our
+   stdout/stderr pipes break and every console write fails with EPIPE —
+   asynchronously, as an 'error' on the stream. Unhandled, that surfaced as an
+   uncaughtException, which main.js logs, which wrote to the console again: a
+   loop that pinned the main process and grew the log by hundreds of MB. An
+   'error' listener turns it into "stop writing to the console". */
+for (const s of [process.stdout, process.stderr]) {
+    try {
+        s?.on?.('error', () => { consoleDead = true; });
+    }
+    catch { consoleDead = true; }
+}
 
 function init() {
     if (logDir || failed)
@@ -42,14 +58,21 @@ function init() {
     }
 }
 
+function openLog() {
+    fd = fs.openSync(logPath, 'a');
+    size = fs.fstatSync(fd).size;
+}
+
+/* The file is held as a plain descriptor and closed synchronously before the
+   rename. With a write stream, end() closes LATER, so on Windows the rename
+   hit a still-open file, failed silently, and the log never rotated. */
 function rotate() {
+    if (size < MAX_BYTES)
+        return;
     try {
-        const size = fs.existsSync(logPath) ? fs.statSync(logPath).size : 0;
-        if (size < MAX_BYTES)
-            return;
-        if (stream) {
-            stream.end();
-            stream = null;
+        if (fd != null) {
+            fs.closeSync(fd);
+            fd = null;
         }
         for (let i = KEEP - 1; i >= 1; i--) {
             const from = i === 1 ? logPath : `${logPath}.${i - 1}`;
@@ -59,27 +82,48 @@ function rotate() {
         }
     }
     catch { /* rotation is best-effort */ }
+    // If the rename failed, start the file over rather than let it grow.
+    try {
+        fd = fs.openSync(logPath, size >= MAX_BYTES * 4 ? 'w' : 'a');
+        size = fs.fstatSync(fd).size;
+    }
+    catch { fd = null; }
 }
 
 function write(level, scope, message, err) {
     init();
-    if (failed || LEVELS[level] < minLevel)
+    if (failed || writing || LEVELS[level] < minLevel)
         return;
+    writing = true;
+    try { writeLine(level, scope, message, err); }
+    finally { writing = false; }
+}
+
+function writeLine(level, scope, message, err) {
     const stamp = new Date().toISOString();
     let line = `${stamp} ${level.toUpperCase().padEnd(5)} [${scope}] ${message}`;
     if (err) {
         const detail = err instanceof Error ? (err.stack || err.message) : String(err);
         line += `\n    ${String(detail).split('\n').join('\n    ')}`;
     }
-    if (level === 'error' || level === 'warn')
-        console[level === 'error' ? 'error' : 'warn'](line);
-    else if (process.env.NORTHSTAR_LOG_LEVEL)
-        console.log(line);
+    if (!consoleDead) {
+        try {
+            if (level === 'error' || level === 'warn')
+                console[level === 'error' ? 'error' : 'warn'](line);
+            else if (process.env.NORTHSTAR_LOG_LEVEL)
+                console.log(line);
+        }
+        catch { consoleDead = true; }
+    }
     try {
+        if (fd == null)
+            openLog();
         rotate();
-        if (!stream)
-            stream = fs.createWriteStream(logPath, { flags: 'a' });
-        stream.write(line + '\n');
+        if (fd == null)
+            return;
+        const buf = Buffer.from(line + '\n');
+        fs.writeSync(fd, buf);
+        size += buf.length;
     }
     catch {
         failed = true; // disk full / read-only profile — stop trying

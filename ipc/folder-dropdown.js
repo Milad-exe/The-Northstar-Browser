@@ -44,6 +44,7 @@ function register(ipcMain, { wm, screen, webContents }) {
             try { view.setBorderRadius(PANEL_RADIUS) } catch (e) { log.debug('folder-dropdown', 'folder-dropdown-open', e); }
             wd.window.contentView.addChildView(view);
             wd.folderDropdown = view;
+            require('./popup-dismiss').arm(wd); // watch for a press outside it
             wd.folderDropdownId = folderData.id;
             view.setBounds(initialBounds(anchorRect, folderData, wd.window));
             view.webContents.loadFile(resolveAppFile('renderer/FolderDropdown/index.html'));

@@ -372,8 +372,9 @@ class WindowManager {
                 window.hookWindowMessage(0x00A1 /* WM_NCLBUTTONDOWN */, () => {
                     const wd = this.getWindowByWebContents(window.webContents);
                     if (!wd) return;
-                    try { require('../ipc/utils').closeWindowMenu(wd); }
-                    catch (e) { log.debug('window-manager', 'caption click: menu', e); }
+                    // Every popup (menu, downloads, extensions, …) — ipc/popup-dismiss.js.
+                    try { require('../ipc/popup-dismiss').dismissAll(wd); }
+                    catch (e) { log.debug('window-manager', 'caption click: popups', e); }
                     try { require('./overlay-menu').hide(wd); }
                     catch (e) { log.debug('window-manager', 'caption click: overlay menu', e); }
                 });

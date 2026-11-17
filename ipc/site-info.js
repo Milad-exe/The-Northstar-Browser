@@ -154,6 +154,7 @@ function register(ipcMain, { wm }) {
         wd.siteInfoAnchor = rect;
         view.setBounds(panelBounds(wd.window, { anchor: rect, align: 'left', width: PANEL_W, height: 300 }));
         wd.siteInfoView = view;
+        require('./popup-dismiss').arm(wd); // watch for a press outside it
         wd.siteInfoInfo = info;
         // Focus the panel so a click anywhere outside it blurs → closes it.
         // Also close when the whole window loses focus (switching apps).

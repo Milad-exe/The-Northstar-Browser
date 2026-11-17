@@ -155,6 +155,7 @@ function register(ipcMain, { wm, webContents }) {
                 wd.bookmarkPrompt.setBackgroundColor('#00000000');
                 try { wd.bookmarkPrompt.setBorderRadius(PANEL_RADIUS); } catch (e) { log.debug('bookmarks', 'bookmark-prompt-open', e); }
                 wd.window.contentView.addChildView(wd.bookmarkPrompt);
+                require('./popup-dismiss').arm(wd); // watch for a press outside it
             }
             wd.bookmarkPrompt.setBounds(panelBounds(wd.window, {
                 anchor: { right: Math.floor(bounds.right), bottom: Math.floor(bounds.bottom) },

@@ -103,6 +103,7 @@ function register(ipcMain, { wm }) {
             catch (e) { log.debug('theme-panel', 'raise', e); }
             view.setVisible(true);
             wd.themePanelOpen = true;
+            require('./popup-dismiss').arm(wd); // watch for a press outside it
             wd.themePanelShownAt = Date.now();
             try { view.webContents.send('theme-panel-scope', wd.themePanelScope); }
             catch (e) { log.debug('theme-panel', 'scope', e); }

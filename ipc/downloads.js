@@ -162,9 +162,11 @@ function register(ipcMain, { wm }) {
             const view = await ensurePanel(wd);
             const items = listFor(wd);
             view.setBounds(boundsFor(wd.window, anchor, items.length));
+            wd.downloadsPanelAnchor = anchor || null; // its toggle button (ipc/popup-dismiss.js)
             view.webContents.send('downloads-data', items);
             view.setVisible(true);
             wd.downloadsPanelOpen = true;
+            require('./popup-dismiss').arm(wd); // watch for a press outside it
             signalEnter(view); // P1-6 fade-in
             return true;
         }
@@ -188,4 +190,4 @@ function register(ipcMain, { wm }) {
     });
 }
 
-module.exports = { register };
+module.exports = { register, hidePanel };

@@ -120,6 +120,8 @@ expose('userData', {
     openLog: () => ipcRenderer.invoke('app:open-log'),
     logTail: () => ipcRenderer.invoke('app:log-tail'),
     versions: () => ipcRenderer.invoke('app:version'),
+    gpuLaunchedWith: () => ipcRenderer.invoke('gpu:launched-with'),
+    relaunch: () => ipcRenderer.invoke('app:relaunch'),
 });
 // Import from another browser, run inline on Settings > Import & export
 // (ipc/import-wizard.js). Detection never exposes on-disk paths.

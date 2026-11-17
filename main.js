@@ -24,6 +24,10 @@ const UserAgent = require('./features/user-agent');
 // keep running — the same resilience Chrome has.
 const log = require('./features/log');
 process.on('uncaughtException', (err) => {
+    // A broken stdout/stderr pipe (the launching process went away) is not a
+    // bug in the browser, and logging it writes to that same pipe again.
+    if (err && err.code === 'EPIPE')
+        return;
     log.error('main', 'uncaught exception (survived)', err);
 });
 // A rejected promise nobody awaited is the same class of bug and, until now,
@@ -126,6 +130,8 @@ if (process.platform === 'darwin')
 // networks" prompt for a feature we do not have.
 app.commandLine.appendSwitch('disable-features', 'FedCm,MediaRouter,DialMediaRouteProvider,CastMediaRouteProvider,GlobalMediaControlsCastStartStop');
 app.userAgentFallback = UserAgent.generate();
+// Settings › Performance › graphics acceleration — must run before 'ready'.
+require('./features/gpu-pref').applyAtStartup();
 // ── Imports ──────────────────────────────────────────────────────────────────
 const WindowManager = require('./features/window-manager');
 const focusMode = require('./features/focus-mode');
