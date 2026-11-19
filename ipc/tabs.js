@@ -751,13 +751,9 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
         const wd = wm.getWindowByWebContents(e.sender);
         return wd && e.sender === wd.window.webContents ? wd.tabs : null;
     };
-    ipcMain.handle('sidebar:peek', async (e) => {
-        try { return !!(await peekTabs(e)?.startSidebarPeek()); }
+    ipcMain.handle('sidebar:peek', (e) => {
+        try { return !!peekTabs(e)?.startSidebarPeek(); }
         catch (err) { log.warn('tabs', 'sidebar peek', err); return false; }
-    });
-    ipcMain.on('sidebar:peek-ready', (e) => {
-        try { peekTabs(e)?.sidebarPeekReady(); }
-        catch (err) { log.warn('tabs', 'sidebar peek ready', err); }
     });
     ipcMain.on('sidebar:peek-end', (e) => {
         try { peekTabs(e)?.endSidebarPeek('chrome'); }

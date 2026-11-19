@@ -281,4 +281,4 @@ function register(_ipcMain, { wm }) {
     catch (e) { log.warn('popup-dismiss', 'could not watch extension popups', e); }
 }
 
-module.exports = { register, dismissAll, arm };
+module.exports = { register, dismissAll, arm, anyOpen };

@@ -331,8 +331,11 @@ module.exports = {
         return id;
     },
     toggleCompact() {
+        // A peek is compact mode's; it goes with it (the relayout is below).
+        if (this._peek)
+            this.endSidebarPeek('compact toggled', { relayout: false });
         this.sidebarCompact = !this.sidebarCompact;
-        this.resizeAllTabs(); // also ends a sidebar peek (sidebar-peek.js)
+        this.resizeAllTabs();
         try { this.mainWindow.webContents.send('sidebar-compact-changed', this.sidebarCompact); } catch (e) { log.debug('organize', 'toggleCompact', e); }
     },
     setTabFolder(index, folderId) {

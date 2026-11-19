@@ -1200,8 +1200,9 @@ class Tabs {
         // and only the utility bar (+ optional bookmark bar) sits above.
         if ((this.persistence?.get('tabBarSide') ?? 'side') !== 'top') {
             const yOffset = Tabs.UTILITY_BAR_H + Tabs.SHELL_PAD + Tabs.SHELL_TOP + (this.bookmarkBarHeight || 0);
-            // Compact mode: the sidebar is hidden, so the page spans full width.
-            const leftInset = this.sidebarCompact ? pad : this.sidebarWidth;
+            // Compact mode: the sidebar is hidden, so the page spans full width
+            // (unless a peek has it out for a moment — features/tabs/sidebar-peek.js).
+            const leftInset = this.isCompactLayout() ? pad : this.sidebarWidth;
             let width = contentBounds.width - leftInset - pad - rightInset;
             let height = contentBounds.height - yOffset - pad;
             if (width < 0)
@@ -1440,10 +1441,6 @@ class Tabs {
         });
     }
     showTab(index) {
-        // A compact-mode sidebar peek shows a snapshot of the page it opened
-        // over; any switch makes that stale (features/tabs/sidebar-peek.js).
-        if (this._peek)
-            this.endSidebarPeek('tab switch');
         // Going to another tab ends a run of tabs opened from the last one.
         if (this._openerChain && index !== this._openerChain.opener)
             this._openerChain = null;
@@ -1878,9 +1875,6 @@ class Tabs {
     }
 
     resizeAllTabs() {
-        // Any relayout makes a sidebar peek's page snapshot wrong.
-        if (this._peek)
-            this.endSidebarPeek('relayout');
         // Re-clamp the side panel's reserved width BEFORE measuring the page,
         // or a resize lays the page out against the previous width.
         try {
