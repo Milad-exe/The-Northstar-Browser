@@ -685,7 +685,15 @@
           <div class="card-desc">Bookmarks, history and search engines from a browser installed on this computer. Your current data is kept; imported bookmarks go in their own folder.</div>
           <div class="imp-muted" id="imp-loading">Looking for installed browsers…</div>
           <div class="imp-muted" id="imp-empty" hidden>No other browsers were found on this computer. You can still import from a file below.</div>
-          <div class="imp-list" id="imp-list" role="radiogroup" aria-label="Browser to import from"></div>
+          <!-- A dropdown: "Select browser" opens into the list of browsers
+               found; picking one closes it and shows the choice. -->
+          <div class="imp-picker" id="imp-picker" hidden>
+            <button type="button" class="imp-trigger" id="imp-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="imp-list">
+              <span class="imp-trigger-main" id="imp-trigger-main"><span class="imp-placeholder">Select browser</span></span>
+              <svg class="imp-caret" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"/></svg>
+            </button>
+            <div class="imp-list" id="imp-list" role="listbox" aria-label="Browser to import from" hidden></div>
+          </div>
           <div class="imp-types" id="imp-types" hidden>
             <label class="imp-type"><input type="checkbox" class="check-box" id="imp-t-bm"><span>Bookmarks</span><span class="imp-meta" id="imp-m-bm"></span></label>
             <label class="imp-type"><input type="checkbox" class="check-box" id="imp-t-hist"><span>History</span><span class="imp-meta" id="imp-m-hist"></span></label>

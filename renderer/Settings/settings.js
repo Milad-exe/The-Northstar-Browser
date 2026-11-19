@@ -775,10 +775,11 @@
             report(await window.userData.exportHistory(), 'export', 'history entry');
         });
         // ── Import from another browser (inline; was a popup window) ─────────
-        // The browsers found on this computer as a radio list, what to bring
-        // over as checkboxes, and the result in a status line. Each browser
-        // shows its own app icon when the main process could read it, else a
-        // neutral globe (never a bundled brand logo).
+        // A "Select browser" dropdown that opens into the browsers found on
+        // this computer; once one is picked, what to bring over as checkboxes
+        // and the result in a status line. Each browser shows its own app icon
+        // when the main process could read it, else a neutral globe (never a
+        // bundled brand logo).
         (async () => {
             const api = window.northstarImport;
             const $ = (id) => document.getElementById(id);
@@ -799,12 +800,23 @@
             const updateRun = () => {
                 $('imp-run').disabled = !selected || !types.some(([k]) => { const b = $('imp-t-' + k); return !b.disabled && b.checked; });
             };
+            // The dropdown: open/close the list under the trigger.
+            const setOpen = (open) => {
+                $('imp-list').hidden = !open;
+                $('imp-trigger').setAttribute('aria-expanded', String(open));
+                $('imp-picker').classList.toggle('open', open);
+                if (open)
+                    ($('imp-list').querySelector('.imp-row.sel') || $('imp-list').querySelector('.imp-row'))?.focus();
+            };
             const select = (id) => {
                 selected = sources.find(x => x.id === id) || null;
                 for (const row of document.querySelectorAll('.imp-row')) {
                     const on = row.dataset.id === id;
                     row.classList.toggle('sel', on);
-                    row.setAttribute('aria-checked', String(on));
+                    row.setAttribute('aria-selected', String(on));
+                    // The trigger shows the choice: the same icon and lines.
+                    if (on)
+                        $('imp-trigger-main').replaceChildren(...[...row.children].map(n => n.cloneNode(true)));
                 }
                 $('imp-types').hidden = $('imp-actions').hidden = !selected;
                 if (!selected) return;
@@ -853,7 +865,8 @@
                 const row = document.createElement('button');
                 row.type = 'button';
                 row.className = 'imp-row';
-                row.setAttribute('role', 'radio');
+                row.setAttribute('role', 'option');
+                row.setAttribute('aria-selected', 'false');
                 row.dataset.id = src.id;
                 const icon = document.createElement('span');
                 icon.className = 'imp-icon';
@@ -873,10 +886,39 @@
                 meta.textContent = summary(src);
                 main.append(name, meta);
                 row.append(icon, main);
-                row.addEventListener('click', () => select(src.id));
+                row.addEventListener('click', () => {
+                    select(src.id);
+                    setOpen(false);
+                    $('imp-trigger').focus();
+                });
                 list.appendChild(row);
             }
-            select(sources[0].id);
+            // Nothing is chosen for you: the dropdown starts on "Select browser".
+            $('imp-picker').hidden = false;
+            $('imp-trigger').addEventListener('click', () => setOpen($('imp-list').hidden));
+            $('imp-picker').addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && !$('imp-list').hidden) {
+                    e.preventDefault();
+                    setOpen(false);
+                    $('imp-trigger').focus();
+                    return;
+                }
+                if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp')
+                    return;
+                e.preventDefault();
+                if ($('imp-list').hidden) {
+                    setOpen(true);
+                    return;
+                }
+                const rows = [...list.querySelectorAll('.imp-row')];
+                const i = rows.indexOf(document.activeElement);
+                rows[(i + (e.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length]?.focus();
+            });
+            // A press anywhere else closes it, like any dropdown.
+            document.addEventListener('pointerdown', (e) => {
+                if (!$('imp-list').hidden && !$('imp-picker').contains(e.target))
+                    setOpen(false);
+            });
         })();
         // How the saved-password key is protected — stated, not assumed.
         (async () => {
