@@ -387,6 +387,11 @@ exposeInternal('tabsUI', {
     toggleCompact: () => ipcRenderer.invoke('sidebar:toggleCompact'),
     onTabBarSide: (handler) => ipcRenderer.on('tabbar-side-changed', (_e, v) => handler(v)),
     onCompact: (handler) => ipcRenderer.on('sidebar-compact-changed', (_e, v) => handler(v)),
+    // Compact mode's edge peek (features/tabs/sidebar-peek.js).
+    peekSidebar: () => ipcRenderer.invoke('sidebar:peek'),
+    peekReady: () => ipcRenderer.send('sidebar:peek-ready'),
+    peekEnd: () => ipcRenderer.send('sidebar:peek-end'),
+    onPeek: (handler) => ipcRenderer.on('sidebar-peek', (_e, v) => handler(v)),
     focusChrome: () => ipcRenderer.send('chrome:focus'),
     focusPage: () => ipcRenderer.send('page:focus'),
     menuOpened: () => ipcRenderer.send('chrome-menu-open'),

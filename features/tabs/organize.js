@@ -332,7 +332,7 @@ module.exports = {
     },
     toggleCompact() {
         this.sidebarCompact = !this.sidebarCompact;
-        this.resizeAllTabs();
+        this.resizeAllTabs(); // also ends a sidebar peek (sidebar-peek.js)
         try { this.mainWindow.webContents.send('sidebar-compact-changed', this.sidebarCompact); } catch (e) { log.debug('organize', 'toggleCompact', e); }
     },
     setTabFolder(index, folderId) {

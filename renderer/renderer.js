@@ -555,7 +555,7 @@
                     // label only if the card isn't available.
                     if (window.tabHoverCard) return null;
                     const de = document.documentElement;
-                    if (de.dataset.tabbar !== 'top' && de.dataset.compact !== 'on') return null;
+                    if (de.dataset.tabbar !== 'top' && (de.dataset.compact !== 'on' || de.dataset.peek === 'on')) return null;
                     const title = tab.querySelector('.tab-title')?.textContent || '';
                     const url = String(tabUrls.get(parseInt(tab.dataset.index, 10)) || '');
                     return [title, /^https?:/i.test(url) ? hostOf(url) : ''];
@@ -2387,6 +2387,156 @@
                 });
             }
             catch (e) { window.northstarLog?.debug('renderer', 'initTabBarSide: ' + e); }
+            // ...and the pointer at the window's left edge brings it back as a
+            // floating card over the page (features/tabs/sidebar-peek.js).
+            try { initSidebarPeek(); }
+            catch (e) { window.northstarLog?.debug('renderer', 'initSidebarPeek: ' + e); }
+        }
+        /* Compact mode's sidebar peek. The page is a native view above this
+           document, so the card cannot be drawn over it directly: main sends a
+           snapshot of the page, this paints it exactly where the page is,
+           shows #tab-bar as a floating card over it, and only then does main
+           hide the real view (features/tabs/sidebar-peek.js). Ending reverses
+           it: main shows the view first, then tells this to drop both. */
+        function initSidebarPeek() {
+            const de = document.documentElement;
+            const tabBar = document.getElementById('tab-bar');
+            if (!tabBar || !window.tabsUI?.peekSidebar)
+                return;
+            const edge = document.createElement('div');
+            edge.id = 'compact-edge';
+            edge.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(edge);
+            const shotsEl = document.createElement('div');
+            shotsEl.id = 'peek-shots';
+            shotsEl.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(shotsEl);
+            const DWELL = 70;        // the pointer passing the edge is not a request
+            const LEAVE_GRACE = 300; // the same grace the hover card uses
+            let state = 'idle';      // idle | asking | open | closing
+            let dwell = null, leaveTimer = null;
+            const canPeek = () => de.dataset.compact === 'on' && de.dataset.tabbar !== 'top';
+            const inside = () => tabBar.matches(':hover') || edge.matches(':hover');
+            const tokenMs = (name) => {
+                const v = getComputedStyle(de).getPropertyValue(name).trim();
+                const n = parseFloat(v);
+                return Number.isFinite(n) ? (v.endsWith('ms') ? n : n * 1000) : 0;
+            };
+            function finish() {
+                clearTimeout(leaveTimer);
+                clearTimeout(dwell);
+                state = 'idle';
+                delete de.dataset.peek;
+                tabBar.classList.remove('peek-out');
+                shotsEl.replaceChildren();
+            }
+            // Play the card out, then let main bring the page back.
+            function requestEnd() {
+                if (state !== 'open')
+                    return;
+                state = 'closing';
+                clearTimeout(leaveTimer);
+                const ms = tokenMs('--dur-1');
+                if (!ms) {
+                    window.tabsUI.peekEnd();
+                    return;
+                }
+                tabBar.classList.add('peek-out');
+                setTimeout(() => window.tabsUI.peekEnd(), ms);
+            }
+            function scheduleLeave() {
+                if (state !== 'open')
+                    return;
+                clearTimeout(leaveTimer);
+                leaveTimer = setTimeout(() => {
+                    // A menu or panel opened from the card holds focus: wait
+                    // for it (the window 'focus' below looks again).
+                    if (state === 'open' && !inside() && document.hasFocus())
+                        requestEnd();
+                }, LEAVE_GRACE);
+            }
+            edge.addEventListener('pointerenter', () => {
+                if (state === 'open') {
+                    clearTimeout(leaveTimer);
+                    return;
+                }
+                if (!canPeek() || state !== 'idle')
+                    return;
+                clearTimeout(dwell);
+                dwell = setTimeout(async () => {
+                    if (state !== 'idle' || !canPeek() || !edge.matches(':hover'))
+                        return;
+                    state = 'asking';
+                    let ok = false;
+                    try { ok = await window.tabsUI.peekSidebar(); }
+                    catch (e) { window.northstarLog?.debug('renderer', 'peekSidebar: ' + e); }
+                    if (!ok && state === 'asking')
+                        state = 'idle';
+                }, DWELL);
+            });
+            edge.addEventListener('pointerleave', () => {
+                clearTimeout(dwell);
+                scheduleLeave();
+            });
+            tabBar.addEventListener('pointerenter', () => clearTimeout(leaveTimer));
+            tabBar.addEventListener('pointerleave', scheduleLeave);
+            window.addEventListener('focus', () => {
+                if (state === 'open' && !inside())
+                    scheduleLeave();
+            });
+            // A press on the page (its snapshot) or Esc puts the card away.
+            shotsEl.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                requestEnd();
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && state === 'open')
+                    requestEnd();
+            });
+            window.tabsUI.onPeek(async (msg) => {
+                if (!msg?.on) {
+                    finish();
+                    return;
+                }
+                if (state !== 'asking') {
+                    window.tabsUI.peekEnd(); // nobody here is waiting for it
+                    return;
+                }
+                const b = msg.bounds || {};
+                if (Number.isFinite(b.y))
+                    de.style.setProperty('--peek-top', `${b.y}px`);
+                if (Number.isFinite(b.height))
+                    de.style.setProperty('--peek-height', `${b.height}px`);
+                shotsEl.replaceChildren();
+                const decoding = [];
+                for (const s of msg.shots || []) {
+                    const img = document.createElement('img');
+                    img.alt = '';
+                    img.draggable = false;
+                    Object.assign(img.style, {
+                        left: `${s.x}px`, top: `${s.y}px`, width: `${s.width}px`, height: `${s.height}px`,
+                    });
+                    if (s.src) {
+                        img.src = s.src;
+                        decoding.push(img.decode().catch((e) => window.northstarLog?.debug('renderer', 'peek decode: ' + e)));
+                    }
+                    shotsEl.appendChild(img);
+                }
+                await Promise.all(decoding);
+                if (state !== 'asking')
+                    return; // ended while decoding
+                state = 'open';
+                tabBar.classList.remove('peek-out');
+                de.dataset.peek = 'on';
+                // Two frames: snapshot and card are on screen before the real
+                // page view is hidden over them, so the swap never shows.
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    if (state === 'open')
+                        window.tabsUI.peekReady();
+                }));
+                if (!inside())
+                    scheduleLeave();
+            });
         }
         // Drag the right edge of the sidebar to resize it (side mode). Live-resizes
         // the page view; persists (globally) on release.

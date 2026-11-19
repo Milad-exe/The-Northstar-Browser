@@ -989,6 +989,44 @@ html[data-tabbar="top"] .essential-tile .ess-sound svg { width: 14px; height: 14
 /* Compact mode: collapse the sidebar; the page (native view) goes full-bleed. */
 html[data-tabbar="side"][data-compact="on"] body { grid-template-columns: 0 minmax(0, 1fr); }
 html[data-tabbar="side"][data-compact="on"] #tab-bar { display: none; }
+
+/* Compact mode's sidebar peek (features/tabs/sidebar-peek.js). The page card's
+   left gutter is the hot edge; the sidebar comes up as a floating card over a
+   snapshot of the page, which stands in for the native view while it is
+   hidden. This is chrome DOM, not an overlay view, so the card may carry a real
+   drop shadow (the shadow-gutter rule is about views clipping at their bounds). */
+#compact-edge { display: none; }
+html[data-tabbar="side"][data-compact="on"] #compact-edge {
+  display: block; position: fixed; left: 0; top: 0; bottom: 0;
+  width: var(--shell-pad); z-index: 910;
+  -webkit-app-region: no-drag;
+}
+#peek-shots { display: none; }
+html[data-peek="on"] #peek-shots {
+  display: block; position: fixed; inset: 0; z-index: 890;
+  pointer-events: none;
+}
+#peek-shots img {
+  position: absolute; border-radius: var(--card-radius);
+  pointer-events: auto; user-select: none; -webkit-user-drag: none;
+}
+html[data-tabbar="side"][data-compact="on"][data-peek="on"] #tab-bar {
+  display: flex; position: fixed; z-index: 900;
+  left: var(--shell-pad); top: var(--peek-top, 0px);
+  height: var(--peek-height, 100%); width: var(--sidebar-w, 256px);
+  background: var(--shell); border-radius: var(--card-radius);
+  box-shadow: var(--ring), var(--shadow-pop);
+  animation: sidebar-peek-in var(--dur-2) var(--ease-decel) both;
+}
+html[data-tabbar="side"][data-compact="on"][data-peek="on"] #tab-bar.peek-out {
+  animation: sidebar-peek-out var(--dur-1) var(--ease-accel) both;
+}
+@keyframes sidebar-peek-in { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; transform: none; } }
+@keyframes sidebar-peek-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(-4px); } }
+@media (prefers-reduced-motion: reduce) {
+  html[data-tabbar="side"][data-compact="on"][data-peek="on"] #tab-bar,
+  html[data-tabbar="side"][data-compact="on"][data-peek="on"] #tab-bar.peek-out { animation: none; }
+}
 /* The utility bar now runs the full width in side mode, so on macOS the native
    traffic lights sit over its left end in every mode — always reserve them. */
 /* macOS owns the top-left corner, so the cluster cannot sit on the rail's

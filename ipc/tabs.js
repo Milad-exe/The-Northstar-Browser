@@ -745,6 +745,24 @@ function register(ipcMain, { wm, BrowserWindow, screen }) {
     });
     ipcMain.handle('tab:reopenClosed', (_e) => { wm.getWindowByWebContents(_e.sender)?.tabs?.reopenClosedTab(); });
     ipcMain.handle('sidebar:toggleCompact', (_e) => { wm.getWindowByWebContents(_e.sender)?.tabs?.toggleCompact(); });
+    // Compact mode's edge peek (features/tabs/sidebar-peek.js). Only the
+    // window's own chrome asks for it.
+    const peekTabs = (e) => {
+        const wd = wm.getWindowByWebContents(e.sender);
+        return wd && e.sender === wd.window.webContents ? wd.tabs : null;
+    };
+    ipcMain.handle('sidebar:peek', async (e) => {
+        try { return !!(await peekTabs(e)?.startSidebarPeek()); }
+        catch (err) { log.warn('tabs', 'sidebar peek', err); return false; }
+    });
+    ipcMain.on('sidebar:peek-ready', (e) => {
+        try { peekTabs(e)?.sidebarPeekReady(); }
+        catch (err) { log.warn('tabs', 'sidebar peek ready', err); }
+    });
+    ipcMain.on('sidebar:peek-end', (e) => {
+        try { peekTabs(e)?.endSidebarPeek('chrome'); }
+        catch (err) { log.warn('tabs', 'sidebar peek end', err); }
+    });
     ipcMain.handle('folders:assign', (_e, index, folderId) => { wm.getWindowByWebContents(_e.sender)?.tabs?.setTabFolder(index, folderId); });
     ipcMain.handle('tab:setHome', (_e, index, url) => wm.getWindowByWebContents(_e.sender)?.tabs?.setPinnedHome(index, url) || false);
     ipcMain.handle('tab:resetPinned', (_e, index) => wm.getWindowByWebContents(_e.sender)?.tabs?.resetPinnedTab(index) || false);

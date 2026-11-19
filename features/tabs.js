@@ -1440,6 +1440,10 @@ class Tabs {
         });
     }
     showTab(index) {
+        // A compact-mode sidebar peek shows a snapshot of the page it opened
+        // over; any switch makes that stale (features/tabs/sidebar-peek.js).
+        if (this._peek)
+            this.endSidebarPeek('tab switch');
         // Going to another tab ends a run of tabs opened from the last one.
         if (this._openerChain && index !== this._openerChain.opener)
             this._openerChain = null;
@@ -1874,6 +1878,9 @@ class Tabs {
     }
 
     resizeAllTabs() {
+        // Any relayout makes a sidebar peek's page snapshot wrong.
+        if (this._peek)
+            this.endSidebarPeek('relayout');
         // Re-clamp the side panel's reserved width BEFORE measuring the page,
         // or a resize lays the page out against the previous width.
         try {
@@ -2064,7 +2071,8 @@ class Tabs {
 Object.assign(Tabs.prototype,
     require('./tabs/split'), require('./tabs/glance'), require('./tabs/organize'),
     require('./tabs/essentials'), require('./tabs/listeners'),
-    require('./tabs/navigation'), require('./tabs/reader'));
+    require('./tabs/navigation'), require('./tabs/reader'),
+    require('./tabs/sidebar-peek'));
 
 Tabs.parseNorthstarUrl = parseNorthstarUrl;
 module.exports = Tabs;

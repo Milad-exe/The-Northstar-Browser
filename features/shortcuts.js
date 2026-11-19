@@ -502,11 +502,9 @@ class Shortcuts {
         this.registerShortcut('CmdOrCtrl+\\', () => {
             if (!this.tabManager)
                 return;
-            this.tabManager.sidebarCompact = !this.tabManager.sidebarCompact;
-            try {
-                this.mainWindow.webContents.send('sidebar-compact-changed', this.tabManager.sidebarCompact);
-                this.tabManager.resizeAllTabs();
-            }
+            // The same path as the button and the menu (organize.js), so a
+            // sidebar peek is put away with it.
+            try { this.tabManager.toggleCompact(); }
             catch (e) { log.debug('shortcuts', 'registerBrowserShortcuts', e); }
         });
         // Toggle tab bar side (left sidebar ⇄ classic top strip).
