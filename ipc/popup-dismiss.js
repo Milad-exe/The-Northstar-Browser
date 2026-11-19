@@ -3,8 +3,9 @@
  * Click-outside dismissal for every UI popup, in ONE place.
  *
  * Each popup (app menu, downloads, extensions, theme panel, page actions, site
- * info, bookmark prompt, bookmark-folder dropdown, context menu, extension
- * action popups) is its own WebContentsView, so no single DOM sees every click.
+ * info, bookmark prompt, bookmark-folder dropdown, context menu, permission
+ * prompt, save-password prompt) is its own WebContentsView, and an extension's
+ * action popup is its own child window, so no single DOM sees every click.
  * The popups used to each guess at dismissal from their own corner — a chrome
  * `click` listener here, a view `blur` there — and every guess had holes: a
  * press on another overlay, the side panel, a drag region or a second app left
@@ -17,7 +18,9 @@
  *     on their own toolbar button (that button toggles; the chrome renderer
  *     handles it). The other popups hold focus, so a chrome press blurs them
  *     and their own blur path closes them;
- *   - the window losing focus (another app, a second window) closes them all;
+ *   - the window losing focus (another app, a second window) closes them all -
+ *     extension action popups included, which their library deliberately keeps
+ *     open when focus leaves the app (unless the popup itself took focus);
  *   - presses the OS keeps for itself (caption, drag regions, resize borders)
  *     arrive through dismissAll() from the window hooks in ipc/menu.js and
  *     features/window-manager.js.
@@ -91,7 +94,51 @@ const POPUPS = [
         view: wd => wd.ctxMenu,
         close: wd => require('./ctxmenu').hideMenu(wd),
     },
+    {
+        // Click-away parks the request behind its chip (Chrome's quiet path);
+        // the site's request is not answered.
+        name: 'permission-prompt',
+        isOpen: wd => !!wd.permShowing && Date.now() - (wd.permShownAt || 0) > 250,
+        view: wd => wd.permView,
+        close: wd => require('../features/permission-ui').dismiss(wd),
+    },
+    {
+        name: 'password-prompt',
+        isOpen: wd => { try { return !!wd.passwordPrompt?.getVisible?.(); } catch { return false; } },
+        view: wd => wd.passwordPrompt,
+        close: wd => wd.passwordPrompt?.setVisible(false),
+    },
+    {
+        // Extension action popups: child windows, so a press can never land
+        // "inside" one from here. No anchor: a chrome press may be the action
+        // button opening one, and the renderer owns that strip.
+        name: 'action-popups',
+        isOpen: wd => actionPopupsOf(wd).length > 0,
+        view: () => null,
+        close: wd => {
+            for (const p of actionPopupsOf(wd)) {
+                // Focus moved INTO the popup: it is being used, not left.
+                if (p.browserWindow?.isFocused())
+                    continue;
+                try { p.destroy(); }
+                catch (e) { log.debug('popup-dismiss', 'action popup', e); }
+            }
+        },
+    },
 ];
+
+/** Live extension action popups whose parent is `wd`'s window. */
+function actionPopupsOf(wd) {
+    let popups;
+    try { popups = require('../features/extensions').popups; }
+    catch { return []; }
+    if (!popups || !popups.size)
+        return [];
+    return [...popups].filter(p => {
+        try { return !p.isDestroyed?.() && p.parent === wd.window; }
+        catch { return false; }
+    });
+}
 
 function viewWc(view) {
     try { return view?.webContents || null; }
@@ -103,24 +150,13 @@ function closeOne(wd, p) {
     catch (e) { log.warn('popup-dismiss', `close ${p.name}`, e); }
 }
 
-function closeActionPopups() {
-    try { require('../features/extensions').closePopups(); }
-    catch (e) { log.debug('popup-dismiss', 'extension action popups', e); }
-}
-
-/**
- * Close every popup in `wd` (the OS-owned presses and window changes).
- * `actionPopups: false` leaves extension action popups alone — for a window
- * blur, which is also what focusing one of those popups looks like.
- */
-function dismissAll(wd, { actionPopups = true } = {}) {
+/** Close every popup in `wd` (the OS-owned presses and window changes). */
+function dismissAll(wd) {
     if (!wd)
         return;
     for (const p of POPUPS)
         if (p.isOpen(wd))
             closeOne(wd, p);
-    if (actionPopups)
-        closeActionPopups();
 }
 
 const PRESS = new Set(['mouseDown', 'touchStart', 'gestureTapDown']);
@@ -143,10 +179,6 @@ function onPress(wd, wc, input) {
         }
         closeOne(wd, p);
     }
-    // Action popups are separate windows; a press on the chrome may be the
-    // action button opening one, and the renderer already handles those.
-    if (!fromChrome)
-        closeActionPopups();
     if (!anyOpen(wd))
         disarm(wd);
 }
@@ -223,7 +255,10 @@ function watchWindow(wm, win) {
             try {
                 if (win.isDestroyed() || win.isFocused())
                     return;
-                dismissAll(wm.getWindowByWebContents(win.webContents), { actionPopups: false });
+                // A child window taking focus (an extension's action popup)
+                // is still this window being used; the action-popups entry
+                // keeps a focused popup open.
+                dismissAll(wm.getWindowByWebContents(win.webContents));
             }
             catch (e) { log.debug('popup-dismiss', 'window blur', e); }
         }, 60);
@@ -236,6 +271,14 @@ function register(_ipcMain, { wm }) {
     for (const w of BrowserWindow.getAllWindows())
         watchWindow(wm, w);
     app.on('browser-window-created', (_e, w) => watchWindow(wm, w));
+    // An action popup is the one popup no ipc/ open path arms for.
+    try {
+        require('../features/extensions').onPopupCreated?.((popup) => {
+            try { arm(wm.getWindowByWebContents(popup.parent?.webContents)); }
+            catch (e) { log.debug('popup-dismiss', 'arm for action popup', e); }
+        });
+    }
+    catch (e) { log.warn('popup-dismiss', 'could not watch extension popups', e); }
 }
 
 module.exports = { register, dismissAll, arm };

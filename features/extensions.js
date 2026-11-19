@@ -136,6 +136,35 @@ class Extensions {
         this.disabled = {}; // id → { path, name, version, description, optionsUrl } for disabled extensions
         this.listeners = new Set();
         this.popups = new Set();
+        this.popupListeners = new Set(); // ipc/popup-dismiss arms on a new popup
+    }
+    /** Called with each new action popup (ipc/popup-dismiss.js arms on it). */
+    onPopupCreated(fn) { this.popupListeners.add(fn); }
+    _trackPopup(popup) {
+        this.popups.add(popup);
+        const win = popup.browserWindow;
+        try { win?.once('closed', () => this.popups.delete(popup)); }
+        catch (e) { log.debug('extensions', 'popup closed hook', e); }
+        // The library closes a popup that loses focus only while focus stays
+        // inside the app; switching to another app left it floating over
+        // whatever you switched to. Chrome closes it either way.
+        try {
+            win?.on('blur', () => setTimeout(() => {
+                try {
+                    if (popup.isDestroyed?.() || !win || win.isDestroyed() || win.isFocused())
+                        return;
+                    if (win.webContents.isDevToolsOpened())
+                        return; // inspecting the popup, as the library allows
+                    popup.destroy();
+                }
+                catch (e) { log.debug('extensions', 'popup blur close', e); }
+            }, 60));
+        }
+        catch (e) { log.debug('extensions', 'popup blur hook', e); }
+        for (const fn of this.popupListeners) {
+            try { fn(popup); }
+            catch (e) { log.debug('extensions', 'popup listener', e); }
+        }
     }
     /** Build a chrome.* host bound to one session. */
     _makeHost(session) {
@@ -154,11 +183,7 @@ class Extensions {
             }
             catch (e) { log.debug('extensions', '_makeHost', e); } },
         });
-        host.on?.('browser-action-popup-created', (popup) => {
-            this.popups.add(popup);
-            try { popup.browserWindow?.once('closed', () => this.popups.delete(popup)); }
-            catch (e) { log.debug('extensions', '_makeHost', e); }
-        });
+        host.on?.('browser-action-popup-created', (popup) => this._trackPopup(popup));
         this._trackActionClicks(host);
         // No worker wake-ups during quit, one start per worker at a time — the
         // two places Electron crashed on (features/ext-worker-guard.js).
@@ -338,12 +363,41 @@ class Extensions {
                 allowUnpackedExtensions: true,
                 autoUpdate: false, // the default session's host owns updating
                 beforeInstall: (d) => this._confirmInstall(d),
-            }).catch((e) => console.error('extensions for session:', e.message));
+            }).then(() => {
+                // The loader enables everything on disk; take back out what
+                // the user has disabled or is removing.
+                for (const id of [...Object.keys(this.disabled), ...this._readPendingRemoval()]) {
+                    try {
+                        if ((extApi(session).getAllExtensions?.() || []).some(e => e.id === id))
+                            extApi(session).removeExtension(id);
+                    }
+                    catch (e) { log.debug('extensions', 'ensureForSession unload', e); }
+                }
+            }).catch((e) => log.error('extensions', 'extensions for session', e));
         }
         catch (e) {
             console.error('ensureForSession:', e.message);
         }
         return host;
+    }
+    /** Every session extensions are loaded into: the default one and each
+     *  space/container session that has a host. */
+    _sessions() {
+        const all = new Set(this.hosts.keys());
+        if (this.session)
+            all.add(this.session);
+        return [...all];
+    }
+    /** Unload `id` from every session (a space keeps its own copy loaded). */
+    _unloadEverywhere(id) {
+        for (const s of this._sessions()) {
+            try {
+                const api = extApi(s);
+                if ((api.getAllExtensions?.() || []).some(e => e.id === id))
+                    api.removeExtension(id);
+            }
+            catch (e) { log.warn('extensions', `could not unload ${id} from a session`, e); }
+        }
     }
     /** The host that owns a webContents, by its session. */
     _hostFor(webContents) {
@@ -377,17 +431,9 @@ class Extensions {
         // get a toolbar action button.
         this.instance = this._makeHost(session);
         this.hosts.set(session, this.instance);
-        // Track live browser-action popups so the browser can close them the
-        // way browsers do (tab switch, clicking elsewhere) — the library only
-        // closes them on window blur, which misses clicks landing on
-        // WebContentsViews inside the same window.
-        this.instance.on?.('browser-action-popup-created', (popup) => {
-            this.popups.add(popup);
-            try {
-                popup.browserWindow?.once('closed', () => this.popups.delete(popup));
-            }
-            catch (e) { log.debug('extensions', 'setup', e); }
-        });
+        // (Live action popups are tracked by _makeHost for every host, so the
+        // browser can close them the way browsers do: tab switch, clicking
+        // elsewhere, switching apps — ipc/popup-dismiss.js.)
         // Serve extension icons (crx://extension-icon/...) so the toolbar
         // <browser-action-list> buttons actually render their icons.
         try {
@@ -396,6 +442,9 @@ class Extensions {
         catch (e) {
             log.error('extensions', 'handleCrx', e);
         }
+        // A removal whose files were locked last time finishes now, before
+        // the store loader would load the extension again.
+        this._finishPendingRemovals();
         // Enable Web Store install + load store-installed extensions on startup.
         await webStore.installChromeWebStore({
             session,
@@ -403,7 +452,7 @@ class Extensions {
             allowUnpackedExtensions: true,
             autoUpdate: true,
             beforeInstall: (d) => this._confirmInstall(d),
-        }).catch((e) => console.error('installChromeWebStore:', e.message));
+        }).catch((e) => log.error('extensions', 'installChromeWebStore', e));
         // Reload any persisted unpacked extensions (the web store loader only
         // manages store-installed ones).
         for (const dir of this._readUnpacked()) {
@@ -550,10 +599,10 @@ class Extensions {
         if (enabled) {
             const rec = this.disabled[id];
             if (rec?.path) {
-                try {
-                    await api.loadExtension(rec.path, LOAD_OPTIONS);
+                for (const s of this._sessions()) {
+                    try { await extApi(s).loadExtension(rec.path, LOAD_OPTIONS); }
+                    catch (e) { log.warn('extensions', `could not enable ${id} in a session`, e); }
                 }
-                catch (e) { log.debug('extensions', 'setEnabled', e); }
             }
             delete this.disabled[id];
         }
@@ -561,10 +610,9 @@ class Extensions {
             const ext = (api.getAllExtensions?.() || []).find(e => e.id === id);
             if (ext) {
                 this.disabled[id] = this._disabledRecord(ext);
-                try {
-                    api.removeExtension(id);
-                }
-                catch (e) { log.debug('extensions', 'ext', e); }
+                // Every session: a space on its own session kept running a
+                // "disabled" extension when only the default one was told.
+                this._unloadEverywhere(id);
             }
         }
         this._saveDisabled();
@@ -644,31 +692,90 @@ class Extensions {
     }
     async remove(id) {
         // Note where it lives first: once unloaded, the path is gone with it.
-        const loaded = (extApi(this.session).getAllExtensions?.() || []).find(e => e.id === id);
-        const extPath = loaded?.path || this.disabled[id]?.path || null;
+        let extPath = this.disabled[id]?.path || null;
+        for (const s of this._sessions()) {
+            const loaded = (extApi(s).getAllExtensions?.() || []).find(e => e.id === id);
+            if (loaded?.path) { extPath = loaded.path; break; }
+        }
         try { require('./ext-proxy').clear(id); }
         catch (e) { log.debug('extensions', 'remove', e); }
         require('./ext-permissions').revokeAll(id);
-        // A disabled extension isn't loaded, so uninstall would no-op — just drop it.
+        // Unload it from EVERY session first. The store copy is one folder on
+        // disk shared by all of them, and Windows will not delete a folder an
+        // extension is still loaded from: removing it from the default session
+        // alone left the files (so it came back on the next start) and left it
+        // running in every space with its own session.
+        this._unloadEverywhere(id);
         if (this.disabled[id]) {
-            this._removeUnpackedById(id, extPath);
             delete this.disabled[id];
             this._saveDisabled();
-            this._emit();
-            return true;
-        }
-        try {
-            await webStore.uninstallExtension(id, { session: this.session });
-        }
-        catch {
-            try {
-                extApi(this.session).removeExtension(id);
-            }
-            catch (e) { log.debug('extensions', 'remove', e); }
         }
         this._removeUnpackedById(id, extPath);
+        await this._deleteStoreCopy(id);
         this._emit();
         return true;
+    }
+    /**
+     * Delete a store install's folder (userData/Extensions/<id>). A worker that
+     * is still shutting down can hold a file for a moment, so retry briefly;
+     * if it still will not go, note it and finish the job at the next start,
+     * before anything loads it.
+     */
+    async _deleteStoreCopy(id) {
+        if (!/^[a-p]{32}$/.test(String(id)))
+            return; // not a store id: nothing of ours in Extensions/
+        const dir = path.join(app.getPath('userData'), 'Extensions', id);
+        for (let attempt = 0; attempt < 6; attempt++) {
+            try {
+                await fs.promises.rm(dir, { recursive: true, force: true });
+                this._setPendingRemoval(id, false);
+                return;
+            }
+            catch (e) {
+                if (attempt === 5) {
+                    log.warn('extensions', `could not delete ${id}'s files yet; they go at the next start`, e);
+                    this._setPendingRemoval(id, true);
+                    return;
+                }
+                await new Promise(r => setTimeout(r, 250));
+            }
+        }
+    }
+    _pendingRemovalFile() { return path.join(app.getPath('userData'), 'extensions-pending-removal.json'); }
+    _readPendingRemoval() {
+        try {
+            const a = JSON.parse(fs.readFileSync(this._pendingRemovalFile(), 'utf-8'));
+            return Array.isArray(a) ? a : [];
+        }
+        catch (e) {
+            if (e.code !== 'ENOENT')
+                log.debug('extensions', 'pending removal read', e);
+            return [];
+        }
+    }
+    _setPendingRemoval(id, pending) {
+        const list = this._readPendingRemoval().filter(x => x !== id);
+        if (pending)
+            list.push(id);
+        try {
+            if (list.length)
+                fs.writeFileSync(this._pendingRemovalFile(), JSON.stringify(list));
+            else
+                fs.rmSync(this._pendingRemovalFile(), { force: true });
+        }
+        catch (e) { log.warn('extensions', 'could not record a pending removal', e); }
+    }
+    /** At startup, before the store loader runs: finish removals that failed. */
+    _finishPendingRemovals() {
+        for (const id of this._readPendingRemoval()) {
+            if (!/^[a-p]{32}$/.test(String(id)))
+                continue;
+            try {
+                fs.rmSync(path.join(app.getPath('userData'), 'Extensions', id), { recursive: true, force: true });
+                this._setPendingRemoval(id, false);
+            }
+            catch (e) { log.warn('extensions', `still could not delete ${id}'s files`, e); }
+        }
     }
     // ── Unpacked registry ──────────────────────────────────────────────────────
     _readUnpacked() {

@@ -150,6 +150,8 @@ async function showNext(wd) {
     view.setBounds(panelBounds(wd.window, { anchor: wd.permAnchor, align: 'left', width: PANEL_W, height: 150 }));
     view.setVisible(true);
     wd.permShownAt = Date.now();
+    try { require('../ipc/popup-dismiss').arm(wd); } // a press outside parks it
+    catch (e) { log.debug('permission-ui', 'arm', e); }
     view.webContents.send('permission-data', { id: item.id, ...item.data });
     chip(wd, { tab: item.tab, state: 'pending', iconType: item.data.iconType || 'generic' });
     try {
@@ -268,4 +270,9 @@ function register(ipcMain, { wm }) {
     });
 }
 
-module.exports = { init, request, register };
+/** Click-away from ipc/popup-dismiss.js: park the showing request. */
+function dismiss(wd) {
+    if (wd?.permShowing)
+        decide(wd.permShowing, false, false, true);
+}
+module.exports = { init, request, register, dismiss };

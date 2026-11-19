@@ -140,6 +140,7 @@ function register(ipcMain, { wm }) {
             }
             catch (e) { log.debug('passwords', 'showPrompt', e); }
             wd.passwordPrompt.setVisible(true);
+            require('./popup-dismiss').arm(wd); // a press outside closes it
             wd.passwordPrompt.webContents.send('password-prompt-data', data);
         }
         catch (err) {

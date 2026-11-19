@@ -655,8 +655,9 @@
                 toggle.className = 'toggle';
                 toggle.title = ext.enabled ? 'Disable' : 'Enable';
                 toggle.innerHTML = `<input type="checkbox" ${ext.enabled ? 'checked' : ''}><span class="switch-track"></span>`;
-                toggle.querySelector('input').addEventListener('change', (e) => {
-                    window.northstarExtensions.setEnabled(ext.id, e.target.checked);
+                toggle.querySelector('input').addEventListener('change', async (e) => {
+                    await window.northstarExtensions.setEnabled(ext.id, e.target.checked);
+                    refreshExtensions();
                 });
                 controls.appendChild(toggle);
                 const removeBtn = document.createElement('button');
@@ -665,7 +666,15 @@
                 removeBtn.addEventListener('click', async () => {
                     if (!confirm(`Remove "${ext.name}"?`))
                         return;
-                    await window.northstarExtensions.remove(ext.id);
+                    removeBtn.disabled = true;
+                    try {
+                        await window.northstarExtensions.remove(ext.id);
+                        showToast(`Removed "${ext.name}"`);
+                    }
+                    catch (err) {
+                        extShowError(`Could not remove "${ext.name}": ${err.message || err}`);
+                    }
+                    refreshExtensions();
                 });
                 controls.appendChild(removeBtn);
                 row.appendChild(icon);
@@ -731,6 +740,11 @@
         idInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter')
             installIdBtn.click(); });
         window.northstarExtensions?.onChanged(() => refreshExtensions());
+        // Coming back to this tab re-reads the list, so it can never sit stale.
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible')
+                refreshExtensions();
+        });
         refreshExtensions();
         // ── Data: import / export ─────────────────────────────────────────────
         const report = (res, verb, noun) => {

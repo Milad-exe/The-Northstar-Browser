@@ -67,7 +67,14 @@
                 }
             };
             document.addEventListener('mousedown', handler, true);
-            dropdownCleanup = () => document.removeEventListener('mousedown', handler, true);
+            // A press on a page (its own native view) or in another app never
+            // reaches this document; the chrome losing focus is the signal.
+            const onBlur = () => closeDropdown();
+            window.addEventListener('blur', onBlur);
+            dropdownCleanup = () => {
+                document.removeEventListener('mousedown', handler, true);
+                window.removeEventListener('blur', onBlur);
+            };
         }
         // ── Dropdown item builder ─────────────────────────────────────────────────
         function makeDropdownItem(entry, parentFolderId) {

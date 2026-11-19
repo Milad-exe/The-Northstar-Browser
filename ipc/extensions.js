@@ -629,6 +629,21 @@ function register(ipcMain, { wm }) {
     catch (e) { log.debug('extensions', 'setGapHandlers', e); }
     registerFrameGapHandlers(ipcMain, wm);
     extensions.onChanged(() => {
+        // Open Settings pages too: they are tabs, not the chrome, and never
+        // heard about a change — a Settings tab restored at startup showed
+        // "No extensions installed" for good, and Remove looked like it did
+        // nothing because the list never redrew.
+        try {
+            const { webContents } = require('electron');
+            for (const wc of webContents.getAllWebContents()) {
+                try {
+                    if (!wc.isDestroyed() && /\/renderer\/Settings\/index\.html/i.test(wc.getURL()) && isTrustedInternalSender(wc))
+                        wc.send('extensions-changed');
+                }
+                catch (e) { log.debug('extensions', 'notify settings page', e); }
+            }
+        }
+        catch (e) { log.debug('extensions', 'notify settings pages', e); }
         for (const wd of wm.getAllWindows()) {
             try {
                 wd.window.webContents.send('extensions-changed');
